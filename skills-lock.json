@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "wow-addon-dev": {
+      "source": "dinasor/wowar",
+      "sourceType": "github",
+      "skillPath": ".cursor/skills/wow-addon-dev/SKILL.md",
+      "computedHash": "9a97970979d3f0449ed8eb0ed190dc1aaa76088c00bcd9b65261e729b3796d92"
+    },
+    "wow-api-escape-sequences": {
+      "source": "jburlison/wowaddonapiagents",
+      "sourceType": "github",
+      "skillPath": ".github/skills/wow-api-escape-sequences/SKILL.md",
+      "computedHash": "c68327f19b82298b19799c2cb5865e5a97a15d6e77a7541cdec842c4210ee575"
+    },
+    "wow-api-framexml": {
+      "source": "jburlison/wowaddonapiagents",
+      "sourceType": "github",
+      "skillPath": ".github/skills/wow-api-framexml/SKILL.md",
+      "computedHash": "5257581ec023bcd1c4c8455ecc31c49f07b8f57b96513e8e61930e0ecc1900dd"
+    },
+    "wow-api-widget": {
+      "source": "jburlison/wowaddonapiagents",
+      "sourceType": "github",
+      "skillPath": ".github/skills/wow-api-widget/SKILL.md",
+      "computedHash": "7053a4537e71f1ba8786d092acc4af811ee99997c23d50da7675d7372898a5c3"
+    }
+  }
+}
