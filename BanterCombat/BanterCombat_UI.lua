@@ -4,14 +4,17 @@ ns.UI = ns.UI or {}
 
 local UI = ns.UI
 local Data = ns.Data
-local L = ns.L
 
 local queue = {}
 local showing = false
 local hideTicker
-local animGroup
+local enterGroup
+local generation = 0
 
 local function colorize(text, hex)
+  if not text or text == "" then
+    return ""
+  end
   if WrapTextInColorCode then
     return WrapTextInColorCode(text, hex)
   end
@@ -23,7 +26,6 @@ local function classIconMarkup(classToken)
     return ""
   end
   local c = CLASS_ICON_TCOORDS[classToken]
-  -- file 256x256 typically; coords are 0-1
   local l, r, t, b = c[1], c[2], c[3], c[4]
   if CreateTextureMarkup then
     return CreateTextureMarkup(
@@ -33,7 +35,10 @@ local function classIconMarkup(classToken)
   end
   return string.format(
     "|TInterface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES:14:14:0:0:256:256:%d:%d:%d:%d|t ",
-    math.floor(l * 256), math.floor(r * 256), math.floor(t * 256), math.floor(b * 256)
+    math.floor(l * 256 + 0.5),
+    math.floor(r * 256 + 0.5),
+    math.floor(t * 256 + 0.5),
+    math.floor(b * 256 + 0.5)
   )
 end
 
@@ -58,32 +63,37 @@ local function stopHide()
   end
 end
 
-local function ensureAnim(frame)
-  if animGroup then
-    return animGroup
+local function ensureEnterAnim(frame)
+  if enterGroup then
+    return enterGroup
   end
-  animGroup = frame:CreateAnimationGroup()
-  local trans = animGroup:CreateAnimation("Translation")
-  trans:SetOffset(0, 18)
-  trans:SetDuration(0.28)
-  trans:SetSmoothing("OUT")
-  trans:SetOrder(1)
-  local alpha = animGroup:CreateAnimation("Alpha")
-  if alpha.SetFromAlpha then
-    alpha:SetFromAlpha(0)
-    alpha:SetToAlpha(1)
+  enterGroup = frame:CreateAnimationGroup()
+  local scale = enterGroup:CreateAnimation("Scale")
+  if scale.SetScaleFrom then
+    scale:SetScaleFrom(0.92, 0.92)
+    scale:SetScaleTo(1.0, 1.0)
+  elseif scale.SetFromScale then
+    scale:SetFromScale(0.92, 0.92)
+    scale:SetToScale(1.0, 1.0)
   else
-    alpha:SetChange(1)
+    -- Classic-style relative scale change toward 1
+    scale:SetOrigin("CENTER", 0, 0)
+    if scale.SetScale then
+      scale:SetScale(1.08, 1.08)
+    end
   end
-  alpha:SetDuration(0.28)
-  alpha:SetOrder(1)
-  return animGroup
+  scale:SetDuration(0.22)
+  scale:SetSmoothing("OUT")
+  scale:SetOrder(1)
+  return enterGroup
 end
 
 local function applyPortrait(frame, unitOrNil, classToken, useModel)
   if frame.Model then
     frame.Model:Hide()
-    frame.Model:ClearModel()
+    if frame.Model.ClearModel then
+      frame.Model:ClearModel()
+    end
   end
   if frame.Portrait then
     frame.Portrait:Show()
@@ -114,6 +124,7 @@ local function applyPortrait(frame, unitOrNil, classToken, useModel)
   end
   if unitOrNil and UnitExists(unitOrNil) then
     SetPortraitTexture(texture, unitOrNil)
+    texture:SetTexCoord(0, 1, 0, 1)
     return
   end
   local coords = CLASS_ICON_TCOORDS and classToken and CLASS_ICON_TCOORDS[classToken]
@@ -146,7 +157,9 @@ function BanterCombat_SavePopupPosition(frame)
     return
   end
   local point, _, relPoint, x, y = frame:GetPoint(1)
-  s.point, s.relPoint, s.x, s.y = point, relPoint, x, y
+  if point then
+    s.point, s.relPoint, s.x, s.y = point, relPoint, x, y
+  end
 end
 
 local function playShowSound(kind)
@@ -154,13 +167,34 @@ local function playShowSound(kind)
   if not s or not s.sound then
     return
   end
-  local id = 888 -- level up-ish classic fallback
+  -- Classic-friendly named sounds first
+  local name = "igMainMenuOptionCheckBoxOn"
   if kind == "revenge" or kind == "milestone" then
-    id = 12891 -- raid warning feel / classic may remap
+    name = "RaidWarning"
   elseif kind == "death" then
-    id = 8959
+    name = "igQuestFailed"
+  elseif kind == "kill" then
+    name = "LEVELUPSOUND"
   end
-  pcall(PlaySound, id)
+  if not pcall(PlaySound, name) then
+    pcall(PlaySound, 888)
+  end
+end
+
+local function tintEdge(frame, kind, rarity)
+  if not frame.EdgeGlow then
+    return
+  end
+  local hex = rarityHex(kind, rarity)
+  local r = (tonumber(hex:sub(3, 4), 16) or 180) / 255
+  local g = (tonumber(hex:sub(5, 6), 16) or 180) / 255
+  local b = (tonumber(hex:sub(7, 8), 16) or 180) / 255
+  if frame.EdgeGlow.SetColorTexture then
+    frame.EdgeGlow:SetColorTexture(r, g, b, 0.28)
+  else
+    frame.EdgeGlow:SetTexture("Interface\\Buttons\\WHITE8X8")
+    frame.EdgeGlow:SetVertexColor(r, g, b, 0.28)
+  end
 end
 
 local function showNow(payload)
@@ -171,14 +205,19 @@ local function showNow(payload)
   end
   local s = ns.Options and ns.Options.Get and ns.Options.Get() or {}
   local duration = tonumber(s.duration) or 4
+  generation = generation + 1
+  local myGen = generation
 
   stopHide()
-  UIFrameFadeRemoveFrame(frame)
+  if UIFrameFadeRemoveFrame then
+    UIFrameFadeRemoveFrame(frame)
+  end
   UI.ApplySavedPosition()
 
   local kind = payload.kind or "kill"
   local rarity = payload.rarity or "common"
   local hex = rarityHex(kind, rarity)
+  tintEdge(frame, kind, rarity)
 
   if frame.Badge then
     if payload.badge and payload.badge ~= "" then
@@ -199,29 +238,37 @@ local function showNow(payload)
   local speaker = payload.speaker or UnitName("player") or "?"
   local icon = classIconMarkup(payload.class)
   if frame.Speaker then
-    frame.Speaker:SetText(icon .. colorize(speaker, hex))
+    local tag = ""
+    if rarity and rarity ~= "common" and kind ~= "revenge" and kind ~= "milestone" then
+      tag = " " .. colorize("[" .. rarity .. "]", hex)
+    end
+    frame.Speaker:SetText(icon .. colorize(speaker, hex) .. tag)
   end
   if frame.Text then
     frame.Text:SetText(colorize(payload.text or "", hex))
   end
 
-  applyPortrait(frame, payload.unit, payload.class, s.useModel)
+  applyPortrait(frame, payload.unit, payload.class, s.useModel ~= false)
 
   frame:SetAlpha(0)
   frame:Show()
-  local ag = ensureAnim(frame)
+  local ag = ensureEnterAnim(frame)
   ag:Stop()
-  frame:SetAlpha(1)
   ag:Play()
-  -- also soft fade-in if alpha anim unsupported
-  UIFrameFadeIn(frame, 0.2, 0, 1)
+  UIFrameFadeIn(frame, 0.22, 0, 1)
   playShowSound(kind)
 
   hideTicker = C_Timer.NewTimer(duration, function()
     hideTicker = nil
+    if myGen ~= generation then
+      return
+    end
     if frame:IsShown() then
-      UIFrameFadeOut(frame, 0.55, frame:GetAlpha(), 0)
-      C_Timer.After(0.6, function()
+      UIFrameFadeOut(frame, 0.5, frame:GetAlpha(), 0)
+      C_Timer.After(0.55, function()
+        if myGen ~= generation then
+          return
+        end
         frame:Hide()
         frame:SetAlpha(1)
         showing = false
@@ -251,26 +298,30 @@ function UI.Enqueue(payload)
   if s and s.enabled == false then
     return
   end
+  if s and s.showDeaths == false and payload and payload.kind == "death" then
+    return
+  end
   queue[#queue + 1] = payload
-  -- cap queue
   while #queue > 8 do
     table.remove(queue, 1)
   end
   UI.Pump()
 end
 
--- Back-compat
 function UI.Show(payload)
   UI.Enqueue(payload)
 end
 
 function UI.HideNow()
+  generation = generation + 1
   stopHide()
   wipe(queue)
   showing = false
   local frame = BanterCombatPopup
   if frame then
-    UIFrameFadeRemoveFrame(frame)
+    if UIFrameFadeRemoveFrame then
+      UIFrameFadeRemoveFrame(frame)
+    end
     frame:Hide()
     frame:SetAlpha(1)
   end

@@ -9,10 +9,15 @@ local DEFAULTS = {
   enabled = true,
   syncWhisper = true,
   syncGroup = true,
+  showGroupBanter = true,
+  showDeaths = true,
   sound = true,
   useModel = true,
   duration = 4.0,
   pvpOnly = false,
+  hostileOnly = true,
+  chatAnnounce = false,
+  debug = false,
   point = "BOTTOM",
   relPoint = "BOTTOM",
   x = 0,
@@ -42,8 +47,7 @@ function Options.Get()
 end
 
 function Options.Set(key, value)
-  local s = Options.Get()
-  s[key] = value
+  Options.Get()[key] = value
 end
 
 function Options.ResetPosition()
@@ -54,22 +58,32 @@ function Options.ResetPosition()
   end
 end
 
-------------------------------------------------------------
--- Simple options frame
-------------------------------------------------------------
 local panel
+local checks = {}
 
 local function makeCheck(parent, label, key, y)
   local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
   cb:SetPoint("TOPLEFT", 16, y)
-  cb:SetChecked(Options.Get()[key])
+  cb._banterKey = key
   local text = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
   text:SetPoint("LEFT", cb, "RIGHT", 4, 0)
   text:SetText(label)
+  text:SetWidth(280)
+  text:SetJustifyH("LEFT")
   cb:SetScript("OnClick", function(self)
     Options.Set(key, self:GetChecked() and true or false)
   end)
+  checks[#checks + 1] = cb
   return cb
+end
+
+local function refreshChecks()
+  local s = Options.Get()
+  for _, cb in ipairs(checks) do
+    if cb._banterKey then
+      cb:SetChecked(s[cb._banterKey] and true or false)
+    end
+  end
 end
 
 function Options.TogglePanel()
@@ -79,7 +93,7 @@ function Options.TogglePanel()
   end
   if not panel then
     panel = CreateFrame("Frame", "BanterCombatOptions", UIParent)
-    panel:SetSize(360, 280)
+    panel:SetSize(380, 400)
     panel:SetPoint("CENTER")
     panel:SetFrameStrata("DIALOG")
     panel:EnableMouse(true)
@@ -96,24 +110,31 @@ function Options.TogglePanel()
       })
     end
     local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", 0, -16)
+    title:SetPoint("TOP", 0, -14)
     title:SetText(L.OPT_TITLE)
 
-    makeCheck(panel, L.OPT_ENABLE, "enabled", -44)
-    makeCheck(panel, L.OPT_SYNC, "syncWhisper", -72)
-    makeCheck(panel, L.OPT_GROUP, "syncGroup", -100)
-    makeCheck(panel, L.OPT_SOUND, "sound", -128)
-    makeCheck(panel, L.OPT_MODEL, "useModel", -156)
-    makeCheck(panel, L.OPT_PVP_ONLY, "pvpOnly", -184)
+    makeCheck(panel, L.OPT_ENABLE, "enabled", -40)
+    makeCheck(panel, L.OPT_SYNC, "syncWhisper", -64)
+    makeCheck(panel, L.OPT_GROUP, "syncGroup", -88)
+    makeCheck(panel, L.OPT_SHOW_GROUP, "showGroupBanter", -112)
+    makeCheck(panel, L.OPT_SHOW_DEATHS, "showDeaths", -136)
+    makeCheck(panel, L.OPT_SOUND, "sound", -160)
+    makeCheck(panel, L.OPT_MODEL, "useModel", -184)
+    makeCheck(panel, L.OPT_PVP_ONLY, "pvpOnly", -208)
+    makeCheck(panel, L.OPT_HOSTILE, "hostileOnly", -232)
+    makeCheck(panel, L.OPT_CHAT, "chatAnnounce", -256)
+    makeCheck(panel, L.OPT_DEBUG, "debug", -280)
 
     local durLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    durLabel:SetPoint("TOPLEFT", 24, -218)
+    durLabel:SetPoint("TOPLEFT", 24, -318)
     durLabel:SetText(L.OPT_DURATION)
     local slider = CreateFrame("Slider", "BanterCombatDurSlider", panel, "OptionsSliderTemplate")
-    slider:SetPoint("TOPLEFT", 160, -220)
+    slider:SetPoint("TOPLEFT", 170, -320)
     slider:SetMinMaxValues(2, 8)
     slider:SetValueStep(0.5)
-    slider:SetObeyStepOnDrag(true)
+    if slider.SetObeyStepOnDrag then
+      slider:SetObeyStepOnDrag(true)
+    end
     slider:SetWidth(160)
     slider:SetValue(Options.Get().duration or 4)
     _G[slider:GetName() .. "Low"]:SetText("2")
@@ -127,7 +148,7 @@ function Options.TogglePanel()
 
     local reset = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     reset:SetSize(140, 22)
-    reset:SetPoint("BOTTOMLEFT", 16, 16)
+    reset:SetPoint("BOTTOMLEFT", 16, 14)
     reset:SetText(L.OPT_RESET_POS)
     reset:SetScript("OnClick", function()
       Options.ResetPosition()
@@ -135,7 +156,7 @@ function Options.TogglePanel()
 
     local close = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     close:SetSize(80, 22)
-    close:SetPoint("BOTTOMRIGHT", -16, 16)
+    close:SetPoint("BOTTOMRIGHT", -16, 14)
     close:SetText(L.OPT_CLOSE)
     close:SetScript("OnClick", function()
       panel:Hide()
@@ -143,7 +164,15 @@ function Options.TogglePanel()
 
     panel:Hide()
   end
-  -- refresh checks
+  refreshChecks()
+  local slider = _G.BanterCombatDurSlider
+  if slider then
+    local d = Options.Get().duration or 4
+    slider:SetValue(d)
+    if _G[slider:GetName() .. "Text"] then
+      _G[slider:GetName() .. "Text"]:SetText(string.format("%.1f", d))
+    end
+  end
   panel:Show()
 end
 

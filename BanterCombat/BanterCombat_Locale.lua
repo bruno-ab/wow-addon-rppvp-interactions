@@ -6,7 +6,7 @@ local locale = GetLocale and GetLocale() or "enUS"
 
 local ptBR = {
   LOADED = "BanterCombat carregado. /banter help",
-  HELP = "comandos: test, revenge, milestone, stats, config, queue, hide, help",
+  HELP = "comandos: test, revenge, milestone, stats, config, queue, hide, debug, history, ignore, help",
   REVENGE = "VINGANÇA",
   MILESTONE = "CONQUISTA · %d %s",
   OPT_TITLE = "BanterCombat — Opções",
@@ -19,14 +19,21 @@ local ptBR = {
   OPT_PVP_ONLY = "Só em flag PvP / campo de batalha",
   OPT_RESET_POS = "Resetar posição do frame",
   OPT_CLOSE = "Fechar",
+  OPT_SHOW_GROUP = "Mostrar banters do grupo",
+  OPT_SHOW_DEATHS = "Mostrar pop-ups de morte",
+  OPT_HOSTILE = "Só inimigos (não duelo amigo)",
+  OPT_CHAT = "Espelhar fala no chat (emote)",
+  OPT_DEBUG = "Debug",
   STATS = "Kills=%d Deaths=%d",
   LAST_KILLER = "Último killer: %s (%s / %s)",
   QUEUE = "Fila: %d",
+  TOP_RACE = "Top raças:",
+  TOP_CLASS = "Top classes:",
 }
 
 local enUS = {
   LOADED = "BanterCombat loaded. /banter help",
-  HELP = "commands: test, revenge, milestone, stats, config, queue, hide, help",
+  HELP = "commands: test, revenge, milestone, stats, config, queue, hide, debug, history, ignore, help",
   REVENGE = "REVENGE",
   MILESTONE = "ACHIEVEMENT · %d %s",
   OPT_TITLE = "BanterCombat — Options",
@@ -39,9 +46,16 @@ local enUS = {
   OPT_PVP_ONLY = "Only while PvP flagged / in battleground",
   OPT_RESET_POS = "Reset frame position",
   OPT_CLOSE = "Close",
+  OPT_SHOW_GROUP = "Show group banters",
+  OPT_SHOW_DEATHS = "Show death popups",
+  OPT_HOSTILE = "Hostile only (skip friendly duels)",
+  OPT_CHAT = "Mirror line to chat (emote)",
+  OPT_DEBUG = "Debug",
   STATS = "Kills=%d Deaths=%d",
   LAST_KILLER = "Last killer: %s (%s / %s)",
   QUEUE = "Queue: %d",
+  TOP_RACE = "Top races:",
+  TOP_CLASS = "Top classes:",
 }
 
 local catalogs = {

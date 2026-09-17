@@ -10,9 +10,14 @@ local L = ns.L
 local PREFIX = "BANTER_MSG"
 local PROTOCOL = "v2"
 local PROTOCOL_MIN = 1
+local MSG_TEXT_MAX = 180
+local MSG_BADGE_MAX = 48
+local HISTORY_MAX = 20
 
 local playerGUID
 local eventFrame
+local pruneCounter = 0
+local history = {}
 
 -- Hot-path locals
 local band = bit.band
@@ -26,11 +31,61 @@ local UnitRace = UnitRace
 local UnitExists = UnitExists
 local CombatLogGetCurrentEventInfo = CombatLogGetCurrentEventInfo
 local find = string.find
+local sub = string.sub
+local len = string.len
 
 local COMBATLOG_OBJECT_TYPE_PLAYER = COMBATLOG_OBJECT_TYPE_PLAYER or 0x00000400
+local COMBATLOG_OBJECT_REACTION_FRIENDLY = COMBATLOG_OBJECT_REACTION_FRIENDLY or 0x00000010
+local COMBATLOG_OBJECT_REACTION_HOSTILE = COMBATLOG_OBJECT_REACTION_HOSTILE or 0x00000040
 
 local recentEvents = {} -- key -> GetTime()
 local DEDUP_WINDOW = 1.5
+local ignoredNames = {} -- Ambiguate(name) -> true
+
+------------------------------------------------------------
+-- Debug / history
+------------------------------------------------------------
+local function Debug(...)
+  local s = Options.Get()
+  if not s or not s.debug then
+    return
+  end
+  local parts = { ... }
+  for i = 1, #parts do
+    parts[i] = tostring(parts[i])
+  end
+  print("|cFF66CCFFBanterCombat|r " .. table.concat(parts, " "))
+end
+
+local function PushHistory(kind, text, speaker)
+  history[#history + 1] = {
+    t = time(),
+    kind = kind or "?",
+    speaker = speaker or "?",
+    text = text or "",
+  }
+  while #history > HISTORY_MAX do
+    table.remove(history, 1)
+  end
+end
+
+local function Truncate(str, maxLen)
+  str = tostring(str or "")
+  if len(str) <= maxLen then
+    return str
+  end
+  return sub(str, 1, maxLen - 3) .. "..."
+end
+
+local function SanitizeField(str, maxLen)
+  str = tostring(str or "")
+  -- Strip WoW escape sequences that could break chat/UI, and pipe (protocol sep)
+  str = str:gsub("|", "/")
+  str = str:gsub("[\001-\031]", " ")
+  str = str:gsub("%s+", " ")
+  str = str:match("^%s*(.-)%s*$") or str
+  return Truncate(str, maxLen)
+end
 
 ------------------------------------------------------------
 -- Compat messaging
@@ -85,6 +140,26 @@ local function IsPlayerFlags(flags)
   return flags and band(flags, COMBATLOG_OBJECT_TYPE_PLAYER) > 0
 end
 
+local function IsHostileFlags(flags)
+  if not flags then
+    return true
+  end
+  if band(flags, COMBATLOG_OBJECT_REACTION_HOSTILE) > 0 then
+    return true
+  end
+  if band(flags, COMBATLOG_OBJECT_REACTION_FRIENDLY) > 0 then
+    return false
+  end
+  return true
+end
+
+local function IsIgnored(name)
+  if not name or name == "" then
+    return false
+  end
+  return ignoredNames[Ambiguate(name, "none")] == true
+end
+
 local function SeenRecently(key)
   local now = GetTime()
   local last = recentEvents[key]
@@ -92,8 +167,9 @@ local function SeenRecently(key)
     return true
   end
   recentEvents[key] = now
-  -- prune occasionally
-  if now % 8 < 0.05 then
+  pruneCounter = pruneCounter + 1
+  if pruneCounter >= 32 then
+    pruneCounter = 0
     for k, t in pairs(recentEvents) do
       if now - t > 10 then
         recentEvents[k] = nil
@@ -180,6 +256,16 @@ local function FormatTemplate(text, ctx)
   text = text:gsub("{class}", classLabel)
   text = text:gsub("{name}", ctx.name or "?")
   return text
+end
+
+local function MaybeChatAnnounce(text)
+  local s = Options.Get()
+  if not s.chatAnnounce or not text or text == "" then
+    return
+  end
+  if SendChatMessage then
+    pcall(SendChatMessage, Truncate(text, 240), "EMOTE")
+  end
 end
 
 ------------------------------------------------------------
@@ -271,19 +357,17 @@ end
 -- Also accepts v1 for older clients
 ------------------------------------------------------------
 local function EncodeMessage(speaker, race, class, kind, rarity, badge, text)
-  local clean = tostring(text or ""):gsub("|", "/")
-  badge = tostring(badge or ""):gsub("|", "/")
   return table.concat({
     PROTOCOL,
     "SHOW",
     "2",
-    speaker or "?",
-    race or "",
-    class or "",
-    kind or "kill",
-    rarity or "common",
-    badge,
-    clean,
+    SanitizeField(speaker or "?", 48),
+    SanitizeField(race or "", 24),
+    SanitizeField(class or "", 24),
+    SanitizeField(kind or "kill", 16),
+    SanitizeField(rarity or "common", 16),
+    SanitizeField(badge, MSG_BADGE_MAX),
+    SanitizeField(text, MSG_TEXT_MAX),
   }, "\031")
 end
 
@@ -325,6 +409,7 @@ local function DecodeMessage(msg)
 end
 
 local function Present(payload, unit)
+  PushHistory(payload.kind, payload.text, payload.speaker)
   UI.Enqueue({
     speaker = payload.speaker,
     text = payload.text,
@@ -340,11 +425,20 @@ end
 ------------------------------------------------------------
 -- Combat resolution
 ------------------------------------------------------------
-local function OnPlayerKill(victim)
+local function OnPlayerKill(victim, destFlags)
   if not victim or not victim.name then
     return
   end
-  if not Options.Get().enabled then
+  local s = Options.Get()
+  if not s.enabled then
+    return
+  end
+  if IsIgnored(victim.name) then
+    Debug("skip kill: ignored", victim.name)
+    return
+  end
+  if s.hostileOnly and not IsHostileFlags(destFlags) then
+    Debug("skip kill: not hostile", victim.name)
     return
   end
   local dedupKey = "kill:" .. (victim.guid or victim.name)
@@ -370,17 +464,31 @@ local function OnPlayerKill(victim)
     text = text,
   }
 
+  Debug("kill", victim.name, payload.kind, rarity)
   Present(payload, "player")
+  MaybeChatAnnounce(text)
   BroadcastPayload(EncodeMessage(
     payload.speaker, payload.race, payload.class, payload.kind, payload.rarity, payload.badge, payload.text
   ), victim.name)
 end
 
 local function OnPlayerDeath(killer)
-  if not Options.Get().enabled then
+  local s = Options.Get()
+  if not s.enabled then
+    return
+  end
+  if s.showDeaths == false then
+    if killer then
+      Stats.RecordDeathBy(killer)
+    end
     return
   end
   if SeenRecently("death:" .. (playerGUID or "self")) then
+    return
+  end
+  if killer and IsIgnored(killer.name) then
+    Stats.RecordDeathBy(killer)
+    Debug("death recorded, popup skipped (ignored)", killer.name)
     return
   end
   Stats.RecordDeathBy(killer)
@@ -395,7 +503,9 @@ local function OnPlayerDeath(killer)
     badge = nil,
     text = text,
   }
+  Debug("death", killer and killer.name or "?", rarity)
   Present(payload, "player")
+  MaybeChatAnnounce(text)
   if killer and killer.name then
     BroadcastPayload(EncodeMessage(
       payload.speaker, payload.race, payload.class, payload.kind, payload.rarity, "", payload.text
@@ -404,6 +514,10 @@ local function OnPlayerDeath(killer)
 end
 
 local function HandleCombatLog()
+  local s = Options.Get()
+  if not s.enabled then
+    return
+  end
   if not IsPvPContextAllowed() then
     return
   end
@@ -429,7 +543,7 @@ local function HandleCombatLog()
         victim.race = victim.race or race
         victim.name = victim.name or UnitName("target")
       end
-      OnPlayerKill(victim)
+      OnPlayerKill(victim, destFlags)
     end
     return
   end
@@ -448,6 +562,9 @@ local function HandleCombatLog()
     if subevent == "SWING_DAMAGE" or subevent == "RANGE_DAMAGE"
       or subevent == "SPELL_DAMAGE" or subevent == "SPELL_PERIODIC_DAMAGE"
       or (type(subevent) == "string" and find(subevent, "_DAMAGE", 1, true)) then
+      if s.hostileOnly and not IsHostileFlags(sourceFlags) then
+        return
+      end
       ns._lastHostileAttacker = InfoFromGUID(sourceGUID) or {
         name = sourceName,
         guid = sourceGUID,
@@ -463,7 +580,8 @@ local function OnAddonMessage(prefix, message, channel, sender)
   if prefix ~= PREFIX then
     return
   end
-  if not Options.Get().enabled then
+  local s = Options.Get()
+  if not s.enabled then
     return
   end
   local data = DecodeMessage(message)
@@ -473,11 +591,25 @@ local function OnAddonMessage(prefix, message, channel, sender)
   if sender and Ambiguate(sender, "none") == Ambiguate(UnitName("player"), "none") then
     return
   end
-  -- Dedup remote shows
+  if IsIgnored(sender) or IsIgnored(data.speaker) then
+    Debug("remote skipped (ignored)", sender)
+    return
+  end
+  -- Group channel filter
+  if channel == "PARTY" or channel == "RAID" or channel == "INSTANCE_CHAT" then
+    if s.showGroupBanter == false then
+      Debug("remote group skipped")
+      return
+    end
+  end
+  if data.kind == "death" and s.showDeaths == false then
+    return
+  end
   local key = "remote:" .. (sender or "?") .. ":" .. (data.text or "")
   if SeenRecently(key) then
     return
   end
+  Debug("remote", channel, sender, data.kind)
   Present({
     speaker = data.speaker,
     text = data.text,
@@ -489,6 +621,31 @@ local function OnAddonMessage(prefix, message, channel, sender)
   }, nil)
 end
 
+local function PrintTopMap(title, map, labelLookup, limit)
+  if type(map) ~= "table" then
+    return
+  end
+  local rows = {}
+  for k, v in pairs(map) do
+    rows[#rows + 1] = { key = k, n = v }
+  end
+  table.sort(rows, function(a, b)
+    if a.n == b.n then
+      return a.key < b.key
+    end
+    return a.n > b.n
+  end)
+  if #rows == 0 then
+    return
+  end
+  print("  " .. title)
+  for i = 1, math.min(limit or 5, #rows) do
+    local row = rows[i]
+    local label = (labelLookup and labelLookup[row.key]) or row.key
+    print(string.format("    %d. %s — %d", i, label, row.n))
+  end
+end
+
 local function OnEvent(_, event, ...)
   if event == "ADDON_LOADED" then
     local name = ...
@@ -498,13 +655,15 @@ local function OnEvent(_, event, ...)
     Stats.GetDB()
     Options.Get()
     RegisterPrefix(PREFIX)
-  elseif event == "PLAYER_LOGIN" then
+  elseif event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
     playerGUID = UnitGUID("player")
-    math.randomseed(time() + (playerGUID and tonumber(playerGUID:sub(-6), 16) or 0))
-    if UI.ApplySavedPosition then
-      UI.ApplySavedPosition()
+    if event == "PLAYER_LOGIN" then
+      math.randomseed(time() + (playerGUID and tonumber(playerGUID:sub(-6), 16) or 0))
+      if UI.ApplySavedPosition then
+        UI.ApplySavedPosition()
+      end
+      print("|cFFFFD100BanterCombat|r " .. L.LOADED)
     end
-    print("|cFFFFD100BanterCombat|r " .. L.LOADED)
   elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
     HandleCombatLog()
   elseif event == "CHAT_MSG_ADDON" then
@@ -515,6 +674,7 @@ end
 eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
+eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 eventFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 eventFrame:RegisterEvent("CHAT_MSG_ADDON")
 eventFrame:SetScript("OnEvent", OnEvent)
@@ -522,8 +682,12 @@ eventFrame:SetScript("OnEvent", OnEvent)
 SLASH_BANTERCOMBAT1 = "/banter"
 SLASH_BANTERCOMBAT2 = "/bantercombat"
 SlashCmdList.BANTERCOMBAT = function(msg)
-  msg = (msg or ""):lower():match("^%s*(.-)%s*$")
-  if msg == "test" or msg == "kill" then
+  msg = (msg or ""):match("^%s*(.-)%s*$") or ""
+  local cmd, rest = msg:match("^(%S+)%s*(.-)$")
+  cmd = (cmd or ""):lower()
+  rest = rest or ""
+
+  if cmd == "test" or cmd == "kill" then
     local victim = { name = "AlvoTeste", race = "Orc", class = "MAGE" }
     local text, rarity, badge = SelectKillSpeech(victim, false, nil, nil, nil)
     Present({
@@ -534,7 +698,7 @@ SlashCmdList.BANTERCOMBAT = function(msg)
       kind = badge and "milestone" or "kill",
       rarity = rarity,
     }, "player")
-  elseif msg == "revenge" then
+  elseif cmd == "revenge" then
     Present({
       speaker = UnitName("player"),
       text = Pick(Data.Speech.revenge),
@@ -543,7 +707,7 @@ SlashCmdList.BANTERCOMBAT = function(msg)
       kind = "revenge",
       rarity = "revenge",
     }, "player")
-  elseif msg == "milestone" then
+  elseif cmd == "milestone" then
     Present({
       speaker = UnitName("player"),
       text = Stats.GetMilestoneSpeech("race", 50, "Orc") or "Marco de teste",
@@ -552,7 +716,7 @@ SlashCmdList.BANTERCOMBAT = function(msg)
       kind = "milestone",
       rarity = "milestone",
     }, "player")
-  elseif msg == "stats" then
+  elseif cmd == "stats" then
     local db = Stats.GetDB()
     print("|cFFFFD100BanterCombat|r " .. L.STATS:format(db.totalKills or 0, db.totalDeaths or 0))
     if db.lastKiller then
@@ -562,12 +726,66 @@ SlashCmdList.BANTERCOMBAT = function(msg)
         db.lastKiller.class or "?"
       ))
     end
-  elseif msg == "config" or msg == "options" then
+    PrintTopMap(L.TOP_RACE, db.kills and db.kills.Race, Data.RACE_LABEL, 5)
+    PrintTopMap(L.TOP_CLASS, db.kills and db.kills.Class, Data.CLASS_LABEL, 5)
+  elseif cmd == "config" or cmd == "options" then
     Options.TogglePanel()
-  elseif msg == "queue" then
+  elseif cmd == "queue" then
     print("|cFFFFD100BanterCombat|r " .. L.QUEUE:format(UI.QueueSize()))
-  elseif msg == "hide" then
+  elseif cmd == "hide" then
     UI.HideNow()
+  elseif cmd == "debug" then
+    local s = Options.Get()
+    if rest == "on" then
+      Options.Set("debug", true)
+    elseif rest == "off" then
+      Options.Set("debug", false)
+    else
+      Options.Set("debug", not s.debug)
+    end
+    print("|cFFFFD100BanterCombat|r debug=" .. tostring(Options.Get().debug))
+  elseif cmd == "history" then
+    if #history == 0 then
+      print("|cFFFFD100BanterCombat|r (empty)")
+      return
+    end
+    for i = #history, math.max(1, #history - 9), -1 do
+      local h = history[i]
+      print(string.format("  [%s] %s: %s", h.kind, h.speaker, Truncate(h.text, 80)))
+    end
+  elseif cmd == "ignore" then
+    local name = rest:match("^%s*(.-)%s*$")
+    if name == "" then
+      print("|cFFFFD100BanterCombat|r ignore <name> | ignore list | ignore clear")
+      return
+    end
+    if name:lower() == "list" then
+      local any = false
+      for n in pairs(ignoredNames) do
+        print("  " .. n)
+        any = true
+      end
+      if not any then
+        print("|cFFFFD100BanterCombat|r (none)")
+      end
+      return
+    end
+    if name:lower() == "clear" then
+      wipe(ignoredNames)
+      print("|cFFFFD100BanterCombat|r ignore cleared")
+      return
+    end
+    local key = Ambiguate(name, "none")
+    ignoredNames[key] = true
+    print("|cFFFFD100BanterCombat|r ignore +" .. key)
+  elseif cmd == "unignore" then
+    local name = rest:match("^%s*(.-)%s*$")
+    if name == "" then
+      return
+    end
+    local key = Ambiguate(name, "none")
+    ignoredNames[key] = nil
+    print("|cFFFFD100BanterCombat|r ignore -" .. key)
   else
     print("|cFFFFD100BanterCombat|r " .. L.HELP)
   end
