@@ -4,21 +4,36 @@ ns = ns or {}
 local Data = ns.Data
 local Stats = ns.Stats
 local UI = ns.UI
+local Options = ns.Options
+local L = ns.L
 
 local PREFIX = "BANTER_MSG"
-local PROTOCOL = "v1"
+local PROTOCOL = "v2"
+local PROTOCOL_MIN = 1
 
 local playerGUID
-local playerName
 local eventFrame
 
-local bit_band = bit.band
+-- Hot-path locals
+local band = bit.band
+local strsplit = strsplit
+local Ambiguate = Ambiguate
+local GetTime = GetTime
+local UnitGUID = UnitGUID
+local UnitName = UnitName
+local UnitClass = UnitClass
+local UnitRace = UnitRace
+local UnitExists = UnitExists
+local CombatLogGetCurrentEventInfo = CombatLogGetCurrentEventInfo
+local find = string.find
+
 local COMBATLOG_OBJECT_TYPE_PLAYER = COMBATLOG_OBJECT_TYPE_PLAYER or 0x00000400
-local COMBATLOG_OBJECT_REACTION_HOSTILE = COMBATLOG_OBJECT_REACTION_HOSTILE or 0x00000040
-local COMBATLOG_OBJECT_REACTION_FRIENDLY = COMBATLOG_OBJECT_REACTION_FRIENDLY or 0x00000010
+
+local recentEvents = {} -- key -> GetTime()
+local DEDUP_WINDOW = 1.5
 
 ------------------------------------------------------------
--- Compat messaging (Classic Era)
+-- Compat messaging
 ------------------------------------------------------------
 local function RegisterPrefix(prefix)
   if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
@@ -28,15 +43,38 @@ local function RegisterPrefix(prefix)
   end
 end
 
-local function SendWhisperAddon(msg, target)
-  if not target or target == "" or not msg then
-    return
-  end
-  target = Ambiguate(target, "none")
+local function SendAddon(msg, channel, target)
   if C_ChatInfo and C_ChatInfo.SendAddonMessage then
-    C_ChatInfo.SendAddonMessage(PREFIX, msg, "WHISPER", target)
+    if channel == "WHISPER" then
+      C_ChatInfo.SendAddonMessage(PREFIX, msg, "WHISPER", target)
+    else
+      C_ChatInfo.SendAddonMessage(PREFIX, msg, channel)
+    end
   elseif SendAddonMessage then
-    SendAddonMessage(PREFIX, msg, "WHISPER", target)
+    if channel == "WHISPER" then
+      SendAddonMessage(PREFIX, msg, "WHISPER", target)
+    else
+      SendAddonMessage(PREFIX, msg, channel)
+    end
+  end
+end
+
+local function BroadcastPayload(encoded, whisperTarget)
+  local s = Options.Get()
+  if s.syncWhisper and whisperTarget and whisperTarget ~= "" then
+    SendAddon(encoded, "WHISPER", Ambiguate(whisperTarget, "none"))
+  end
+  if s.syncGroup then
+    local sent = false
+    if LE_PARTY_CATEGORY_INSTANCE and IsInGroup and IsInGroup(LE_PARTY_CATEGORY_INSTANCE) then
+      SendAddon(encoded, "INSTANCE_CHAT")
+      sent = true
+    end
+    if not sent and IsInRaid and IsInRaid() then
+      SendAddon(encoded, "RAID")
+    elseif not sent and IsInGroup and IsInGroup() then
+      SendAddon(encoded, "PARTY")
+    end
   end
 end
 
@@ -44,17 +82,39 @@ end
 -- Helpers
 ------------------------------------------------------------
 local function IsPlayerFlags(flags)
-  if not flags then
-    return false
-  end
-  return bit_band(flags, COMBATLOG_OBJECT_TYPE_PLAYER) > 0
+  return flags and band(flags, COMBATLOG_OBJECT_TYPE_PLAYER) > 0
 end
 
-local function IsHostileFlags(flags)
-  if not flags then
-    return false
+local function SeenRecently(key)
+  local now = GetTime()
+  local last = recentEvents[key]
+  if last and (now - last) < DEDUP_WINDOW then
+    return true
   end
-  return bit_band(flags, COMBATLOG_OBJECT_REACTION_HOSTILE) > 0
+  recentEvents[key] = now
+  -- prune occasionally
+  if now % 8 < 0.05 then
+    for k, t in pairs(recentEvents) do
+      if now - t > 10 then
+        recentEvents[k] = nil
+      end
+    end
+  end
+  return false
+end
+
+local function IsPvPContextAllowed()
+  local s = Options.Get()
+  if not s.pvpOnly then
+    return true
+  end
+  if UnitIsPVP and UnitIsPVP("player") then
+    return true
+  end
+  if UnitInBattleground and UnitInBattleground("player") then
+    return true
+  end
+  return false
 end
 
 local function InfoFromGUID(guid)
@@ -65,7 +125,7 @@ local function InfoFromGUID(guid)
   if not name then
     return nil
   end
-  if realm and realm ~= "" and not name:find("-", 1, true) then
+  if realm and realm ~= "" and not find(name, "-", 1, true) then
     name = name .. "-" .. realm
   end
   return {
@@ -113,6 +173,7 @@ local function FormatTemplate(text, ctx)
   if not text then
     return ""
   end
+  ctx = ctx or {}
   local raceLabel = (ctx.race and Data.RACE_LABEL[ctx.race]) or ctx.race or "?"
   local classLabel = (ctx.class and Data.CLASS_LABEL[ctx.class]) or ctx.class or "?"
   text = text:gsub("{race}", raceLabel)
@@ -122,21 +183,20 @@ local function FormatTemplate(text, ctx)
 end
 
 ------------------------------------------------------------
--- Speech selection
+-- Speech
 ------------------------------------------------------------
 local function SelectKillSpeech(victim, isRevenge, milestoneKind, milestoneValue, milestoneKey)
   if isRevenge then
-    return Pick(Data.Speech.revenge), "revenge", "VINGANÇA"
+    return Pick(Data.Speech.revenge), "revenge", L.REVENGE
   end
 
   if milestoneKind and milestoneValue and milestoneKey then
     local special = Stats.GetMilestoneSpeech(milestoneKind, milestoneValue, milestoneKey)
     if special then
-      local badge = ("CONQUISTA · %d %s"):format(
-        milestoneValue,
-        milestoneKind == "race" and (Data.RACE_LABEL[milestoneKey] or milestoneKey)
-          or (Data.CLASS_LABEL[milestoneKey] or milestoneKey)
-      )
+      local label = milestoneKind == "race"
+        and (Data.RACE_LABEL[milestoneKey] or milestoneKey)
+        or (Data.CLASS_LABEL[milestoneKey] or milestoneKey)
+      local badge = L.MILESTONE:format(milestoneValue, label)
       return special, "milestone", badge
     end
   end
@@ -151,18 +211,10 @@ local function SelectKillSpeech(victim, isRevenge, milestoneKind, milestoneValue
     local _, myRace = UnitRace("player")
     for _, row in ipairs(speech.legendary) do
       local ok = true
-      if row.class and row.class ~= myClass then
-        ok = false
-      end
-      if row.vsClass and victim.class and row.vsClass ~= victim.class then
-        ok = false
-      end
-      if row.race and row.race ~= myRace then
-        ok = false
-      end
-      if row.vsRace and victim.race and row.vsRace ~= victim.race then
-        ok = false
-      end
+      if row.class and row.class ~= myClass then ok = false end
+      if row.vsClass and victim.class and row.vsClass ~= victim.class then ok = false end
+      if row.race and row.race ~= myRace then ok = false end
+      if row.vsRace and victim.race and row.vsRace ~= victim.race then ok = false end
       if ok and row.text then
         candidates[#candidates + 1] = row.text
       end
@@ -215,15 +267,16 @@ local function SelectDeathSpeech(killer)
 end
 
 ------------------------------------------------------------
--- Protocol: v1|SHOW|speaker|race|class|kind|rarity|badge|text
+-- Protocol v2: v2|SHOW|proto|speaker|race|class|kind|rarity|badge|text
+-- Also accepts v1 for older clients
 ------------------------------------------------------------
 local function EncodeMessage(speaker, race, class, kind, rarity, badge, text)
-  -- Use \031 as field sep internally escaped from pipes in text
   local clean = tostring(text or ""):gsub("|", "/")
   badge = tostring(badge or ""):gsub("|", "/")
   return table.concat({
     PROTOCOL,
     "SHOW",
+    "2",
     speaker or "?",
     race or "",
     class or "",
@@ -239,26 +292,47 @@ local function DecodeMessage(msg)
     return nil
   end
   local parts = { strsplit("\031", msg) }
-  if parts[1] ~= PROTOCOL or parts[2] ~= "SHOW" then
+  local ver = parts[1]
+  if parts[2] ~= "SHOW" then
     return nil
   end
-  return {
-    speaker = parts[3],
-    race = parts[4],
-    class = parts[5],
-    kind = parts[6],
-    rarity = parts[7],
-    badge = parts[8],
-    text = parts[9],
-  }
+  if ver == "v2" then
+    local proto = tonumber(parts[3]) or 0
+    if proto < PROTOCOL_MIN then
+      return nil
+    end
+    return {
+      speaker = parts[4],
+      race = parts[5],
+      class = parts[6],
+      kind = parts[7],
+      rarity = parts[8],
+      badge = parts[9],
+      text = parts[10],
+    }
+  elseif ver == "v1" then
+    return {
+      speaker = parts[3],
+      race = parts[4],
+      class = parts[5],
+      kind = parts[6],
+      rarity = parts[7],
+      badge = parts[8],
+      text = parts[9],
+    }
+  end
+  return nil
 end
 
 local function Present(payload, unit)
-  UI.Show({
+  UI.Enqueue({
     speaker = payload.speaker,
     text = payload.text,
     badge = payload.badge,
     class = payload.class,
+    race = payload.race,
+    kind = payload.kind,
+    rarity = payload.rarity,
     unit = unit,
   })
 end
@@ -270,6 +344,14 @@ local function OnPlayerKill(victim)
   if not victim or not victim.name then
     return
   end
+  if not Options.Get().enabled then
+    return
+  end
+  local dedupKey = "kill:" .. (victim.guid or victim.name)
+  if SeenRecently(dedupKey) then
+    return
+  end
+
   local isRevenge = Stats.IsRevenge(victim.name)
   local _, _, mKind, mValue, mKey = Stats.RecordKill(victim)
   if isRevenge then
@@ -289,12 +371,18 @@ local function OnPlayerKill(victim)
   }
 
   Present(payload, "player")
-  SendWhisperAddon(EncodeMessage(
+  BroadcastPayload(EncodeMessage(
     payload.speaker, payload.race, payload.class, payload.kind, payload.rarity, payload.badge, payload.text
   ), victim.name)
 end
 
 local function OnPlayerDeath(killer)
+  if not Options.Get().enabled then
+    return
+  end
+  if SeenRecently("death:" .. (playerGUID or "self")) then
+    return
+  end
   Stats.RecordDeathBy(killer)
   local text, rarity = SelectDeathSpeech(killer)
   local selfInfo = PlayerSelfInfo()
@@ -309,29 +397,31 @@ local function OnPlayerDeath(killer)
   }
   Present(payload, "player")
   if killer and killer.name then
-    SendWhisperAddon(EncodeMessage(
+    BroadcastPayload(EncodeMessage(
       payload.speaker, payload.race, payload.class, payload.kind, payload.rarity, "", payload.text
     ), killer.name)
   end
 end
 
 local function HandleCombatLog()
-  local timestamp, subevent, hideCaster,
-    sourceGUID, sourceName, sourceFlags, sourceRaidFlags,
-    destGUID, destName, destFlags, destRaidFlags = CombatLogGetCurrentEventInfo()
+  if not IsPvPContextAllowed() then
+    return
+  end
+
+  local _, subevent, _,
+    sourceGUID, sourceName, sourceFlags, _,
+    destGUID, destName, destFlags = CombatLogGetCurrentEventInfo()
 
   if not playerGUID then
     playerGUID = UnitGUID("player")
   end
 
-  -- Vitória: PARTY_KILL (honor / player kill credit)
   if subevent == "PARTY_KILL" then
     if sourceGUID == playerGUID and IsPlayerFlags(destFlags) then
       local victim = InfoFromGUID(destGUID) or {
         name = destName,
         guid = destGUID,
       }
-      -- Enriquecer se target atual for a vítima
       if UnitExists("target") and UnitGUID("target") == destGUID then
         local _, class = UnitClass("target")
         local _, race = UnitRace("target")
@@ -344,12 +434,7 @@ local function HandleCombatLog()
     return
   end
 
-  -- Morte do jogador local
   if subevent == "UNIT_DIED" and destGUID == playerGUID then
-    -- Tenta achar o killer pelo source do evento anterior não está disponível;
-    -- usa last damaging approach via sourceName se hostile player on CLEU FEIGN etc.
-    -- Em UNIT_DIED source costuma ser nil; usamos ambiente: target se for quem nos matou é raro.
-    -- Melhor esforço: GetPlayerInfo não ajuda. Guardamos last hostile attacker.
     local killer = ns._lastHostileAttacker
     if killer and killer.guid == playerGUID then
       killer = nil
@@ -359,9 +444,10 @@ local function HandleCombatLog()
     return
   end
 
-  -- Rastreia último atacante hostil jogador (para death attribution)
   if sourceGUID and sourceGUID ~= playerGUID and destGUID == playerGUID and IsPlayerFlags(sourceFlags) then
-    if subevent:find("_DAMAGE") or subevent == "SWING_DAMAGE" or subevent == "RANGE_DAMAGE" or subevent == "SPELL_DAMAGE" or subevent == "SPELL_PERIODIC_DAMAGE" then
+    if subevent == "SWING_DAMAGE" or subevent == "RANGE_DAMAGE"
+      or subevent == "SPELL_DAMAGE" or subevent == "SPELL_PERIODIC_DAMAGE"
+      or (type(subevent) == "string" and find(subevent, "_DAMAGE", 1, true)) then
       ns._lastHostileAttacker = InfoFromGUID(sourceGUID) or {
         name = sourceName,
         guid = sourceGUID,
@@ -377,12 +463,19 @@ local function OnAddonMessage(prefix, message, channel, sender)
   if prefix ~= PREFIX then
     return
   end
+  if not Options.Get().enabled then
+    return
+  end
   local data = DecodeMessage(message)
   if not data then
     return
   end
-  -- Evita eco da própria mensagem
   if sender and Ambiguate(sender, "none") == Ambiguate(UnitName("player"), "none") then
+    return
+  end
+  -- Dedup remote shows
+  local key = "remote:" .. (sender or "?") .. ":" .. (data.text or "")
+  if SeenRecently(key) then
     return
   end
   Present({
@@ -390,22 +483,28 @@ local function OnAddonMessage(prefix, message, channel, sender)
     text = data.text,
     badge = (data.badge ~= "" and data.badge) or nil,
     class = data.class,
+    race = data.race,
+    kind = data.kind,
+    rarity = data.rarity,
   }, nil)
 end
 
-local function OnEvent(self, event, ...)
+local function OnEvent(_, event, ...)
   if event == "ADDON_LOADED" then
     local name = ...
     if name ~= addonName then
       return
     end
     Stats.GetDB()
+    Options.Get()
     RegisterPrefix(PREFIX)
   elseif event == "PLAYER_LOGIN" then
     playerGUID = UnitGUID("player")
-    playerName = UnitName("player")
     math.randomseed(time() + (playerGUID and tonumber(playerGUID:sub(-6), 16) or 0))
-    print("|cFFFFD100BanterCombat|r carregado. /banter test | /banter stats")
+    if UI.ApplySavedPosition then
+      UI.ApplySavedPosition()
+    end
+    print("|cFFFFD100BanterCombat|r " .. L.LOADED)
   elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
     HandleCombatLog()
   elseif event == "CHAT_MSG_ADDON" then
@@ -429,34 +528,48 @@ SlashCmdList.BANTERCOMBAT = function(msg)
     local text, rarity, badge = SelectKillSpeech(victim, false, nil, nil, nil)
     Present({
       speaker = UnitName("player"),
-      text = text .. "  |cffaaaaaa(" .. rarity .. ")|r",
+      text = text,
       badge = badge,
       class = select(2, UnitClass("player")),
+      kind = badge and "milestone" or "kill",
+      rarity = rarity,
     }, "player")
   elseif msg == "revenge" then
     Present({
       speaker = UnitName("player"),
       text = Pick(Data.Speech.revenge),
-      badge = "VINGANÇA",
+      badge = L.REVENGE,
       class = select(2, UnitClass("player")),
+      kind = "revenge",
+      rarity = "revenge",
     }, "player")
   elseif msg == "milestone" then
     Present({
       speaker = UnitName("player"),
       text = Stats.GetMilestoneSpeech("race", 50, "Orc") or "Marco de teste",
-      badge = "CONQUISTA · 50 Orcs",
+      badge = L.MILESTONE:format(50, Data.RACE_LABEL.Orc or "Orc"),
       class = select(2, UnitClass("player")),
+      kind = "milestone",
+      rarity = "milestone",
     }, "player")
   elseif msg == "stats" then
     local db = Stats.GetDB()
-    print(("|cFFFFD100BanterCombat|r Kills=%d Deaths=%d"):format(db.totalKills or 0, db.totalDeaths or 0))
+    print("|cFFFFD100BanterCombat|r " .. L.STATS:format(db.totalKills or 0, db.totalDeaths or 0))
     if db.lastKiller then
-      print("  Último killer:", db.lastKiller.name, db.lastKiller.race, db.lastKiller.class)
+      print("  " .. L.LAST_KILLER:format(
+        db.lastKiller.name or "?",
+        db.lastKiller.race or "?",
+        db.lastKiller.class or "?"
+      ))
     end
+  elseif msg == "config" or msg == "options" then
+    Options.TogglePanel()
+  elseif msg == "queue" then
+    print("|cFFFFD100BanterCombat|r " .. L.QUEUE:format(UI.QueueSize()))
   elseif msg == "hide" then
     UI.HideNow()
   else
-    print("|cFFFFD100BanterCombat|r comandos: test, revenge, milestone, stats, hide")
+    print("|cFFFFD100BanterCombat|r " .. L.HELP)
   end
 end
 

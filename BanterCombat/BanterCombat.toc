@@ -1,14 +1,16 @@
 ## Interface: 11507
 ## Title: BanterCombat
-## Notes: Provocações PvP com vingança, conquistas e sync addon-to-addon (Classic Era / Hardcore 1.15).
+## Notes: Provocações PvP com vingança, conquistas, fila de pop-ups e sync addon-to-addon (Classic Era / Hardcore 1.15).
 ## Author: BanterCombat
-## Version: 1.0.0
+## Version: 1.1.0
 ## SavedVariablesPerCharacter: BanterCombatDB
 ## X-Category: PvP
 ## X-Website: https://github.com/bruno-ab/wow-addon-rppvp-interactions
 
 BanterCombat_Data.lua
+BanterCombat_Locale.lua
 BanterCombat_Stats.lua
+BanterCombat_Options.lua
 BanterCombat_UI.xml
 BanterCombat_UI.lua
 BanterCombat.lua

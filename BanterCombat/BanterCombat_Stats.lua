@@ -5,25 +5,67 @@ ns.Stats = ns.Stats or {}
 local Stats = ns.Stats
 local Data = ns.Data
 
-local DB_VERSION = 1
+local DB_VERSION = 2
+
+local VALID_RACE = {
+  Human = true, Dwarf = true, NightElf = true, Gnome = true,
+  Orc = true, Scourge = true, Tauren = true, Troll = true,
+}
+local VALID_CLASS = {
+  WARRIOR = true, PALADIN = true, HUNTER = true, ROGUE = true, PRIEST = true,
+  SHAMAN = true, MAGE = true, WARLOCK = true, DRUID = true,
+}
+
+local function scrubCounterMap(map, valid)
+  if type(map) ~= "table" then
+    return {}
+  end
+  local out = {}
+  for k, v in pairs(map) do
+    if type(k) == "string" and valid[k] and type(v) == "number" and v >= 0 then
+      out[k] = math.floor(v)
+    end
+  end
+  return out
+end
+
+local function scrubLastKiller(lk)
+  if type(lk) ~= "table" or type(lk.name) ~= "string" or lk.name == "" then
+    return nil
+  end
+  return {
+    name = tostring(lk.name),
+    race = (type(lk.race) == "string" and VALID_RACE[lk.race]) and lk.race or nil,
+    class = (type(lk.class) == "string" and VALID_CLASS[lk.class]) and lk.class or nil,
+    guid = type(lk.guid) == "string" and lk.guid or nil,
+    time = type(lk.time) == "number" and lk.time or time(),
+  }
+end
 
 local function ensureDB()
   if type(BanterCombatDB) ~= "table" then
     BanterCombatDB = {}
   end
   local db = BanterCombatDB
-  if db.version ~= DB_VERSION then
+  local from = tonumber(db.version) or 0
+
+  db.kills = type(db.kills) == "table" and db.kills or {}
+  db.kills.Race = scrubCounterMap(db.kills.Race, VALID_RACE)
+  db.kills.Class = scrubCounterMap(db.kills.Class, VALID_CLASS)
+  db.deaths = type(db.deaths) == "table" and db.deaths or {}
+  db.deaths.Race = scrubCounterMap(db.deaths.Race, VALID_RACE)
+  db.deaths.Class = scrubCounterMap(db.deaths.Class, VALID_CLASS)
+  db.totalKills = math.max(0, math.floor(tonumber(db.totalKills) or 0))
+  db.totalDeaths = math.max(0, math.floor(tonumber(db.totalDeaths) or 0))
+  db.lastKiller = scrubLastKiller(db.lastKiller)
+  db.settings = type(db.settings) == "table" and db.settings or {}
+
+  if from < 2 then
+    -- v2: settings + scrubbed counters
+    db.version = DB_VERSION
+  else
     db.version = DB_VERSION
   end
-  db.kills = db.kills or {}
-  db.kills.Race = db.kills.Race or {}
-  db.kills.Class = db.kills.Class or {}
-  db.deaths = db.deaths or {}
-  db.deaths.Race = db.deaths.Race or {}
-  db.deaths.Class = db.deaths.Class or {}
-  db.totalKills = db.totalKills or 0
-  db.totalDeaths = db.totalDeaths or 0
-  -- lastKiller: { name, race, class, guid, time }
   return db
 end
 
@@ -31,41 +73,41 @@ function Stats.GetDB()
   return ensureDB()
 end
 
+function Stats.IsValidRace(race)
+  return type(race) == "string" and VALID_RACE[race] or false
+end
+
+function Stats.IsValidClass(class)
+  return type(class) == "string" and VALID_CLASS[class] or false
+end
+
 function Stats.RecordDeathBy(killer)
   local db = ensureDB()
-  db.totalDeaths = (db.totalDeaths or 0) + 1
-  if killer and killer.race then
+  db.totalDeaths = db.totalDeaths + 1
+  if killer and Stats.IsValidRace(killer.race) then
     db.deaths.Race[killer.race] = (db.deaths.Race[killer.race] or 0) + 1
   end
-  if killer and killer.class then
+  if killer and Stats.IsValidClass(killer.class) then
     db.deaths.Class[killer.class] = (db.deaths.Class[killer.class] or 0) + 1
   end
-  if killer and killer.name then
-    db.lastKiller = {
-      name = killer.name,
-      race = killer.race,
-      class = killer.class,
-      guid = killer.guid,
-      time = time(),
-    }
+  if killer and type(killer.name) == "string" and killer.name ~= "" then
+    db.lastKiller = scrubLastKiller(killer)
   end
 end
 
---- @return number raceCount, number classCount, string|nil milestoneKind, number|nil milestoneValue, string|nil milestoneKey
 function Stats.RecordKill(victim)
   local db = ensureDB()
-  db.totalKills = (db.totalKills or 0) + 1
+  db.totalKills = db.totalKills + 1
   local raceCount, classCount = 0, 0
-  if victim and victim.race then
+  if victim and Stats.IsValidRace(victim.race) then
     db.kills.Race[victim.race] = (db.kills.Race[victim.race] or 0) + 1
     raceCount = db.kills.Race[victim.race]
   end
-  if victim and victim.class then
+  if victim and Stats.IsValidClass(victim.class) then
     db.kills.Class[victim.class] = (db.kills.Class[victim.class] or 0) + 1
     classCount = db.kills.Class[victim.class]
   end
 
-  -- Limpa vingança se pagamos a dívida
   if db.lastKiller and victim and victim.name then
     if Ambiguate(db.lastKiller.name, "none") == Ambiguate(victim.name, "none") then
       db.lastKiller = nil
@@ -78,7 +120,6 @@ function Stats.RecordKill(victim)
       hitKind, hitValue, hitKey = "race", m, victim.race
     end
     if classCount == m then
-      -- Classe tem prioridade se empatar no mesmo abate
       hitKind, hitValue, hitKey = "class", m, victim.class
     end
   end
@@ -94,8 +135,7 @@ function Stats.IsRevenge(victimName)
 end
 
 function Stats.ClearRevenge()
-  local db = ensureDB()
-  db.lastKiller = nil
+  ensureDB().lastKiller = nil
 end
 
 function Stats.GetMilestoneSpeech(kind, value, key)
