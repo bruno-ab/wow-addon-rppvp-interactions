@@ -1,6 +1,8 @@
 ## Interface: 11507
 ## Title: BanterCombat
-## Notes: Provocações PvP com vingança, conquistas, fila de pop-ups e sync addon-to-addon (Classic Era / Hardcore 1.15).
+## Notes: PvP banter with revenge, milestones, popup queue, and addon-to-addon sync (Classic Era / Hardcore 1.15).
+## Notes-enUS: PvP banter with revenge, milestones, popup queue, and addon-to-addon sync (Classic Era / Hardcore 1.15).
+## Notes-ptBR: Provocações PvP com vingança, conquistas, fila de pop-ups e sync addon-to-addon (Classic Era / Hardcore 1.15).
 ## Author: BanterCombat
 ## Version: 1.2.0
 ## SavedVariablesPerCharacter: BanterCombatDB
