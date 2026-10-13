@@ -18,9 +18,25 @@ local playerGUID
 local eventFrame
 local pruneCounter = 0
 local history = {}
+local EnsureTestButton
 
--- Hot-path locals
-local band = bit.band
+-- Hot-path locals. bit exists on 1.15 and on the Forever 1.60 beta; keep a fallback.
+local band = bit and bit.band
+if not band then
+  band = function(a, b)
+    local result, place = 0, 1
+    a, b = tonumber(a) or 0, tonumber(b) or 0
+    while a > 0 and b > 0 do
+      if a % 2 == 1 and b % 2 == 1 then
+        result = result + place
+      end
+      a = math.floor(a / 2)
+      b = math.floor(b / 2)
+      place = place * 2
+    end
+    return result
+  end
+end
 local strsplit = strsplit
 local Ambiguate = Ambiguate
 local GetTime = GetTime
@@ -663,6 +679,7 @@ local function OnEvent(_, event, ...)
         UI.ApplySavedPosition()
       end
       print("|cFFFFD100BanterCombat|r " .. L.LOADED)
+      EnsureTestButton()
     end
   elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
     HandleCombatLog()
@@ -679,6 +696,124 @@ eventFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 eventFrame:RegisterEvent("CHAT_MSG_ADDON")
 eventFrame:SetScript("OnEvent", OnEvent)
 
+local PREVIEW_ORDER = { "kill", "revenge", "milestone", "death" }
+local previewIndex = 0
+
+function ns.Preview(kind)
+  local classToken = select(2, UnitClass("player"))
+  local speaker = UnitName("player") or "?"
+  if kind == "revenge" then
+    Present({
+      speaker = speaker,
+      text = Pick(Data.Speech.revenge),
+      badge = L.REVENGE,
+      class = classToken,
+      kind = "revenge",
+      rarity = "revenge",
+    }, "player")
+  elseif kind == "milestone" then
+    Present({
+      speaker = speaker,
+      text = Stats.GetMilestoneSpeech("race", 50, "Orc") or "Marco de teste",
+      badge = L.MILESTONE:format(50, Data.RACE_LABEL.Orc or "Orc"),
+      class = classToken,
+      kind = "milestone",
+      rarity = "milestone",
+    }, "player")
+  elseif kind == "death" then
+    local killer = { name = "AlvoTeste", race = "Orc", class = "MAGE" }
+    local text, rarity = SelectDeathSpeech(killer)
+    Present({
+      speaker = killer.name,
+      text = text,
+      class = killer.class,
+      kind = "death",
+      rarity = rarity,
+    }, "player")
+  else
+    local victim = { name = "AlvoTeste", race = "Orc", class = "MAGE" }
+    local text, rarity, badge = SelectKillSpeech(victim, false, nil, nil, nil)
+    Present({
+      speaker = speaker,
+      text = text,
+      badge = badge,
+      class = classToken,
+      kind = badge and "milestone" or "kill",
+      rarity = rarity,
+    }, "player")
+  end
+end
+
+local function PreviewLabel(kind)
+  if kind == "revenge" then
+    return L.TEST_REVENGE
+  end
+  if kind == "milestone" then
+    return L.TEST_MILESTONE
+  end
+  if kind == "death" then
+    return L.TEST_DEATH
+  end
+  return L.TEST_KILL
+end
+
+local testButton
+
+function EnsureTestButton()
+  if testButton then
+    return
+  end
+  local ok, button = pcall(CreateFrame, "Button", "BanterCombatTestButton", UIParent, "UIPanelButtonTemplate")
+  if not ok or not button then
+    button = CreateFrame("Button", "BanterCombatTestButton", UIParent)
+  end
+  if not button.SetText then
+    local font = button:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    font:SetPoint("CENTER")
+    button.SetText = function(self, text)
+      font:SetText(text)
+    end
+  end
+  button:SetSize(120, 26)
+  button:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 20, -180)
+  button:SetFrameStrata("HIGH")
+  button:SetClampedToScreen(true)
+  button:SetMovable(true)
+  button:EnableMouse(true)
+  button:RegisterForDrag("RightButton")
+  button:SetScript("OnDragStart", function(self)
+    if InCombatLockdown and InCombatLockdown() then
+      return
+    end
+    self:StartMoving()
+  end)
+  button:SetScript("OnDragStop", function(self)
+    self:StopMovingOrSizing()
+  end)
+  button:SetText(L.TEST_BUTTON)
+  button:SetScript("OnClick", function(self)
+    previewIndex = (previewIndex % #PREVIEW_ORDER) + 1
+    local kind = PREVIEW_ORDER[previewIndex]
+    self:SetText(PreviewLabel(kind))
+    ns.Preview(kind)
+  end)
+  button:SetScript("OnEnter", function(self)
+    if not GameTooltip then
+      return
+    end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText(L.TEST_BUTTON, 1, 0.82, 0)
+    GameTooltip:AddLine(L.TEST_TOOLTIP, 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  button:SetScript("OnLeave", function()
+    if GameTooltip then
+      GameTooltip:Hide()
+    end
+  end)
+  testButton = button
+end
+
 SLASH_BANTERCOMBAT1 = "/banter"
 SLASH_BANTERCOMBAT2 = "/bantercombat"
 SlashCmdList.BANTERCOMBAT = function(msg)
@@ -688,34 +823,13 @@ SlashCmdList.BANTERCOMBAT = function(msg)
   rest = rest or ""
 
   if cmd == "test" or cmd == "kill" then
-    local victim = { name = "AlvoTeste", race = "Orc", class = "MAGE" }
-    local text, rarity, badge = SelectKillSpeech(victim, false, nil, nil, nil)
-    Present({
-      speaker = UnitName("player"),
-      text = text,
-      badge = badge,
-      class = select(2, UnitClass("player")),
-      kind = badge and "milestone" or "kill",
-      rarity = rarity,
-    }, "player")
+    ns.Preview("kill")
   elseif cmd == "revenge" then
-    Present({
-      speaker = UnitName("player"),
-      text = Pick(Data.Speech.revenge),
-      badge = L.REVENGE,
-      class = select(2, UnitClass("player")),
-      kind = "revenge",
-      rarity = "revenge",
-    }, "player")
+    ns.Preview("revenge")
   elseif cmd == "milestone" then
-    Present({
-      speaker = UnitName("player"),
-      text = Stats.GetMilestoneSpeech("race", 50, "Orc") or "Marco de teste",
-      badge = L.MILESTONE:format(50, Data.RACE_LABEL.Orc or "Orc"),
-      class = select(2, UnitClass("player")),
-      kind = "milestone",
-      rarity = "milestone",
-    }, "player")
+    ns.Preview("milestone")
+  elseif cmd == "death" then
+    ns.Preview("death")
   elseif cmd == "stats" then
     local db = Stats.GetDB()
     print("|cFFFFD100BanterCombat|r " .. L.STATS:format(db.totalKills or 0, db.totalDeaths or 0))
