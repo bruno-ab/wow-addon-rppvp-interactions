@@ -7,6 +7,7 @@
 | 1 | `/reload` | Sem erros Lua; mensagem de load |
 | 2 | `/banter test` | Pop-up com cor de raridade + ícone de classe |
 | 2b | Botão **Testar** (canto superior esquerdo) | Cada clique avança abate → vingança → conquista → morte. Arrastar com o botão direito move o botão |
+| 2c | Pop-up com DialogueUI ativo | Pergaminho da janela de diálogo do Forever (tema claro ou escuro do DialogueUI). Sem DialogueUI, volta a borda clássica de diálogo |
 | 3 | `/banter revenge` | Badge dourado + medalha + som (se ligado) |
 | 4 | `/banter milestone` | Texto de 50 Orcs + badge CONQUISTA |
 | 5 | `/banter test` ×5 rápido | Fila: pop-ups em sequência, não só o último |

@@ -1,54 +1,66 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
   <Frame name="BanterCombatPopup" parent="UIParent" frameStrata="DIALOG" enableMouse="true" movable="true" hidden="true">
-    <Size x="440" y="120"/>
+    <Size x="460" y="190"/>
     <Anchors>
       <Anchor point="BOTTOM" relativePoint="BOTTOM" x="0" y="160"/>
     </Anchors>
     <Layers>
       <Layer level="BACKGROUND">
-        <Texture name="$parentEdgeGlow" parentKey="EdgeGlow" setAllPoints="true">
+        <Texture name="$parentPaperTop" parentKey="PaperTop"/>
+        <Texture name="$parentPaperMid" parentKey="PaperMid"/>
+        <Texture name="$parentPaperBot" parentKey="PaperBot"/>
+        <Texture name="$parentEdgeGlow" parentKey="EdgeGlow" hidden="true" setAllPoints="true">
           <Color r="0.2" g="0.15" b="0.05" a="0.35"/>
         </Texture>
       </Layer>
-      <Layer level="ARTWORK">
-        <Texture name="$parentMedal" parentKey="Medal">
-          <Size x="20" y="20"/>
+      <Layer level="BORDER">
+        <Texture name="$parentPortrait" parentKey="Portrait">
+          <Size x="42" y="42"/>
           <Anchors>
-            <Anchor point="TOPLEFT" x="14" y="-10"/>
+            <Anchor point="TOPLEFT" x="78" y="-28"/>
           </Anchors>
         </Texture>
-        <Texture name="$parentPortrait" parentKey="Portrait">
-          <Size x="56" y="56"/>
+      </Layer>
+      <Layer level="ARTWORK">
+        <Texture name="$parentHeader" parentKey="Header">
+          <Size x="320" y="46"/>
           <Anchors>
-            <Anchor point="LEFT" x="18" y="-6"/>
+            <Anchor point="TOP" x="18" y="-14"/>
+          </Anchors>
+        </Texture>
+      </Layer>
+      <Layer level="OVERLAY">
+        <Texture name="$parentMedal" parentKey="Medal">
+          <Size x="16" y="16"/>
+          <Anchors>
+            <Anchor point="TOPLEFT" x="128" y="-18"/>
           </Anchors>
         </Texture>
         <FontString name="$parentBadge" parentKey="Badge" inherits="GameFontNormal" justifyH="LEFT">
-          <Size x="360" y="16"/>
+          <Size x="250" y="14"/>
           <Anchors>
-            <Anchor point="TOPLEFT" x="38" y="-12"/>
+            <Anchor point="LEFT" relativeTo="$parentMedal" relativePoint="RIGHT" x="4" y="0"/>
           </Anchors>
-          <Color r="1" g="0.82" b="0.2" a="1"/>
         </FontString>
         <FontString name="$parentSpeaker" parentKey="Speaker" inherits="GameFontHighlight" justifyH="LEFT">
-          <Size x="320" y="16"/>
+          <Size x="250" y="18"/>
           <Anchors>
-            <Anchor point="TOPLEFT" relativeTo="$parentPortrait" relativePoint="TOPRIGHT" x="12" y="0"/>
+            <Anchor point="LEFT" relativeTo="$parentPortrait" relativePoint="RIGHT" x="10" y="6"/>
           </Anchors>
         </FontString>
         <FontString name="$parentText" parentKey="Text" inherits="GameFontHighlightSmall" justifyH="LEFT" justifyV="TOP">
-          <Size x="320" y="52"/>
+          <Size x="300" y="72"/>
           <Anchors>
-            <Anchor point="TOPLEFT" relativeTo="$parentSpeaker" relativePoint="BOTTOMLEFT" x="0" y="-4"/>
+            <Anchor point="TOPLEFT" x="78" y="-78"/>
           </Anchors>
         </FontString>
       </Layer>
     </Layers>
     <Frames>
       <PlayerModel name="$parentModel" parentKey="Model" hidden="true">
-        <Size x="56" y="56"/>
+        <Size x="42" y="42"/>
         <Anchors>
-          <Anchor point="LEFT" x="18" y="-6"/>
+          <Anchor point="TOPLEFT" x="78" y="-28"/>
         </Anchors>
       </PlayerModel>
     </Frames>
@@ -56,15 +68,6 @@
       <OnLoad>
         self:SetClampedToScreen(true)
         self:RegisterForDrag("LeftButton")
-        if self.SetBackdrop then
-          self:SetBackdrop({
-            bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
-            edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-            tile = true, tileSize = 32, edgeSize = 32,
-            insets = { left = 11, right = 12, top = 12, bottom = 11 }
-          })
-          self:SetBackdropColor(0.08, 0.08, 0.1, 0.95)
-        end
         if self.Medal then
           self.Medal:SetTexture("Interface\\FriendsFrame\\StatusIcon-Online")
           self.Medal:Hide()

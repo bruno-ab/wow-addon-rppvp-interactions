@@ -182,7 +182,7 @@ local function playShowSound(kind)
 end
 
 local function tintEdge(frame, kind, rarity)
-  if not frame.EdgeGlow then
+  if frame._dialogueSkin or not frame.EdgeGlow then
     return
   end
   local hex = rarityHex(kind, rarity)
@@ -195,6 +195,90 @@ local function tintEdge(frame, kind, rarity)
     frame.EdgeGlow:SetTexture("Interface\\Buttons\\WHITE8X8")
     frame.EdgeGlow:SetVertexColor(r, g, b, 0.28)
   end
+end
+
+local function addonLoaded(name)
+  if C_AddOns and C_AddOns.IsAddOnLoaded then
+    return C_AddOns.IsAddOnLoaded(name)
+  end
+  if IsAddOnLoaded then
+    return IsAddOnLoaded(name)
+  end
+  return false
+end
+
+local function applyFallbackBackdrop(frame)
+  if not frame.SetBackdrop then
+    return
+  end
+  frame:SetBackdrop({
+    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+    tile = true, tileSize = 32, edgeSize = 32,
+    insets = { left = 11, right = 12, top = 12, bottom = 11 },
+  })
+  frame:SetBackdropColor(0.08, 0.08, 0.1, 0.95)
+  if frame.EdgeGlow then
+    frame.EdgeGlow:Show()
+  end
+  frame._dialogueSkin = false
+end
+
+function UI.DressDialogue(frame)
+  frame = frame or BanterCombatPopup
+  if not frame or not frame.PaperTop then
+    return
+  end
+  if not addonLoaded("DialogueUI") then
+    applyFallbackBackdrop(frame)
+    return
+  end
+  if frame.SetBackdrop then
+    pcall(frame.SetBackdrop, frame, nil)
+  end
+  local dark = type(DialogueUI_DB) == "table" and DialogueUI_DB.Theme == 2
+  local folder = dark and "Theme_Dark" or "Theme_Brown"
+  local file = "Interface/AddOns/DialogueUI/Art/" .. folder .. "/Parchment.png"
+  local width = frame:GetWidth()
+  if not width or width < 64 then
+    width = 460
+  end
+  local capHeight = width * (256 / 1024)
+  local strips = { frame.PaperTop, frame.PaperMid, frame.PaperBot }
+  local bands = { { 0, 256 }, { 256, 896 }, { 896, 1152 } }
+  for i = 1, 3 do
+    strips[i]:SetTexture(file)
+    strips[i]:SetTexCoord(0, 1, bands[i][1] / 2048, bands[i][2] / 2048)
+    strips[i]:Show()
+  end
+  frame.PaperTop:ClearAllPoints()
+  frame.PaperBot:ClearAllPoints()
+  frame.PaperMid:ClearAllPoints()
+  frame.PaperTop:SetSize(width, capHeight)
+  frame.PaperBot:SetSize(width, capHeight)
+  frame.PaperTop:SetPoint("CENTER", frame, "TOP", 0, 0)
+  frame.PaperBot:SetPoint("CENTER", frame, "BOTTOM", 0, 0)
+  frame.PaperMid:SetPoint("TOPLEFT", frame.PaperTop, "BOTTOMLEFT", 0, 0)
+  frame.PaperMid:SetPoint("BOTTOMRIGHT", frame.PaperBot, "TOPRIGHT", 0, 0)
+  if frame.Header then
+    frame.Header:SetTexture(file)
+    frame.Header:SetTexCoord(0, 0.65625, 0.56640625, 0.61328125)
+    frame.Header:Show()
+  end
+  if frame.EdgeGlow then
+    frame.EdgeGlow:Hide()
+  end
+  if frame.Speaker and frame.Speaker.SetFontObject and DUIFont_Quest_Title_16 then
+    frame.Speaker:SetFontObject(DUIFont_Quest_Title_16)
+  end
+  if frame.Text and frame.Text.SetFontObject and DUIFont_Quest_Paragraph then
+    frame.Text:SetFontObject(DUIFont_Quest_Paragraph)
+  end
+  if frame.Badge and frame.Badge.SetFontObject and DUIFont_QuestType_Left then
+    frame.Badge:SetFontObject(DUIFont_QuestType_Left)
+  end
+  frame._dialogueSkin = true
+  frame._dialogueDark = dark and true or false
 end
 
 local function showNow(payload)
@@ -213,15 +297,36 @@ local function showNow(payload)
     UIFrameFadeRemoveFrame(frame)
   end
   UI.ApplySavedPosition()
+  UI.DressDialogue(frame)
 
   local kind = payload.kind or "kill"
   local rarity = payload.rarity or "common"
   local hex = rarityHex(kind, rarity)
   tintEdge(frame, kind, rarity)
 
+  local titleR, titleG, titleB = 1, 0.82, 0
+  local bodyR, bodyG, bodyB = 1, 1, 1
+  local accentR, accentG, accentB = 0.8, 0.2, 0.16
+  if frame._dialogueSkin then
+    if frame._dialogueDark then
+      titleR, titleG, titleB = 0.9, 0.9, 0.9
+      bodyR, bodyG, bodyB = 0.7, 0.7, 0.7
+      accentR, accentG, accentB = 0.796, 0.784, 0.584
+    else
+      titleR, titleG, titleB = 0.19, 0.17, 0.13
+      bodyR, bodyG, bodyB = 0.19, 0.17, 0.13
+      accentR, accentG, accentB = 0.416, 0.18, 0.165
+    end
+  end
+
   if frame.Badge then
     if payload.badge and payload.badge ~= "" then
-      frame.Badge:SetText(colorize(payload.badge, Data.RARITY_COLOR.milestone or "FFFFD100"))
+      if frame._dialogueSkin then
+        frame.Badge:SetText(payload.badge)
+        frame.Badge:SetTextColor(accentR, accentG, accentB)
+      else
+        frame.Badge:SetText(colorize(payload.badge, Data.RARITY_COLOR.milestone or "FFFFD100"))
+      end
       frame.Badge:Show()
       if frame.Medal then
         frame.Medal:Show()
@@ -240,12 +345,22 @@ local function showNow(payload)
   if frame.Speaker then
     local tag = ""
     if rarity and rarity ~= "common" and kind ~= "revenge" and kind ~= "milestone" then
-      tag = " " .. colorize("[" .. rarity .. "]", hex)
+      tag = frame._dialogueSkin and (" [" .. rarity .. "]") or (" " .. colorize("[" .. rarity .. "]", hex))
     end
-    frame.Speaker:SetText(icon .. colorize(speaker, hex) .. tag)
+    if frame._dialogueSkin then
+      frame.Speaker:SetText(icon .. speaker .. tag)
+      frame.Speaker:SetTextColor(titleR, titleG, titleB)
+    else
+      frame.Speaker:SetText(icon .. colorize(speaker, hex) .. tag)
+    end
   end
   if frame.Text then
-    frame.Text:SetText(colorize(payload.text or "", hex))
+    if frame._dialogueSkin then
+      frame.Text:SetText(payload.text or "")
+      frame.Text:SetTextColor(bodyR, bodyG, bodyB)
+    else
+      frame.Text:SetText(colorize(payload.text or "", hex))
+    end
   end
 
   applyPortrait(frame, payload.unit, payload.class, s.useModel ~= false)
@@ -329,6 +444,10 @@ end
 
 function UI.QueueSize()
   return #queue + (showing and 1 or 0)
+end
+
+if BanterCombatPopup then
+  UI.DressDialogue(BanterCombatPopup)
 end
 
 _G[addonName] = ns
