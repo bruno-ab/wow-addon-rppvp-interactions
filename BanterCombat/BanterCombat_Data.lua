@@ -3,7 +3,8 @@ ns = ns or {}
 
 --[[
   Banco de falas — WoW Classic Era / Hardcore.
-  Chaves de raça/classe em inglês (API). Textos em PT-BR.
+  Chaves de raça/classe em inglês (API). Textos-base em PT-BR.
+  Outros idiomas oficiais: BanterCombat_Speech.lua.
 ]]
 
 ns.Data = ns.Data or {}
@@ -50,10 +51,10 @@ ns.Data.RARITY_WEIGHTS = {
   { key = "common", weight = 64 },
 }
 
--- Hex sem o prefixo |c (ARGB)
+-- Hex sem o prefixo |c (ARGB). A chave "rare" é o degrau Incomum (verde).
 ns.Data.RARITY_COLOR = {
-  common = "FFB0B0B0",
-  rare = "FF0070DD",
+  common = "FF9D9D9D",
+  rare = "FF1EFF00",
   epic = "FFA335EE",
   legendary = "FFFF8000",
   revenge = "FFFFD100",
@@ -333,5 +334,46 @@ ns.Data.Speech = {
     },
   },
 }
+
+function ns.Data.ActiveSpeech()
+  local code = ns.LocaleCode or "ptBR"
+  if code == "ptBR" then
+    return ns.Data.Speech
+  end
+  local packs = ns.Data.LocaleSpeech
+  if packs and packs[code] then
+    return packs[code]
+  end
+  if packs and packs.enUS then
+    return packs.enUS
+  end
+  return ns.Data.Speech
+end
+
+local function labelFrom(group, key, fallback)
+  if not key then
+    return "?"
+  end
+  local code = ns.LocaleCode or "ptBR"
+  local labels = ns.Data.LocaleLabels
+  if code ~= "ptBR" and labels and labels[code] and labels[code][group] and labels[code][group][key] then
+    return labels[code][group][key]
+  end
+  if code == "ptBR" then
+    return fallback[key] or key
+  end
+  if labels and labels.enUS and labels.enUS[group] and labels.enUS[group][key] then
+    return labels.enUS[group][key]
+  end
+  return fallback[key] or key
+end
+
+function ns.Data.RaceLabel(race)
+  return labelFrom("race", race, ns.Data.RACE_LABEL)
+end
+
+function ns.Data.ClassLabel(class)
+  return labelFrom("class", class, ns.Data.CLASS_LABEL)
+end
 
 _G[addonName] = ns

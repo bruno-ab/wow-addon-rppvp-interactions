@@ -22,6 +22,8 @@ local DEFAULTS = {
   relPoint = "CENTER",
   x = 0,
   y = 20,
+  locale = "auto",
+  minimapAngle = 220,
 }
 
 local function copyDefaults()
@@ -93,7 +95,7 @@ function Options.TogglePanel()
   end
   if not panel then
     panel = CreateFrame("Frame", "BanterCombatOptions", UIParent)
-    panel:SetSize(380, 400)
+    panel:SetSize(380, 448)
     panel:SetPoint("CENTER")
     panel:SetFrameStrata("DIALOG")
     panel:EnableMouse(true)
@@ -146,6 +148,33 @@ function Options.TogglePanel()
       _G[self:GetName() .. "Text"]:SetText(string.format("%.1f", value))
     end)
 
+    local localeBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    localeBtn:SetSize(340, 22)
+    localeBtn:SetPoint("BOTTOM", 0, 42)
+    localeBtn:SetScript("OnClick", function()
+      local order = ns.LOCALE_ORDER or { "auto" }
+      local current = Options.Get().locale or "auto"
+      local index = 1
+      for i, code in ipairs(order) do
+        if code == current then
+          index = i
+          break
+        end
+      end
+      local nextCode = order[(index % #order) + 1]
+      Options.Set("locale", nextCode)
+      if ns.ApplySavedLocale then
+        ns.ApplySavedLocale()
+      end
+      if localeBtn.SetText then
+        localeBtn:SetText(L.OPT_LOCALE:format(ns.LocaleName and ns.LocaleName(nextCode) or nextCode))
+      end
+      if ns.Compendium and ns.Compendium.Refresh and panel then
+        ns.Compendium.Refresh()
+      end
+    end)
+    panel._localeBtn = localeBtn
+
     local reset = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     reset:SetSize(140, 22)
     reset:SetPoint("BOTTOMLEFT", 16, 14)
@@ -165,6 +194,10 @@ function Options.TogglePanel()
     panel:Hide()
   end
   refreshChecks()
+  if panel._localeBtn then
+    local code = Options.Get().locale or "auto"
+    panel._localeBtn:SetText(L.OPT_LOCALE:format(ns.LocaleName and ns.LocaleName(code) or code))
+  end
   local slider = _G.BanterCombatDurSlider
   if slider then
     local d = Options.Get().duration or 4

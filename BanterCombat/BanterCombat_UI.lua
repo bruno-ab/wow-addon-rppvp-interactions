@@ -50,10 +50,28 @@ local function rarityHex(kind, rarity)
   if kind == "milestone" then
     return colors.milestone or "FFFFD100"
   end
+  if rarity and colors[rarity] then
+    return colors[rarity]
+  end
   if kind == "death" then
     return colors.death or "FFCC6666"
   end
-  return colors[rarity or "common"] or "FFB0B0B0"
+  return colors.common or "FF9D9D9D"
+end
+
+local function hexToRGB(hex)
+  hex = tostring(hex or "FFFFFFFF")
+  if #hex == 8 then
+    hex = hex:sub(3)
+  end
+  local r = tonumber(hex:sub(1, 2), 16) or 255
+  local g = tonumber(hex:sub(3, 4), 16) or 255
+  local b = tonumber(hex:sub(5, 6), 16) or 255
+  return r / 255, g / 255, b / 255
+end
+
+local function inkTint(r, g, b)
+  return 0.10 + r * 0.42, 0.08 + g * 0.42, 0.06 + b * 0.38
 end
 
 local function stopHide()
@@ -369,16 +387,15 @@ local function showNow(payload)
     end
   end
 
+  local badgeR, badgeG, badgeB = hexToRGB(hex)
+  local bodyTintR, bodyTintG, bodyTintB = inkTint(badgeR, badgeG, badgeB)
+
   if frame.Badge then
     if payload.badge and payload.badge ~= "" then
-      if frame._dialogueSkin then
-        frame.Badge:SetText(payload.badge)
-        frame.Badge:SetTextColor(accentR, accentG, accentB)
-      else
-        frame.Badge:SetText(colorize(payload.badge, Data.RARITY_COLOR.milestone or "FFFFD100"))
-      end
+      frame.Badge:SetText(payload.badge)
+      frame.Badge:SetTextColor(badgeR, badgeG, badgeB)
       frame.Badge:Show()
-      if frame.Medal and not frame._dialogueSkin then
+      if frame.Medal and not frame._dialogueSkin and (kind == "revenge" or kind == "milestone") then
         frame.Medal:Show()
       end
     else
@@ -393,21 +410,17 @@ local function showNow(payload)
   local speaker = payload.speaker or UnitName("player") or "?"
   local icon = classIconMarkup(payload.class)
   if frame.Speaker then
-    local tag = ""
-    if rarity and rarity ~= "common" and kind ~= "revenge" and kind ~= "milestone" then
-      tag = frame._dialogueSkin and (" [" .. rarity .. "]") or (" " .. colorize("[" .. rarity .. "]", hex))
-    end
     if frame._dialogueSkin then
-      frame.Speaker:SetText(icon .. speaker .. tag)
+      frame.Speaker:SetText(icon .. speaker)
       frame.Speaker:SetTextColor(titleR, titleG, titleB)
     else
-      frame.Speaker:SetText(icon .. colorize(speaker, hex) .. tag)
+      frame.Speaker:SetText(icon .. colorize(speaker, hex))
     end
   end
   if frame.Text then
     if frame._dialogueSkin then
       frame.Text:SetText(payload.text or "")
-      frame.Text:SetTextColor(bodyR, bodyG, bodyB)
+      frame.Text:SetTextColor(bodyTintR, bodyTintG, bodyTintB)
     else
       frame.Text:SetText(colorize(payload.text or "", hex))
     end

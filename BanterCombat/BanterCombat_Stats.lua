@@ -139,7 +139,8 @@ function Stats.ClearRevenge()
 end
 
 function Stats.GetMilestoneSpeech(kind, value, key)
-  local pack = Data.Speech.milestones[kind]
+  local speech = Data.ActiveSpeech and Data.ActiveSpeech() or Data.Speech
+  local pack = speech.milestones[kind]
   if not pack or not pack[value] then
     return nil
   end
