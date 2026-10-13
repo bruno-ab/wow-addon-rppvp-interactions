@@ -674,7 +674,9 @@ local function OnEvent(_, event, ...)
   elseif event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
     playerGUID = UnitGUID("player")
     if event == "PLAYER_LOGIN" then
-      math.randomseed(time() + (playerGUID and tonumber(playerGUID:sub(-6), 16) or 0))
+      if math.randomseed then
+        math.randomseed(time() + (playerGUID and tonumber(playerGUID:sub(-6), 16) or 0))
+      end
       if UI.ApplySavedPosition then
         UI.ApplySavedPosition()
       end
