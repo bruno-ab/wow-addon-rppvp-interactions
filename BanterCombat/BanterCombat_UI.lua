@@ -103,10 +103,10 @@ local function applyPortrait(frame, unitOrNil, classToken, useModel)
     local ok = pcall(function()
       frame.Model:SetUnit(unitOrNil)
       if frame.Model.SetPortraitZoom then
-        frame.Model:SetPortraitZoom(0.6)
+        frame.Model:SetPortraitZoom(1)
       end
       if frame.Model.SetRotation then
-        frame.Model:SetRotation(0.2)
+        frame.Model:SetRotation(0)
       end
       frame.Model:Show()
       if frame.Portrait then
@@ -143,7 +143,15 @@ function UI.ApplySavedPosition()
     return
   end
   frame:ClearAllPoints()
-  local point, rel, x, y = s.point or "BOTTOM", s.relPoint or "BOTTOM", s.x or 0, s.y or 160
+  local point, rel, x, y = s.point, s.relPoint, s.x, s.y
+  if point == "BOTTOM" and (rel or "BOTTOM") == "BOTTOM" and (x or 0) == 0 and (y or 0) == 160 then
+    point, rel, x, y = nil, nil, nil, nil
+  end
+  point = point or "CENTER"
+  rel = rel or "CENTER"
+  x = x or 0
+  y = y or 20
+  s.point, s.relPoint, s.x, s.y = point, rel, x, y
   if PixelUtil and PixelUtil.SetPoint then
     PixelUtil.SetPoint(frame, point, UIParent, rel, x, y)
   else
@@ -261,9 +269,51 @@ function UI.DressDialogue(frame)
   frame.PaperMid:SetPoint("TOPLEFT", frame.PaperTop, "BOTTOMLEFT", 0, 0)
   frame.PaperMid:SetPoint("BOTTOMRIGHT", frame.PaperBot, "TOPRIGHT", 0, 0)
   if frame.Header then
-    frame.Header:SetTexture(file)
-    frame.Header:SetTexCoord(0, 0.65625, 0.56640625, 0.61328125)
-    frame.Header:Show()
+    frame.Header:Hide()
+  end
+  local socket = frame.SocketFrame
+  if not socket then
+    socket = CreateFrame("Frame", nil, frame)
+    socket:SetSize(52, 58)
+    local ring = socket:CreateTexture(nil, "OVERLAY")
+    ring:SetAllPoints()
+    socket.Ring = ring
+    frame.SocketFrame = socket
+  end
+  socket.Ring:SetTexture(file)
+  socket.Ring:SetTexCoord(0, 0.65625 * (46 / 358), 0.56640625, 0.61328125)
+  socket:ClearAllPoints()
+  socket:SetPoint("TOP", frame, "TOP", 0, -20)
+  if frame.Model then
+    frame.Model:SetFrameLevel(frame:GetFrameLevel() + 2)
+  end
+  socket:SetFrameLevel(frame:GetFrameLevel() + 6)
+  local hole = 36
+  if frame.Portrait then
+    frame.Portrait:ClearAllPoints()
+    frame.Portrait:SetSize(hole, hole)
+    frame.Portrait:SetPoint("CENTER", socket, "CENTER", 0, 3)
+  end
+  if frame.Model then
+    frame.Model:ClearAllPoints()
+    frame.Model:SetSize(hole, hole)
+    frame.Model:SetPoint("CENTER", socket, "CENTER", 0, 3)
+  end
+  if frame.Badge then
+    frame.Badge:SetJustifyH("CENTER")
+    frame.Badge:SetWidth(280)
+  end
+  if frame.Speaker then
+    frame.Speaker:SetJustifyH("CENTER")
+    frame.Speaker:SetWidth(280)
+  end
+  if frame.Text then
+    frame.Text:SetJustifyH("CENTER")
+    frame.Text:SetJustifyV("MIDDLE")
+    frame.Text:SetSize(280, 56)
+  end
+  if frame.Medal then
+    frame.Medal:Hide()
   end
   if frame.EdgeGlow then
     frame.EdgeGlow:Hide()
@@ -328,7 +378,7 @@ local function showNow(payload)
         frame.Badge:SetText(colorize(payload.badge, Data.RARITY_COLOR.milestone or "FFFFD100"))
       end
       frame.Badge:Show()
-      if frame.Medal then
+      if frame.Medal and not frame._dialogueSkin then
         frame.Medal:Show()
       end
     else
@@ -360,6 +410,28 @@ local function showNow(payload)
       frame.Text:SetTextColor(bodyR, bodyG, bodyB)
     else
       frame.Text:SetText(colorize(payload.text or "", hex))
+    end
+  end
+
+  if frame._dialogueSkin and frame.SocketFrame then
+    local hasBadge = frame.Badge and frame.Badge:IsShown()
+    frame.SocketFrame:ClearAllPoints()
+    frame.SocketFrame:SetPoint("TOP", frame, "TOP", 0, -22)
+    if frame.Badge then
+      frame.Badge:ClearAllPoints()
+      frame.Badge:SetPoint("TOP", frame.SocketFrame, "BOTTOM", 0, -2)
+    end
+    if frame.Speaker then
+      frame.Speaker:ClearAllPoints()
+      if hasBadge then
+        frame.Speaker:SetPoint("TOP", frame.Badge, "BOTTOM", 0, -1)
+      else
+        frame.Speaker:SetPoint("TOP", frame.SocketFrame, "BOTTOM", 0, -4)
+      end
+    end
+    if frame.Text and frame.Speaker then
+      frame.Text:ClearAllPoints()
+      frame.Text:SetPoint("TOP", frame.Speaker, "BOTTOM", 0, -4)
     end
   end
 

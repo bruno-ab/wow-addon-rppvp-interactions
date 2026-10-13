@@ -18,10 +18,10 @@ local DEFAULTS = {
   hostileOnly = true,
   chatAnnounce = false,
   debug = false,
-  point = "BOTTOM",
-  relPoint = "BOTTOM",
+  point = "CENTER",
+  relPoint = "CENTER",
   x = 0,
-  y = 160,
+  y = 20,
 }
 
 local function copyDefaults()

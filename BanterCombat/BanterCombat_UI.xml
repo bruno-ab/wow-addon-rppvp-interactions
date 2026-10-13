@@ -2,7 +2,7 @@
   <Frame name="BanterCombatPopup" parent="UIParent" frameStrata="DIALOG" enableMouse="true" movable="true" hidden="true">
     <Size x="460" y="190"/>
     <Anchors>
-      <Anchor point="BOTTOM" relativePoint="BOTTOM" x="0" y="160"/>
+      <Anchor point="CENTER" relativePoint="CENTER" x="0" y="20"/>
     </Anchors>
     <Layers>
       <Layer level="BACKGROUND">
@@ -22,7 +22,7 @@
         </Texture>
       </Layer>
       <Layer level="ARTWORK">
-        <Texture name="$parentHeader" parentKey="Header">
+        <Texture name="$parentHeader" parentKey="Header" hidden="true">
           <Size x="320" y="46"/>
           <Anchors>
             <Anchor point="TOP" x="18" y="-14"/>
