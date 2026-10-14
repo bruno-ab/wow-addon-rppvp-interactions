@@ -47,7 +47,7 @@ end
 
 local function buildFrame()
   frame = CreateFrame("Frame", "BanterCombatCompendium", UIParent)
-  frame:SetSize(540, 320)
+  frame:SetSize(780, 512)
   frame:SetPoint("CENTER")
   frame:SetFrameStrata("DIALOG")
   frame:EnableMouse(true)
@@ -58,23 +58,45 @@ local function buildFrame()
   frame:SetClampedToScreen(true)
   if frame.SetBackdrop then
     frame:SetBackdrop({
-      bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+      bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
       edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
       tile = true, tileSize = 32, edgeSize = 32,
-      insets = { left = 8, right = 8, top = 8, bottom = 8 },
+      insets = { left = 11, right = 12, top = 12, bottom = 11 },
     })
   end
 
-  frame.Title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-  frame.Title:SetPoint("TOP", 0, -14)
+  local paper = frame:CreateTexture(nil, "BACKGROUND")
+  paper:SetPoint("TOPLEFT", 16, -16)
+  paper:SetPoint("BOTTOMRIGHT", -16, 16)
+  paper:SetTexture("Interface\\Stationery\\StationeryTest1")
+  paper:SetVertexColor(1, 0.95, 0.82, 0.55)
+
+  local side = frame:CreateTexture(nil, "BORDER")
+  side:SetPoint("TOPLEFT", 18, -48)
+  side:SetSize(156, 410)
+  side:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+  side:SetVertexColor(0.12, 0.08, 0.04, 0.72)
+
+  local banner = frame:CreateTexture(nil, "ARTWORK")
+  banner:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
+  banner:SetSize(320, 64)
+  banner:SetPoint("TOP", 0, 12)
+
+  frame.Title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  frame.Title:SetPoint("TOP", banner, "TOP", 0, -14)
 
   frame.Totals = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  frame.Totals:SetPoint("TOPRIGHT", -16, -42)
+  frame.Totals:SetPoint("TOPRIGHT", -28, -36)
 
   frame.Hint = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-  frame.Hint:SetPoint("BOTTOM", 0, 36)
-  frame.Hint:SetWidth(500)
+  frame.Hint:SetPoint("BOTTOM", 80, 40)
+  frame.Hint:SetWidth(520)
+  frame.Hint:SetHeight(28)
   frame.Hint:SetJustifyH("CENTER")
+  frame.Hint:SetJustifyV("TOP")
+  if frame.Hint.SetWordWrap then
+    frame.Hint:SetWordWrap(true)
+  end
 
   local function header(parent, x)
     local race = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -86,82 +108,145 @@ local function buildFrame()
     return race, kills, deaths
   end
 
-  frame.RaceHeader, frame.RaceKillsHeader, frame.RaceDeathsHeader = header(frame, 22)
-  frame.ClassHeader, frame.ClassKillsHeader, frame.ClassDeathsHeader = header(frame, 286)
+  frame.RaceHeader, frame.RaceKillsHeader, frame.RaceDeathsHeader = header(frame, 196)
+  frame.ClassHeader, frame.ClassKillsHeader, frame.ClassDeathsHeader = header(frame, 470)
 
   frame.rows = {}
   for i = 1, 9 do
     local y = -98 - (i - 1) * 16
     local row = {}
     row.race = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.race:SetPoint("TOPLEFT", 22, y)
+    row.race:SetPoint("TOPLEFT", 196, y)
     row.race:SetWidth(128)
     row.race:SetJustifyH("LEFT")
     row.raceKills = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.raceKills:SetPoint("TOPLEFT", 154, y)
+    row.raceKills:SetPoint("TOPLEFT", 328, y)
     row.raceKills:SetWidth(28)
     row.raceKills:SetJustifyH("RIGHT")
     row.raceDeaths = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.raceDeaths:SetPoint("TOPLEFT", 206, y)
+    row.raceDeaths:SetPoint("TOPLEFT", 380, y)
     row.raceDeaths:SetWidth(28)
     row.raceDeaths:SetJustifyH("RIGHT")
 
     row.class = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.class:SetPoint("TOPLEFT", 286, y)
-    row.class:SetWidth(128)
+    row.class:SetPoint("TOPLEFT", 470, y)
+    row.class:SetWidth(140)
     row.class:SetJustifyH("LEFT")
     row.classKills = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.classKills:SetPoint("TOPLEFT", 418, y)
+    row.classKills:SetPoint("TOPLEFT", 602, y)
     row.classKills:SetWidth(28)
     row.classKills:SetJustifyH("RIGHT")
     row.classDeaths = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.classDeaths:SetPoint("TOPLEFT", 470, y)
+    row.classDeaths:SetPoint("TOPLEFT", 654, y)
     row.classDeaths:SetWidth(28)
     row.classDeaths:SetJustifyH("RIGHT")
     frame.rows[i] = row
   end
 
   local close = makeButton(frame, "", 90)
-  close:SetPoint("BOTTOM", 0, 12)
+  close:SetPoint("BOTTOM", 80, 12)
   close:SetScript("OnClick", function()
     frame:Hide()
   end)
   frame.Close = close
 
-  local function tab(text, x, page)
-    local button = makeButton(frame, text, 78)
-    button:SetPoint("TOPLEFT", x, -36)
+  frame.nav = {}
+  local categories = ns.Achievements and ns.Achievements.Categories and ns.Achievements.Categories() or {}
+  for i = 1, #categories do
+    local page = categories[i].id
+    local button = CreateFrame("Button", nil, frame)
+    button:SetSize(148, 20)
+    button:SetPoint("TOPLEFT", 22, -54 - (i - 1) * 22)
+    local hi = button:CreateTexture(nil, "BACKGROUND")
+    hi:SetAllPoints()
+    hi:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+    hi:SetVertexColor(0.72, 0.55, 0.18, 0.55)
+    hi:Hide()
+    button.hi = hi
+    local label = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    label:SetPoint("LEFT", 8, 0)
+    label:SetJustifyH("LEFT")
+    label:SetWidth(132)
+    label:SetText(categories[i].label)
+    button.label = label
+    button.page = page
     button:SetScript("OnClick", function()
       frame.page = page
       frame.listPage = 1
       Compendium.Refresh()
     end)
-    return button
+    button:SetScript("OnEnter", function()
+      if frame.page ~= page then
+        label:SetTextColor(1, 0.95, 0.7)
+      end
+    end)
+    button:SetScript("OnLeave", function()
+      Compendium.Refresh()
+    end)
+    frame.nav[i] = button
   end
-  frame.TabCounts = tab("", 12, "counts")
-  frame.TabRivals = tab("", 94, "rivals")
-  frame.TabFeats = tab("", 176, "feats")
-  frame.TabStory = tab("", 258, "story")
-  frame.page = "counts"
+  frame.page = "summary"
   frame.listPage = 1
 
   frame.Back = makeButton(frame, "", 80)
-  frame.Back:SetPoint("BOTTOMLEFT", 16, 12)
+  frame.Back:SetPoint("BOTTOMLEFT", 190, 12)
   frame.Back:SetScript("OnClick", function()
     frame.listPage = math.max(1, (frame.listPage or 1) - 1)
     Compendium.Refresh()
   end)
   frame.More = makeButton(frame, "", 80)
-  frame.More:SetPoint("BOTTOMRIGHT", -16, 12)
+  frame.More:SetPoint("BOTTOMRIGHT", -24, 12)
   frame.More:SetScript("OnClick", function()
     frame.listPage = (frame.listPage or 1) + 1
     Compendium.Refresh()
   end)
 
+  frame.achRows = {}
+  for i = 1, 6 do
+    local row = CreateFrame("Frame", nil, frame)
+    row:SetSize(560, 56)
+    row:SetPoint("TOPLEFT", 188, -58 - (i - 1) * 60)
+    local bg = row:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+    bg:SetVertexColor(0.16, 0.11, 0.05, 0.55)
+    row.icon = row:CreateTexture(nil, "ARTWORK")
+    row.icon:SetSize(40, 40)
+    row.icon:SetPoint("LEFT", 8, 0)
+    row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    row.title = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    row.title:SetPoint("TOPLEFT", 56, -6)
+    row.title:SetWidth(330)
+    row.title:SetJustifyH("LEFT")
+    row.desc = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.desc:SetPoint("TOPLEFT", 56, -24)
+    row.desc:SetWidth(330)
+    row.desc:SetHeight(30)
+    row.desc:SetJustifyH("LEFT")
+    row.desc:SetJustifyV("TOP")
+    if row.desc.SetWordWrap then
+      row.desc:SetWordWrap(true)
+    end
+    row.bar = CreateFrame("StatusBar", nil, row)
+    row.bar:SetSize(150, 14)
+    row.bar:SetPoint("BOTTOMRIGHT", -10, 8)
+    row.bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
+    row.bar:SetMinMaxValues(0, 1)
+    row.bar:SetValue(0)
+    local barBg = row.bar:CreateTexture(nil, "BACKGROUND")
+    barBg:SetAllPoints()
+    barBg:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+    barBg:SetVertexColor(0, 0, 0, 0.65)
+    row.barText = row.bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.barText:SetPoint("CENTER", row.bar, "CENTER", 0, 0)
+    row:Hide()
+    frame.achRows[i] = row
+  end
+
   frame.Story = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  frame.Story:SetPoint("TOPLEFT", 24, -78)
-  frame.Story:SetWidth(492)
-  frame.Story:SetHeight(190)
+  frame.Story:SetPoint("TOPLEFT", 196, -78)
+  frame.Story:SetWidth(540)
+  frame.Story:SetHeight(340)
   frame.Story:SetJustifyH("LEFT")
   frame.Story:SetJustifyV("TOP")
   if frame.Story.SetWordWrap then
@@ -178,19 +263,152 @@ function Compendium.Refresh()
   local db = ns.Stats and ns.Stats.GetDB and ns.Stats.GetDB() or {}
   local page = frame.page or "counts"
   frame.Title:SetText(L.COMP_TITLE)
-  frame.Totals:SetText(L.COMP_TOTAL_KILLS:format(db.totalKills or 0) .. "    " .. L.COMP_TOTAL_DEATHS:format(db.totalDeaths or 0))
   frame.Close:SetText(L.COMP_CLOSE)
-  frame.TabCounts:SetText(L.COMP_COUNTS)
-  frame.TabRivals:SetText(L.COMP_RIVALS)
-  frame.TabFeats:SetText(L.COMP_FEATS)
-  if frame.TabStory then
-    frame.TabStory:SetText(L.COMP_STORY)
-  end
   frame.Back:SetText(L.COMP_BACK)
   frame.More:SetText(L.COMP_MORE)
   if frame.Story then
     frame.Story:Hide()
   end
+  if frame.nav and ns.Achievements and ns.Achievements.Categories then
+    local categories = ns.Achievements.Categories()
+    for i = 1, #frame.nav do
+      local button = frame.nav[i]
+      local label = categories[i] and categories[i].label or ""
+      button.label:SetText(label)
+      if button.page == page then
+        button.label:SetTextColor(1, 0.82, 0)
+        button.hi:Show()
+      else
+        button.label:SetTextColor(0.85, 0.75, 0.55)
+        button.hi:Hide()
+      end
+    end
+  end
+
+  local function ledger(show)
+    local headers = {
+      frame.RaceHeader, frame.RaceKillsHeader, frame.RaceDeathsHeader,
+      frame.ClassHeader, frame.ClassKillsHeader, frame.ClassDeathsHeader,
+    }
+    for i = 1, #headers do
+      if show then
+        headers[i]:Show()
+      else
+        headers[i]:Hide()
+      end
+    end
+    for i = 1, 9 do
+      local row = frame.rows[i]
+      local cells = { row.race, row.raceKills, row.raceDeaths, row.class, row.classKills, row.classDeaths }
+      for c = 1, #cells do
+        if show then
+          cells[c]:Show()
+        else
+          cells[c]:Hide()
+        end
+      end
+    end
+  end
+
+  local function hideAch()
+    if not frame.achRows then
+      return
+    end
+    for i = 1, #frame.achRows do
+      frame.achRows[i]:Hide()
+    end
+  end
+
+  local ledgerPage = page == "counts" or page == "rivals" or page == "feats" or page == "story"
+  if not ledgerPage and ns.Achievements and ns.Achievements.List then
+    ledger(false)
+    hideAch()
+    local list = ns.Achievements.List(page)
+    local done, total = ns.Achievements.Counts()
+    frame.Totals:SetText(L.ACH_TOTAL:format(done, total))
+    local index = frame.listPage or 1
+    local pages = math.max(1, math.ceil(#list / 6))
+    if index > pages then
+      index = pages
+    end
+    if index < 1 then
+      index = 1
+    end
+    frame.listPage = index
+    local start = (index - 1) * 6
+    for i = 1, 6 do
+      local item = list[start + i]
+      local row = frame.achRows[i]
+      if not item then
+        row:Hide()
+      else
+        row:Show()
+        local title = item.title or ""
+        if item.done and item.when and item.when > 0 and date then
+          title = title .. "   |cFF9D9D9D" .. date("%d/%m/%Y", item.when) .. "|r"
+        end
+        row.title:SetText(title)
+        if item.blocked then
+          row.title:SetTextColor(0.55, 0.55, 0.55)
+        elseif item.done then
+          row.title:SetTextColor(1, 0.82, 0)
+        else
+          row.title:SetTextColor(1, 1, 1)
+        end
+        local desc = item.desc or ""
+        if item.detail and item.detail ~= "" then
+          desc = desc .. "\n" .. item.detail
+        end
+        if item.blocked then
+          desc = "|cFF888888" .. item.blocked .. "|r\n" .. desc
+        end
+        row.desc:SetText(desc)
+        row.icon:SetTexture(item.icon)
+        if row.icon.SetDesaturated then
+          row.icon:SetDesaturated(item.blocked and true or false)
+        end
+        local goal = item.goal or 1
+        if goal < 1 then
+          goal = 1
+        end
+        local progress = item.progress or 0
+        if progress > goal then
+          progress = goal
+        end
+        row.bar:SetMinMaxValues(0, goal)
+        row.bar:SetValue(progress)
+        row.barText:SetText(progress .. "/" .. goal)
+        if item.done then
+          row.bar:SetStatusBarColor(0.95, 0.75, 0.15)
+        elseif item.blocked then
+          row.bar:SetStatusBarColor(0.35, 0.35, 0.35)
+        else
+          row.bar:SetStatusBarColor(0.2, 0.55, 0.15)
+        end
+      end
+    end
+    local last = math.min(#list, start + 6)
+    if #list == 0 then
+      frame.Hint:SetText(L.ACH_HINT)
+    else
+      frame.Hint:SetText(L.ACH_PAGE:format(start + 1, last, #list))
+    end
+    if index > 1 then
+      frame.Back:Show()
+    else
+      frame.Back:Hide()
+    end
+    if index < pages then
+      frame.More:Show()
+    else
+      frame.More:Hide()
+    end
+    return
+  end
+
+  hideAch()
+  ledger(true)
+  frame.Totals:SetText(L.COMP_TOTAL_KILLS:format(db.totalKills or 0) .. "    " .. L.COMP_TOTAL_DEATHS:format(db.totalDeaths or 0))
 
   local function widen(wide)
     for i = 1, 9 do

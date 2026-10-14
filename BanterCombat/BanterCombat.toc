@@ -4,7 +4,7 @@
 ## Notes-enUS: PvP banter with revenge, milestones, popup queue, and addon-to-addon sync (WoW Forever classic beta 1.60 / Classic Era 1.15).
 ## Notes-ptBR: Provocações PvP com vingança, conquistas, fila de pop-ups e sync addon-to-addon (WoW Forever classic beta 1.60 / Classic Era 1.15).
 ## Author: BanterCombat
-## Version: 1.6.1
+## Version: 1.7.0
 ## SavedVariablesPerCharacter: BanterCombatDB
 ## OptionalDeps: DialogueUI
 ## X-Category: PvP
@@ -15,6 +15,7 @@ BanterCombat_Locale.lua
 BanterCombat_Speech.lua
 BanterCombat_Story.lua
 BanterCombat_Stats.lua
+BanterCombat_Achievements.lua
 BanterCombat_Chronicle.lua
 BanterCombat_Options.lua
 BanterCombat_UI.xml

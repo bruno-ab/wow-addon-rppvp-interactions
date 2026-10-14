@@ -670,9 +670,15 @@ local function OnPlayerKill(victim, destFlags)
   BroadcastPayload(EncodeMessage(
     payload.speaker, payload.race, payload.class, payload.kind, payload.rarity, payload.badge, payload.text, payload.title
   ), victim.name)
+  if ns.Achievements and ns.Achievements.OnKill then
+    ns.Achievements.OnKill(victim, isRevenge)
+  end
 end
 
 local function OnPlayerDeath(killer)
+  if ns.Achievements and ns.Achievements.OnDeath then
+    ns.Achievements.OnDeath()
+  end
   local s = Options.Get()
   if not s.enabled then
     return
@@ -741,6 +747,11 @@ local function HandleCombatLog()
 
   if not playerGUID then
     playerGUID = UnitGUID("player")
+  end
+
+  if ns.Achievements and ns.Achievements.OnLog then
+    local spellId, spellName = select(12, CombatLogGetCurrentEventInfo())
+    ns.Achievements.OnLog(subevent, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellId, spellName)
   end
 
   if sourceGUID == playerGUID and destGUID and IsPlayerFlags(destFlags) then
