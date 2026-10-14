@@ -481,7 +481,7 @@ local function syncHonor()
     return
   end
   if GetPVPLifetimeStats then
-    local hk = tonumber(GetPVPLifetimeStats())
+    local hk = tonumber((GetPVPLifetimeStats()))
     if hk and hk > num("apiHk") then
       setn("apiHk", hk)
     end
