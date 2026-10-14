@@ -28,6 +28,7 @@
 | 20 | `/banter lines` | Editor abre. Linha comum e épica ficam salvas depois de `/reload`. Máximo 8 por lista |
 | 21 | Som ligado, botão Testar | Comum quase mudo, incomum um clique, épico um acorde, lendário uma fanfarra. Vingança e conquista continuam com o aviso de raide. Morte continua com o som de falha |
 | 22 | `/banter announce` | Cada chamada toca o próximo anúncio, de First Blood até Godlike. Em combate, o primeiro abate da vida é First Blood, o segundo em até 12s é Double Kill, o nono sem morrer é Godlike. Morrer volta a First Blood |
+| 22b | `/banter test` com som ligado | O primeiro teste de abate toca First Blood. Outro teste em até 12s sobe a escada. O teste de morte zera, e o abate seguinte volta a First Blood |
 | 23 | Compêndio → Crônica | Sem abates novos, mostra o texto vazio ou os capítulos de feitos e conquistas já alcançados. Depois de um abate, o capítulo traz raça, classe, zona, nível, golpe e nome. Mais e Voltar trocam de capítulo |
 | 24 | Compêndio | Janela com pergaminho, faixa e categorias à esquerda. Visão mostra as conquistas mais perto do fim. Raça ou classe errada fica cinza. Mais e Voltar trocam a página. Contas, Rivais, Feitos e Crônica continuam na lista |
 
