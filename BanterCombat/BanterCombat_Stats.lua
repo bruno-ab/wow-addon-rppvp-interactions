@@ -139,6 +139,7 @@ local function scrubChronicle(list)
         mySex = (tonumber(row.mySex) == 2 or tonumber(row.mySex) == 3) and tonumber(row.mySex) or nil,
         time = math.max(0, math.floor(tonumber(row.time) or 0)),
         first = row.first and true or nil,
+        test = row.test and true or nil,
       }
     end
   end
@@ -206,6 +207,27 @@ function Stats.Chronicle()
   return ensureDB().chronicle
 end
 
+function Stats.ClearTestChronicle()
+  local db = ensureDB()
+  local kept = {}
+  for i = 1, #db.chronicle do
+    if not db.chronicle[i].test then
+      kept[#kept + 1] = db.chronicle[i]
+    end
+  end
+  local hasFirst = false
+  for i = 1, #kept do
+    if kept[i].first then
+      hasFirst = true
+      break
+    end
+  end
+  if kept[1] and not hasFirst then
+    kept[1].first = true
+  end
+  db.chronicle = kept
+end
+
 function Stats.RememberChronicle(info)
   if type(info) ~= "table" or type(info.name) ~= "string" or info.name == "" then
     return
@@ -224,6 +246,7 @@ function Stats.RememberChronicle(info)
     mySex = (tonumber(info.mySex) == 2 or tonumber(info.mySex) == 3) and tonumber(info.mySex) or nil,
     time = time(),
     first = #db.chronicle == 0 and true or nil,
+    test = info.test and true or nil,
   }
   db.chronicle[#db.chronicle + 1] = row
   while #db.chronicle > 40 do

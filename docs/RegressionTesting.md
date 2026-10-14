@@ -31,6 +31,7 @@
 | 22b | `/banter test` com som ligado | O primeiro teste de abate toca First Blood. Outro teste em até 12s sobe a escada. O teste de morte zera, e o abate seguinte volta a First Blood |
 | 22c | Botão Sons | Um clique percorre First Blood até Godlike e depois os sons de raridade. O rótulo mostra o som atual. Outro clique para. Arrastar Testar move os dois |
 | 23 | Compêndio → Crônica | Sem abates novos, mostra o texto vazio ou os capítulos de feitos e conquistas já alcançados. Depois de um abate, o capítulo traz raça, classe, zona, nível, golpe e nome. As setas trocam de capítulo |
+| 23b | Botão Crônica | O primeiro clique abre a crônica com um orc guerreiro. O segundo continua o mesmo par com o outro texto. O terceiro acrescenta uma elfa ladina. O quarto apaga só esses capítulos de teste |
 | 24 | Compêndio | Janela com pergaminho na coluna dos feitos, faixa e categorias à esquerda. O pergaminho não cobre o menu. Visão mostra as conquistas mais perto do fim. Contra raças, Contra classes, Combinações, Abates, Campo, Honra, Situação, Raciais, Identidade, Linhagem e Pessoal separam os feitos. Raça ou classe errada fica cinza. As setas trocam a página e ficam cinza no fim. Contas, Rivais e Crônica continuam na lista |
 | 25 | Menu → backup, carregar, só no chat | Backup abre o texto já selecionado, começando com `BC1:`. Colar um texto inválido não apaga nada. Colar o backup devolve as contas. Com “janela de abate vira uma frase no chat” ligado, o abate sai em SAY e o pop-up não abre. O botão Testar ainda mostra a janela |
 

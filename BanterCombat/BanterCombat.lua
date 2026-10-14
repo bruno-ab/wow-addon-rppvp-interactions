@@ -1234,6 +1234,80 @@ function EnsureTestButton()
       GameTooltip:Hide()
     end
   end)
+
+  local storyOk, storyButton = pcall(CreateFrame, "Button", "BanterCombatStoryButton", testButton, "UIPanelButtonTemplate")
+  if not storyOk or not storyButton then
+    storyButton = CreateFrame("Button", "BanterCombatStoryButton", testButton)
+  end
+  if not storyButton.SetText then
+    local font = storyButton:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    font:SetPoint("CENTER")
+    storyButton.SetText = function(_, text)
+      font:SetText(text)
+    end
+  end
+  storyButton:SetSize(148, 22)
+  storyButton:SetPoint("TOPLEFT", soundButton, "BOTTOMLEFT", 0, -4)
+  storyButton:SetFrameStrata("HIGH")
+  storyButton:SetText(L.STORY_TEST)
+
+  local storyStep = 0
+  local storyScenes = {
+    { name = "Thok", race = "Orc", class = "WARRIOR", zone = "Ravina Brado Guerreiro", spell = "Golpe Mortal", sex = 2 },
+    { name = "Thok", race = "Orc", class = "WARRIOR", zone = "Vale Gris", spell = "Investida", sex = 2 },
+    { name = "Sylara", race = "NightElf", class = "ROGUE", zone = "Vale Gris", spell = "Punhalada pelas Costas", sex = 3 },
+  }
+
+  local function showStory()
+    if ns.Compendium and ns.Compendium.ShowPage then
+      ns.Compendium.ShowPage("story")
+    end
+  end
+
+  storyButton:SetScript("OnClick", function(self)
+    if storyStep >= 3 then
+      if Stats.ClearTestChronicle then
+        Stats.ClearTestChronicle()
+      end
+      storyStep = 0
+      self:SetText(L.STORY_TEST)
+      showStory()
+      return
+    end
+    storyStep = storyStep + 1
+    local scene = storyScenes[storyStep]
+    local _, myClass = UnitClass("player")
+    if Stats.RememberChronicle then
+      Stats.RememberChronicle({
+        name = scene.name,
+        race = scene.race,
+        class = scene.class,
+        zone = scene.zone,
+        spell = scene.spell,
+        sex = scene.sex,
+        level = UnitLevel and UnitLevel("player") or 1,
+        myClass = myClass,
+        mySex = UnitSex and UnitSex("player") or nil,
+        test = true,
+      })
+    end
+    self:SetText(L.STORY_STEP:format(storyStep))
+    showStory()
+  end)
+  storyButton:SetScript("OnEnter", function(self)
+    if not GameTooltip then
+      return
+    end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText(L.STORY_TEST, 1, 0.82, 0)
+    GameTooltip:AddLine(L.STORY_TEST_TIP, 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  storyButton:SetScript("OnLeave", function()
+    if GameTooltip then
+      GameTooltip:Hide()
+    end
+  end)
 end
 
 local announcePreview = 0

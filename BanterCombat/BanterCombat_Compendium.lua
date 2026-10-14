@@ -656,6 +656,16 @@ function Compendium.Refresh()
   setPager(pageIndex > 1, start + 18 < #items)
 end
 
+function Compendium.ShowPage(page)
+  if not frame then
+    buildFrame()
+  end
+  frame.page = page or frame.page or "summary"
+  frame.listPage = 1
+  Compendium.Refresh()
+  frame:Show()
+end
+
 function Compendium.Toggle()
   if not frame then
     buildFrame()
