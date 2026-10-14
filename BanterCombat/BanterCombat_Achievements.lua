@@ -1496,6 +1496,13 @@ local function measure(def)
   if kind == "or" then
     return joinParts(def.parts, "or")
   end
+  if kind == "dated" then
+    local when = def.feat and ns.Stats and ns.Stats.FeatTime and ns.Stats.FeatTime(def.feat)
+    if when then
+      return 1, 1, nil, true
+    end
+    return 0, 1, nil, false
+  end
   if kind == "revenge" then
     local cur = num("revenge")
     if ns.Stats and ns.Stats.FeatTime and ns.Stats.FeatTime("revenge") then
@@ -1529,18 +1536,19 @@ end
 
 local CATS = {
   { id = "summary", pt = "Visão", en = "Summary" },
-  { id = "race", pt = "Raças", en = "Races" },
-  { id = "class", pt = "Classes", en = "Classes" },
+  { id = "race", pt = "Contra raças", en = "Versus races" },
+  { id = "class", pt = "Contra classes", en = "Versus classes" },
   { id = "combo", pt = "Combinações", en = "Combos" },
-  { id = "marks", pt = "Marcos", en = "Milestones" },
+  { id = "marks", pt = "Abates", en = "Kills" },
+  { id = "field", pt = "Campo", en = "Battlegrounds" },
+  { id = "honor", pt = "Honra", en = "Honor" },
   { id = "situation", pt = "Situação", en = "Situations" },
   { id = "racial", pt = "Raciais", en = "Racials" },
-  { id = "identity", pt = "Ofício", en = "Craft" },
+  { id = "identity", pt = "Identidade", en = "Identity" },
   { id = "lineage", pt = "Linhagem", en = "Lineage" },
   { id = "personal", pt = "Pessoal", en = "Personal" },
   { id = "counts", pt = "Contas", en = "Counts" },
   { id = "rivals", pt = "Rivais", en = "Rivals" },
-  { id = "feats", pt = "Feitos", en = "Feats" },
   { id = "story", pt = "Crônica", en = "Chronicle" },
 }
 
@@ -1677,37 +1685,37 @@ local function catalog()
       "15 abates seguidos dentro de um campo de batalha.", "15 kills in a battleground without dying.", { key = "bestBg" }),
     D("bstreak_20", "marks", "counter", 20, P.pvp, "Série no Campo: 20", "Battleground Streak: 20",
       "20 abates seguidos dentro de um campo de batalha.", "20 kills in a battleground without dying.", { key = "bestBg" }),
-    D("bg_10", "marks", "counter", 10, P.ally, "Presença: 10", "Presence: 10",
+    D("bg_10", "field", "counter", 10, P.ally, "Presença: 10", "Presence: 10",
       "Vença 10 campos de batalha.", "Win 10 battlegrounds.", { key = "bgWin" }),
-    D("bg_50", "marks", "counter", 50, P.ally, "Presença: 50", "Presence: 50",
+    D("bg_50", "field", "counter", 50, P.ally, "Presença: 50", "Presence: 50",
       "Vença 50 campos de batalha.", "Win 50 battlegrounds.", { key = "bgWin" }),
-    D("bg_100", "marks", "counter", 100, P.ally, "Presença: 100", "Presence: 100",
+    D("bg_100", "field", "counter", 100, P.ally, "Presença: 100", "Presence: 100",
       "Vença 100 campos de batalha.", "Win 100 battlegrounds.", { key = "bgWin" }),
-    D("bg_500", "marks", "counter", 500, P.ally, "Presença: 500", "Presence: 500",
+    D("bg_500", "field", "counter", 500, P.ally, "Presença: 500", "Presence: 500",
       "Vença 500 campos de batalha.", "Win 500 battlegrounds.", { key = "bgWin" }),
-    D("bg_wsg", "marks", "counter", 10, P.pvp, "Presença na Ravina", "Warsong Presence",
+    D("bg_wsg", "field", "counter", 10, P.pvp, "Presença na Ravina", "Warsong Presence",
       "Vença 10 vezes a Ravina Brado Guerreiro.", "Win Warsong Gulch 10 times.", { key = "bgWin:warsong" }),
-    D("bg_ab", "marks", "counter", 10, P.pvp, "Presença em Arathi", "Arathi Presence",
+    D("bg_ab", "field", "counter", 10, P.pvp, "Presença em Arathi", "Arathi Presence",
       "Vença 10 vezes a Bacia Arathi.", "Win Arathi Basin 10 times.", { key = "bgWin:arathi" }),
-    D("bg_av", "marks", "counter", 10, P.pvp, "Presença em Alterac", "Alterac Presence",
+    D("bg_av", "field", "counter", 10, P.pvp, "Presença em Alterac", "Alterac Presence",
       "Vença 10 vezes o Vale Alterac.", "Win Alterac Valley 10 times.", { key = "bgWin:alterac" }),
-    D("flag_25", "marks", "counter", 25, P.ally, "Bandeira Dourada: 25", "Gold Flag: 25",
+    D("flag_25", "field", "counter", 25, P.ally, "Bandeira Dourada: 25", "Gold Flag: 25",
       "Capture ou devolva 25 bandeiras.", "Capture or return 25 flags.", { key = "flags" }),
-    D("flag_100", "marks", "counter", 100, P.ally, "Bandeira Dourada: 100", "Gold Flag: 100",
+    D("flag_100", "field", "counter", 100, P.ally, "Bandeira Dourada: 100", "Gold Flag: 100",
       "Capture ou devolva 100 bandeiras.", "Capture or return 100 flags.", { key = "flags" }),
-    D("flag_250", "marks", "counter", 250, P.ally, "Bandeira Dourada: 250", "Gold Flag: 250",
+    D("flag_250", "field", "counter", 250, P.ally, "Bandeira Dourada: 250", "Gold Flag: 250",
       "Capture ou devolva 250 bandeiras.", "Capture or return 250 flags.", { key = "flags" }),
-    D("anonymous", "marks", "counter", 100, P.sword,
+    D("anonymous", "situation", "counter", 100, P.sword,
       "Cobrador Anônimo", "Unseen Collector",
       "100 abates de quem estava atacando um aliado.", "100 kills of players who were attacking an ally.",
       { key = "friendKills" }),
-    D("honor_week", "marks", "honorWeek", 10000, P.book,
+    D("honor_week", "honor", "honorWeek", 10000, P.book,
       "Honra da Semana", "Honor This Week",
       "Ganhe 10.000 de honra em uma semana.", "Earn 10,000 honor in one week."),
-    D("honor_life", "marks", "honorLife", 100000, P.book,
+    D("honor_life", "honor", "honorLife", 100000, P.book,
       "Acumulador de Honra", "Honor Hoarder",
       "Ganhe 100.000 de honra no total.", "Earn 100,000 honor in total."),
-    D("unstoppable", "marks", "counter", 3, P.pvp,
+    D("unstoppable", "field", "counter", 3, P.pvp,
       "Imparável", "Unstoppable",
       "Vença 3 campos de batalha seguidos.", "Win 3 battlegrounds in a row.", { key = "bestWinRow" }),
     D("low_level", "marks", "counter", 100, P.sword,
@@ -1718,7 +1726,7 @@ local function catalog()
       "Sem Perdão: Acima", "No Mercy: Above",
       "100 abates de jogadores pelo menos 10 níveis acima.", "100 kills of players at least 10 levels above you.",
       { key = "highLevel" }),
-    D("tower", "marks", "counter", 50, P.shield,
+    D("tower", "field", "counter", 50, P.shield,
       "Defensor da Torre", "Tower Defender",
       "50 defesas de base, torre ou bandeira.", "Defend a base, tower, or flag 50 times.", { key = "tower" }),
     D("counterattack", "situation", "revenge", 1, P.sword,
@@ -1936,6 +1944,60 @@ local function catalog()
       "Carrasco de " .. ptName[race], enName[race] .. " Slayer",
       "500 abates desta raça.", "500 kills of this race.", { race = race }))
   end
+  local firstPt = {
+    Human = "Primeiro Humano", Dwarf = "Primeiro Anão", NightElf = "Primeiro Elfo Noturno", Gnome = "Primeiro Gnomo",
+    Orc = "Primeiro Orc", Scourge = "Primeiro Morto-vivo", Tauren = "Primeiro Tauren", Troll = "Primeiro Troll",
+  }
+  local firstEn = {
+    Human = "First Human", Dwarf = "First Dwarf", NightElf = "First Night Elf", Gnome = "First Gnome",
+    Orc = "First Orc", Scourge = "First Undead", Tauren = "First Tauren", Troll = "First Troll",
+  }
+  for i = 1, #races do
+    local race = races[i]
+    list[#list + 1] = D("first:" .. race, "race", "dated", 1, heads[race],
+      firstPt[race], firstEn[race],
+      "O primeiro abate desta raça.", "The first kill of this race.",
+      { feat = "race:" .. race })
+  end
+  local classRows = {
+    { "WARRIOR", P.sword, "Primeiro Guerreiro", "First Warrior" },
+    { "PALADIN", P.holy, "Primeiro Paladino", "First Paladin" },
+    { "HUNTER", P.bow, "Primeiro Caçador", "First Hunter" },
+    { "ROGUE", P.rogue, "Primeiro Ladino", "First Rogue" },
+    { "PRIEST", P.holy, "Primeiro Sacerdote", "First Priest" },
+    { "SHAMAN", P.nature, "Primeiro Xamã", "First Shaman" },
+    { "MAGE", P.frost, "Primeiro Mago", "First Mage" },
+    { "WARLOCK", P.shadow, "Primeiro Bruxo", "First Warlock" },
+    { "DRUID", P.druid, "Primeiro Druida", "First Druid" },
+  }
+  for i = 1, #classRows do
+    local row = classRows[i]
+    list[#list + 1] = D("first:" .. row[1], "class", "dated", 1, row[2],
+      row[3], row[4],
+      "O primeiro abate desta classe.", "The first kill of this class.",
+      { feat = "class:" .. row[1] })
+  end
+  list[#list + 1] = D("first:milestone100", "marks", "dated", 1, P.book,
+    "Primeiro marco de 100", "First milestone of 100",
+    "A primeira vez que uma raça ou classe chegou a 100 abates.",
+    "The first time one race or class reached 100 kills.",
+    { feat = "milestone100" })
+  list[#list + 1] = D("first:streak3", "marks", "dated", 1, P.sword,
+    "Primeira série de 3", "First streak of 3",
+    "A primeira série de 3 abates sem morrer.", "The first streak of 3 kills without dying.",
+    { feat = "streak3" })
+  list[#list + 1] = D("first:streak5", "marks", "dated", 1, P.sword,
+    "Primeira série de 5", "First streak of 5",
+    "A primeira série de 5 abates sem morrer.", "The first streak of 5 kills without dying.",
+    { feat = "streak5" })
+  list[#list + 1] = D("first:streak10", "marks", "dated", 1, P.sword,
+    "Primeira série de 10", "First streak of 10",
+    "A primeira série de 10 abates sem morrer.", "The first streak of 10 kills without dying.",
+    { feat = "streak10" })
+  list[#list + 1] = D("first:legendary", "personal", "dated", 1, P.book,
+    "Primeira fala lendária", "First legendary line",
+    "A primeira fala lendária sorteada num abate.", "The first legendary line rolled on a kill.",
+    { feat = "legendary" })
   return list
 end
 
@@ -1957,10 +2019,15 @@ local function viewOf(def)
   local when = nil
   if book then
     if done then
-      if not book.when[def.id] then
-        book.when[def.id] = time()
+      if def.kind == "dated" and def.feat and ns.Stats and ns.Stats.FeatTime then
+        when = ns.Stats.FeatTime(def.feat)
       end
-      when = book.when[def.id]
+      if not when then
+        if not book.when[def.id] then
+          book.when[def.id] = time()
+        end
+        when = book.when[def.id]
+      end
     else
       book.when[def.id] = nil
     end
