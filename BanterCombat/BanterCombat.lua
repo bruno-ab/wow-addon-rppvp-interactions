@@ -583,6 +583,7 @@ local function Present(payload, unit)
     kind = payload.kind,
     rarity = payload.rarity,
     title = payload.title,
+    announcer = payload.announcer,
     unit = unit,
   })
 end
@@ -633,6 +634,7 @@ local function OnPlayerKill(victim, destFlags)
     badge = badge,
     text = text,
     title = CurrentTitle(),
+    announcer = Stats.AnnouncerCue and Stats.AnnouncerCue(),
   }
 
   Debug("kill", victim.name, payload.kind, rarity)
@@ -1062,6 +1064,37 @@ function EnsureTestButton()
   testButton = button
 end
 
+local announcePreview = 0
+local ANNOUNCE_PREVIEW = {
+  { id = "FirstBlood", label = "FIRST BLOOD" },
+  { id = "DoubleKill", label = "DOUBLE KILL" },
+  { id = "TripleKill", label = "TRIPLE KILL" },
+  { id = "Rampage", label = "RAMPAGE" },
+  { id = "Massacre", label = "MASSACRE" },
+  { id = "KillingSpree", label = "KILLING SPREE" },
+  { id = "Dominating", label = "DOMINATING" },
+  { id = "MegaKill", label = "MEGA KILL" },
+  { id = "Ownage", label = "OWNAGE" },
+  { id = "Mayhem", label = "MAYHEM" },
+  { id = "Carnage", label = "CARNAGE" },
+  { id = "Godlike", label = "GODLIKE" },
+}
+
+function ns.PreviewAnnouncer()
+  announcePreview = (announcePreview % #ANNOUNCE_PREVIEW) + 1
+  local row = ANNOUNCE_PREVIEW[announcePreview]
+  local classToken = select(2, UnitClass("player"))
+  Present({
+    speaker = UnitName("player") or "?",
+    text = row.label,
+    badge = row.label,
+    class = classToken,
+    kind = "kill",
+    rarity = "common",
+    announcer = row.id,
+  }, "player")
+end
+
 SLASH_BANTERCOMBAT1 = "/banter"
 SLASH_BANTERCOMBAT2 = "/bantercombat"
 SlashCmdList.BANTERCOMBAT = function(msg)
@@ -1093,6 +1126,8 @@ SlashCmdList.BANTERCOMBAT = function(msg)
     if Options.ToggleLines then
       Options.ToggleLines()
     end
+  elseif cmd == "announce" or cmd == "blood" then
+    ns.PreviewAnnouncer()
   elseif cmd == "milestone" then
     ns.Preview("milestone")
   elseif cmd == "death" then

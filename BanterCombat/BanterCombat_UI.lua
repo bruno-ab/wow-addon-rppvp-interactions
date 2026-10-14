@@ -188,9 +188,47 @@ function BanterCombat_SavePopupPosition(frame)
   end
 end
 
-local function playShowSound(kind, rarity)
+local ANNOUNCER_FILES = {
+  FirstBlood = "Interface\\AddOns\\BanterCombat\\Sounds\\FirstBlood.ogg",
+  DoubleKill = "Interface\\AddOns\\BanterCombat\\Sounds\\DoubleKill.ogg",
+  TripleKill = "Interface\\AddOns\\BanterCombat\\Sounds\\TripleKill.ogg",
+  Rampage = "Interface\\AddOns\\BanterCombat\\Sounds\\Rampage.ogg",
+  Massacre = "Interface\\AddOns\\BanterCombat\\Sounds\\Massacre.ogg",
+  KillingSpree = "Interface\\AddOns\\BanterCombat\\Sounds\\KillingSpree.ogg",
+  Dominating = "Interface\\AddOns\\BanterCombat\\Sounds\\Dominating.ogg",
+  MegaKill = "Interface\\AddOns\\BanterCombat\\Sounds\\MegaKill.ogg",
+  Ownage = "Interface\\AddOns\\BanterCombat\\Sounds\\Ownage.ogg",
+  Mayhem = "Interface\\AddOns\\BanterCombat\\Sounds\\Mayhem.ogg",
+  Carnage = "Interface\\AddOns\\BanterCombat\\Sounds\\Carnage.ogg",
+  Godlike = "Interface\\AddOns\\BanterCombat\\Sounds\\Godlike.ogg",
+}
+
+local function playAnnouncer(id)
+  local path = id and ANNOUNCER_FILES[id]
+  if not path or not PlaySoundFile then
+    return false
+  end
+  local function try(channel)
+    local ok, played
+    if channel then
+      ok, played = pcall(PlaySoundFile, path, channel)
+    else
+      ok, played = pcall(PlaySoundFile, path)
+    end
+    if not ok or played == false then
+      return false
+    end
+    return true
+  end
+  return try("Master") or try(nil)
+end
+
+local function playShowSound(kind, rarity, announcer)
   local s = ns.Options and ns.Options.Get and ns.Options.Get()
   if not s or not s.sound then
+    return
+  end
+  if playAnnouncer(announcer) then
     return
   end
   local name = "igMainMenuOptionCheckBoxOn"
@@ -474,7 +512,7 @@ local function showNow(payload)
   ag:Stop()
   ag:Play()
   UIFrameFadeIn(frame, 0.22, 0, 1)
-  playShowSound(kind, rarity)
+  playShowSound(kind, rarity, payload.announcer)
 
   hideTicker = C_Timer.NewTimer(duration, function()
     hideTicker = nil

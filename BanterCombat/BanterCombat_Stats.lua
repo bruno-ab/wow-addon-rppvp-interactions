@@ -244,11 +244,70 @@ local function bumpStreak()
   return db.streak, hit
 end
 
+local multiCount = 0
+local lastAnnounceAt = 0
+local MULTI_WINDOW = 12
+
+function Stats.ResetAnnouncer()
+  multiCount = 0
+  lastAnnounceAt = 0
+end
+
+function Stats.AnnouncerCue()
+  local streak = ensureDB().streak or 0
+  local now = GetTime and GetTime() or 0
+  if lastAnnounceAt > 0 and (now - lastAnnounceAt) <= MULTI_WINDOW then
+    multiCount = multiCount + 1
+  else
+    multiCount = 1
+  end
+  lastAnnounceAt = now
+
+  if streak <= 1 then
+    return "FirstBlood"
+  end
+  if streak >= 9 then
+    return "Godlike"
+  end
+  if multiCount >= 2 then
+    if multiCount == 2 then
+      return "DoubleKill"
+    end
+    if multiCount == 3 then
+      return "TripleKill"
+    end
+    if multiCount == 4 then
+      return "Rampage"
+    end
+    return "Massacre"
+  end
+  if streak == 3 then
+    return "KillingSpree"
+  end
+  if streak == 4 then
+    return "Dominating"
+  end
+  if streak == 5 then
+    return "MegaKill"
+  end
+  if streak == 6 then
+    return "Ownage"
+  end
+  if streak == 7 then
+    return "Mayhem"
+  end
+  if streak == 8 then
+    return "Carnage"
+  end
+  return nil
+end
+
 function Stats.BreakStreak()
   local db = ensureDB()
   local prev = db.streak or 0
   db.streak = 0
   db.titleStreak = nil
+  Stats.ResetAnnouncer()
   if prev >= 3 then
     return prev
   end

@@ -29,7 +29,7 @@ end
 
 local ptBR = withNames({
   LOADED = "BanterCombat carregado. /banter help",
-  HELP = "comandos: test, common, uncommon, epic, legendary, revenge, milestone, rival, streak, zone, lines, stats, compendium, locale, config, queue, hide, debug, history, ignore, help",
+  HELP = "comandos: test, common, uncommon, epic, legendary, revenge, milestone, rival, streak, zone, lines, announce, stats, compendium, locale, config, queue, hide, debug, history, ignore, help",
   REVENGE = "VINGANÇA",
   MILESTONE = "CONQUISTA · %d %s",
   OPT_TITLE = "BanterCombat — Opções",
@@ -116,7 +116,7 @@ local ptBR = withNames({
 
 local enUS = withNames({
   LOADED = "BanterCombat loaded. /banter help",
-  HELP = "commands: test, common, uncommon, epic, legendary, revenge, milestone, rival, streak, zone, lines, stats, compendium, locale, config, queue, hide, debug, history, ignore, help",
+  HELP = "commands: test, common, uncommon, epic, legendary, revenge, milestone, rival, streak, zone, lines, announce, stats, compendium, locale, config, queue, hide, debug, history, ignore, help",
   REVENGE = "REVENGE",
   MILESTONE = "ACHIEVEMENT · %d %s",
   OPT_TITLE = "BanterCombat — Options",
@@ -260,7 +260,7 @@ local deDE = withNames({
 
 local esES = withNames({
   LOADED = "BanterCombat cargado. /banter help",
-  HELP = "comandos: test, common, uncommon, epic, legendary, revenge, milestone, rival, streak, zone, lines, stats, compendium, locale, config, queue, hide, debug, history, ignore, help",
+  HELP = "comandos: test, common, uncommon, epic, legendary, revenge, milestone, rival, streak, zone, lines, announce, stats, compendium, locale, config, queue, hide, debug, history, ignore, help",
   REVENGE = "VENGANZA",
   MILESTONE = "LOGRO · %d %s",
   OPT_TITLE = "BanterCombat — Opciones",

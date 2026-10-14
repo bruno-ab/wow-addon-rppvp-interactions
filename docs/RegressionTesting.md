@@ -27,6 +27,7 @@
 | 19 | `/banter rival`, `/banter streak`, `/banter zone` | Fala de rival (4–2), série de 5 com título debaixo do nome, e linha da zona atual (ou da ravina) |
 | 20 | `/banter lines` | Editor abre. Linha comum e épica ficam salvas depois de `/reload`. Máximo 8 por lista |
 | 21 | Som ligado, botão Testar | Comum quase mudo, incomum um clique, épico um acorde, lendário uma fanfarra. Vingança e conquista continuam com o aviso de raide. Morte continua com o som de falha |
+| 22 | `/banter announce` | Cada chamada toca o próximo anúncio, de First Blood até Godlike. Em combate, o primeiro abate da vida é First Blood, o segundo em até 12s é Double Kill, o nono sem morrer é Godlike. Morrer volta a First Blood |
 
 ## PvP (2 clientes com o addon)
 
