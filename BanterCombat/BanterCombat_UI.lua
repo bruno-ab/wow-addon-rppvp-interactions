@@ -188,21 +188,27 @@ function BanterCombat_SavePopupPosition(frame)
   end
 end
 
-local function playShowSound(kind)
+local function playShowSound(kind, rarity)
   local s = ns.Options and ns.Options.Get and ns.Options.Get()
   if not s or not s.sound then
     return
   end
-  -- Classic-friendly named sounds first
   local name = "igMainMenuOptionCheckBoxOn"
   if kind == "revenge" or kind == "milestone" then
     name = "RaidWarning"
   elseif kind == "death" then
     name = "igQuestFailed"
-  elseif kind == "kill" then
+  elseif rarity == "legendary" then
     name = "LEVELUPSOUND"
+  elseif rarity == "epic" then
+    name = "ReadyCheck"
+  elseif rarity == "rare" then
+    name = "igQuestListOpen"
   end
-  if not pcall(PlaySound, name) then
+  if pcall(PlaySound, name) then
+    return
+  end
+  if not pcall(PlaySound, "igMainMenuOptionCheckBoxOn") then
     pcall(PlaySound, 888)
   end
 end
@@ -395,7 +401,7 @@ local function showNow(payload)
       frame.Badge:SetText(payload.badge)
       frame.Badge:SetTextColor(badgeR, badgeG, badgeB)
       frame.Badge:Show()
-      if frame.Medal and not frame._dialogueSkin and (kind == "revenge" or kind == "milestone") then
+      if frame.Medal and not frame._dialogueSkin and (kind == "revenge" or kind == "milestone" or kind == "streak" or kind == "rival") then
         frame.Medal:Show()
       end
     else
@@ -409,12 +415,24 @@ local function showNow(payload)
 
   local speaker = payload.speaker or UnitName("player") or "?"
   local icon = classIconMarkup(payload.class)
+  local title = payload.title
   if frame.Speaker then
-    if frame._dialogueSkin then
-      frame.Speaker:SetText(icon .. speaker)
-      frame.Speaker:SetTextColor(titleR, titleG, titleB)
+    local nameText = icon .. speaker
+    if not frame._dialogueSkin then
+      nameText = icon .. colorize(speaker, hex)
+    end
+    if title and title ~= "" then
+      local titleHex = frame._dialogueSkin and "FF5C4030" or "FFFFD100"
+      frame.Speaker:SetHeight(32)
+      frame.Speaker:SetJustifyV("TOP")
+      nameText = nameText .. "\n|c" .. titleHex .. title .. "|r"
     else
-      frame.Speaker:SetText(icon .. colorize(speaker, hex))
+      frame.Speaker:SetHeight(18)
+      frame.Speaker:SetJustifyV("MIDDLE")
+    end
+    frame.Speaker:SetText(nameText)
+    if frame._dialogueSkin then
+      frame.Speaker:SetTextColor(titleR, titleG, titleB)
     end
   end
   if frame.Text then
@@ -456,7 +474,7 @@ local function showNow(payload)
   ag:Stop()
   ag:Play()
   UIFrameFadeIn(frame, 0.22, 0, 1)
-  playShowSound(kind)
+  playShowSound(kind, rarity)
 
   hideTicker = C_Timer.NewTimer(duration, function()
     hideTicker = nil

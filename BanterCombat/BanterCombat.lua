@@ -294,6 +294,19 @@ local function FormatTemplate(text, ctx)
   text = text:gsub("{race}", raceLabel)
   text = text:gsub("{class}", classLabel)
   text = text:gsub("{name}", ctx.name or "?")
+  text = text:gsub("{kills}", tostring(ctx.kills or 0))
+  text = text:gsub("{deaths}", tostring(ctx.deaths or 0))
+  text = text:gsub("{streak}", tostring(ctx.streak or 0))
+  local female = ctx.sex == 3
+  text = text:gsub("{g:([^|}]+)|([^}]+)}", function(masc, fem)
+    if female then
+      return fem
+    end
+    return masc
+  end)
+  if ns.Genderize then
+    text = ns.Genderize(text, ctx.sex)
+  end
   return text
 end
 
@@ -310,9 +323,32 @@ end
 ------------------------------------------------------------
 -- Speech
 ------------------------------------------------------------
-local function SelectKillSpeech(victim, isRevenge, milestoneKind, milestoneValue, milestoneKey, forcedRarity)
+local function CustomLine(bucket)
+  local settings = Options.Get()
+  local list = bucket == "epic" and settings.customEpic or settings.customCommon
+  if type(list) ~= "table" or #list == 0 or math.random(1, 2) ~= 1 then
+    return nil
+  end
+  return Pick(list)
+end
+
+local function CurrentTitle()
+  local tier = Stats.TitleTier and Stats.TitleTier()
+  local titles = tier and SpeechPack().titles
+  if titles and type(titles[tier]) == "string" and titles[tier] ~= "" then
+    return titles[tier]
+  end
+  return nil
+end
+
+local function SelectKillSpeech(victim, isRevenge, milestoneKind, milestoneValue, milestoneKey, forcedRarity, rival, streakHit)
+  local pack = SpeechPack()
   if isRevenge then
-    return Pick(SpeechPack().revenge), "revenge", L.REVENGE
+    local badge = L.REVENGE
+    if rival and ((rival.kills or 0) > 0 or (rival.deaths or 0) > 0) then
+      badge = badge .. " " .. L.RIVAL_SCORE:format(rival.kills or 0, rival.deaths or 0)
+    end
+    return FormatTemplate(Pick(pack.revenge), victim), "revenge", badge, "revenge"
   end
 
   if milestoneKind and milestoneValue and milestoneKey then
@@ -322,13 +358,36 @@ local function SelectKillSpeech(victim, isRevenge, milestoneKind, milestoneValue
         and Data.RaceLabel(milestoneKey)
         or Data.ClassLabel(milestoneKey)
       local badge = L.MILESTONE:format(milestoneValue, label)
-      return special, "milestone", badge
+      return FormatTemplate(special, victim), "milestone", badge, "milestone"
     end
   end
 
+  if not forcedRarity and streakHit and pack.streak and pack.streak[streakHit] then
+    local streakRarity = "rare"
+    if streakHit >= 10 then
+      streakRarity = "legendary"
+    elseif streakHit >= 5 then
+      streakRarity = "epic"
+    end
+    return FormatTemplate(Pick(pack.streak[streakHit]), victim), streakRarity, L.STREAK:format(streakHit), "streak"
+  end
+
+  if not forcedRarity and rival and ((rival.deaths or 0) >= 1 or (rival.kills or 0) >= 2) and pack.rival then
+    local ctx = {
+      name = victim.name,
+      race = victim.race,
+      class = victim.class,
+      sex = victim.sex,
+      kills = rival.kills or 0,
+      deaths = rival.deaths or 0,
+    }
+    return FormatTemplate(Pick(pack.rival), ctx), "rare", L.RIVAL_SCORE:format(ctx.kills, ctx.deaths), "rival"
+  end
+
   local rarity = forcedRarity or RollRarity()
-  local speech = SpeechPack().kill
+  local speech = pack.kill
   local text
+  local usedCustom = false
 
   if rarity == "legendary" then
     local candidates = {}
@@ -356,9 +415,13 @@ local function SelectKillSpeech(victim, isRevenge, milestoneKind, milestoneValue
     end
     text = text or Pick(speech.common)
   elseif rarity == "epic" then
+    if not forcedRarity then
+      text = CustomLine("epic")
+      usedCustom = text ~= nil
+    end
     local _, myClass = UnitClass("player")
     local byMe = speech.epic[myClass]
-    if byMe and victim.class and byMe[victim.class] then
+    if not text and byMe and victim.class and byMe[victim.class] then
       text = Pick(byMe[victim.class])
     end
     if not text and forcedRarity == "epic" and byMe then
@@ -403,10 +466,28 @@ local function SelectKillSpeech(victim, isRevenge, milestoneKind, milestoneValue
     end
     text = text or Pick(speech.common)
   else
-    text = Pick(speech.common)
+    if not forcedRarity then
+      text = CustomLine("common")
+      usedCustom = text ~= nil
+    end
+    text = text or Pick(speech.common)
   end
 
-  return FormatTemplate(text, victim), rarity, RarityBadge(rarity)
+  if not forcedRarity and not usedCustom and rarity == "common" and ns.CurrentZone and pack.zone then
+    local zone = ns.CurrentZone()
+    local lines = zone and pack.zone[zone]
+    if lines then
+      local zoneBadge = L.ZONE_ASHENVALE
+      if zone == "warsong" then
+        zoneBadge = L.ZONE_WARSONG
+      elseif zone == "arathi" then
+        zoneBadge = L.ZONE_ARATHI
+      end
+      return FormatTemplate(Pick(lines), victim), "common", zoneBadge, "kill"
+    end
+  end
+
+  return FormatTemplate(text, victim), rarity, RarityBadge(rarity), "kill"
 end
 
 local function SelectDeathSpeech(killer)
@@ -437,7 +518,7 @@ end
 -- Protocol v2: v2|SHOW|proto|speaker|race|class|kind|rarity|badge|text
 -- Also accepts v1 for older clients
 ------------------------------------------------------------
-local function EncodeMessage(speaker, race, class, kind, rarity, badge, text)
+local function EncodeMessage(speaker, race, class, kind, rarity, badge, text, title)
   return table.concat({
     PROTOCOL,
     "SHOW",
@@ -449,6 +530,7 @@ local function EncodeMessage(speaker, race, class, kind, rarity, badge, text)
     SanitizeField(rarity or "common", 16),
     SanitizeField(badge, MSG_BADGE_MAX),
     SanitizeField(text, MSG_TEXT_MAX),
+    SanitizeField(title or "", 48),
   }, "\031")
 end
 
@@ -474,6 +556,7 @@ local function DecodeMessage(msg)
       rarity = parts[8],
       badge = parts[9],
       text = parts[10],
+      title = parts[11],
     }
   elseif ver == "v1" then
     return {
@@ -499,6 +582,7 @@ local function Present(payload, unit)
     race = payload.race,
     kind = payload.kind,
     rarity = payload.rarity,
+    title = payload.title,
     unit = unit,
   })
 end
@@ -528,19 +612,18 @@ local function OnPlayerKill(victim, destFlags)
   end
 
   local isRevenge = Stats.IsRevenge(victim.name)
-  local _, _, mKind, mValue, mKey = Stats.RecordKill(victim)
+  local _, _, mKind, mValue, mKey, rival, streakHit = Stats.RecordKill(victim)
   if isRevenge then
     Stats.ClearRevenge()
+    Stats.UnlockFeat("revenge")
   end
 
-  local text, rarity, badge = SelectKillSpeech(victim, isRevenge, mKind, mValue, mKey)
-  local selfInfo = PlayerSelfInfo()
-  local kind = "kill"
-  if isRevenge then
-    kind = "revenge"
-  elseif mKind then
-    kind = "milestone"
+  local text, rarity, badge, kind = SelectKillSpeech(victim, isRevenge, mKind, mValue, mKey, nil, rival, streakHit)
+  kind = kind or "kill"
+  if kind == "kill" and rarity == "legendary" then
+    Stats.UnlockFeat("legendary")
   end
+  local selfInfo = PlayerSelfInfo()
   local payload = {
     speaker = selfInfo.name,
     race = selfInfo.race,
@@ -549,13 +632,14 @@ local function OnPlayerKill(victim, destFlags)
     rarity = rarity,
     badge = badge,
     text = text,
+    title = CurrentTitle(),
   }
 
   Debug("kill", victim.name, payload.kind, rarity)
   Present(payload, "player")
   MaybeChatAnnounce(text)
   BroadcastPayload(EncodeMessage(
-    payload.speaker, payload.race, payload.class, payload.kind, payload.rarity, payload.badge, payload.text
+    payload.speaker, payload.race, payload.class, payload.kind, payload.rarity, payload.badge, payload.text, payload.title
   ), victim.name)
 end
 
@@ -565,9 +649,7 @@ local function OnPlayerDeath(killer)
     return
   end
   if s.showDeaths == false then
-    if killer then
-      Stats.RecordDeathBy(killer)
-    end
+    Stats.RecordDeathBy(killer)
     return
   end
   if SeenRecently("death:" .. (playerGUID or "self")) then
@@ -578,8 +660,23 @@ local function OnPlayerDeath(killer)
     Debug("death recorded, popup skipped (ignored)", killer.name)
     return
   end
-  Stats.RecordDeathBy(killer)
-  local text, rarity, badge = SelectDeathSpeech(killer)
+  local broken = Stats.RecordDeathBy(killer)
+  local playerSex = UnitSex and UnitSex("player") or nil
+  local ctx = {
+    name = killer and killer.name,
+    race = killer and killer.race,
+    class = killer and killer.class,
+    sex = playerSex,
+  }
+  local text, rarity, badge
+  if broken then
+    ctx.streak = broken
+    text = FormatTemplate(Pick(SpeechPack().streakBreak), ctx)
+    rarity = "rare"
+    badge = L.STREAK_BREAK
+  else
+    text, rarity, badge = SelectDeathSpeech(ctx)
+  end
   local selfInfo = PlayerSelfInfo()
   local payload = {
     speaker = selfInfo.name,
@@ -595,7 +692,7 @@ local function OnPlayerDeath(killer)
   MaybeChatAnnounce(text)
   if killer and killer.name then
     BroadcastPayload(EncodeMessage(
-      payload.speaker, payload.race, payload.class, payload.kind, payload.rarity, payload.badge, payload.text
+      payload.speaker, payload.race, payload.class, payload.kind, payload.rarity, payload.badge, payload.text, nil
     ), killer.name)
   end
 end
@@ -629,6 +726,9 @@ local function HandleCombatLog()
         victim.class = victim.class or class
         victim.race = victim.race or race
         victim.name = victim.name or UnitName("target")
+        if UnitSex then
+          victim.sex = victim.sex or UnitSex("target")
+        end
       end
       OnPlayerKill(victim, destFlags)
     end
@@ -705,6 +805,7 @@ local function OnAddonMessage(prefix, message, channel, sender)
     race = data.race,
     kind = data.kind,
     rarity = data.rarity,
+    title = (data.title ~= "" and data.title) or nil,
   }, nil)
 end
 
@@ -786,6 +887,7 @@ local previewIndex = 0
 function ns.Preview(kind)
   local classToken = select(2, UnitClass("player"))
   local speaker = UnitName("player") or "?"
+  local sex = UnitSex and UnitSex("player") or nil
   if kind == "revenge" then
     Present({
       speaker = speaker,
@@ -804,8 +906,46 @@ function ns.Preview(kind)
       kind = "milestone",
       rarity = "milestone",
     }, "player")
+  elseif kind == "rival" then
+    local ctx = { name = "AlvoTeste", race = "Orc", class = "MAGE", sex = 3, kills = 4, deaths = 2 }
+    Present({
+      speaker = speaker,
+      text = FormatTemplate(Pick(SpeechPack().rival), ctx),
+      badge = L.RIVAL_SCORE:format(4, 2),
+      class = classToken,
+      kind = "rival",
+      rarity = "rare",
+      title = SpeechPack().titles and SpeechPack().titles[3],
+    }, "player")
+  elseif kind == "streak" then
+    Present({
+      speaker = speaker,
+      text = FormatTemplate(Pick(SpeechPack().streak[5]), { sex = UnitSex and UnitSex("player") }),
+      badge = L.STREAK:format(5),
+      class = classToken,
+      kind = "streak",
+      rarity = "epic",
+      title = SpeechPack().titles and SpeechPack().titles[5],
+    }, "player")
+  elseif kind == "zone" then
+    local zone = (ns.CurrentZone and ns.CurrentZone()) or "warsong"
+    local lines = SpeechPack().zone and SpeechPack().zone[zone] or SpeechPack().zone.warsong
+    local zoneBadge = L.ZONE_WARSONG
+    if zone == "arathi" then
+      zoneBadge = L.ZONE_ARATHI
+    elseif zone == "ashenvale" then
+      zoneBadge = L.ZONE_ASHENVALE
+    end
+    Present({
+      speaker = speaker,
+      text = FormatTemplate(Pick(lines), { name = "AlvoTeste", race = "Orc", class = "MAGE" }),
+      badge = zoneBadge,
+      class = classToken,
+      kind = "kill",
+      rarity = "common",
+    }, "player")
   elseif kind == "death" then
-    local killer = { name = "AlvoTeste", race = "Orc", class = "MAGE" }
+    local killer = { name = "AlvoTeste", race = "Orc", class = "MAGE", sex = sex }
     local text, rarity, badge = SelectDeathSpeech(killer)
     Present({
       speaker = killer.name,
@@ -816,7 +956,7 @@ function ns.Preview(kind)
       rarity = rarity,
     }, "player")
   elseif kind == "common" or kind == "rare" or kind == "epic" or kind == "legendary" then
-    local victim = { name = "AlvoTeste", race = "Orc", class = "MAGE" }
+    local victim = { name = "AlvoTeste", race = "Orc", class = "MAGE", sex = sex }
     local text, rarity, badge = SelectKillSpeech(victim, false, nil, nil, nil, kind)
     Present({
       speaker = speaker,
@@ -827,7 +967,7 @@ function ns.Preview(kind)
       rarity = rarity,
     }, "player")
   else
-    local victim = { name = "AlvoTeste", race = "Orc", class = "MAGE" }
+    local victim = { name = "AlvoTeste", race = "Orc", class = "MAGE", sex = sex }
     local text, rarity, badge = SelectKillSpeech(victim, false, nil, nil, nil)
     Present({
       speaker = speaker,
@@ -943,6 +1083,16 @@ SlashCmdList.BANTERCOMBAT = function(msg)
     end
   elseif cmd == "revenge" then
     ns.Preview("revenge")
+  elseif cmd == "rival" then
+    ns.Preview("rival")
+  elseif cmd == "streak" then
+    ns.Preview("streak")
+  elseif cmd == "zone" then
+    ns.Preview("zone")
+  elseif cmd == "lines" then
+    if Options.ToggleLines then
+      Options.ToggleLines()
+    end
   elseif cmd == "milestone" then
     ns.Preview("milestone")
   elseif cmd == "death" then

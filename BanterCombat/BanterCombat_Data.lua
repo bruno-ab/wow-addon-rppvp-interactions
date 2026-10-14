@@ -333,6 +333,44 @@ ns.Data.Speech = {
       },
     },
   },
+
+  rival = {
+    "{name}: {kills} a {deaths}. A conta continua.",
+    "De novo, {name}. Placar {kills}–{deaths}.",
+    "Rival marcado. {kills} abates, {deaths} mortes.",
+  },
+
+  streak = {
+    [3] = { "Três sem cair. A série começou." },
+    [5] = { "Cinco no chão. Implacável." },
+    [10] = { "Dez sem morrer. O campo aprendeu o nome." },
+  },
+
+  streakBreak = {
+    "A série quebrou em {streak}.",
+    "{streak} abates… e uma queda.",
+  },
+
+  titles = {
+    [3] = "Em série",
+    [5] = "Implacável",
+    [10] = "Lenda do campo",
+  },
+
+  zone = {
+    warsong = {
+      "A ravina não tem bandeira para você.",
+      "O meio da ravina ficou mais quieto.",
+    },
+    arathi = {
+      "A bacia guarda mais um corpo.",
+      "Nem o estábulo te escondeu.",
+    },
+    ashenvale = {
+      "Ashenvale fica com o corpo.",
+      "A floresta aceitou mais um.",
+    },
+  },
 }
 
 function ns.Data.ActiveSpeech()

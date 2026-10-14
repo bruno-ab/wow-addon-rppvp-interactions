@@ -60,6 +60,42 @@ function Options.ResetPosition()
   end
 end
 
+local function customBucket(bucket)
+  local settings = Options.Get()
+  if bucket == "epic" then
+    settings.customEpic = settings.customEpic or {}
+    return settings.customEpic
+  end
+  settings.customCommon = settings.customCommon or {}
+  return settings.customCommon
+end
+
+function Options.AddCustomLine(bucket, text)
+  if type(text) ~= "string" then
+    return false
+  end
+  text = text:gsub("|", ""):gsub("[\001-\031]", " ")
+  text = text:match("^%s*(.-)%s*$") or ""
+  if text == "" then
+    return false
+  end
+  local list = customBucket(bucket)
+  if #list >= 8 then
+    return false
+  end
+  list[#list + 1] = text:sub(1, 120)
+  if ns.Stats and ns.Stats.GetDB then
+    ns.Stats.GetDB()
+  end
+  return true
+end
+
+function Options.ClearCustomLines()
+  local settings = Options.Get()
+  settings.customCommon = {}
+  settings.customEpic = {}
+end
+
 local panel
 local checks = {}
 
@@ -148,6 +184,14 @@ function Options.TogglePanel()
       _G[self:GetName() .. "Text"]:SetText(string.format("%.1f", value))
     end)
 
+    local linesBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    linesBtn:SetSize(200, 22)
+    linesBtn:SetPoint("BOTTOM", 0, 72)
+    linesBtn:SetText(L.OPT_LINES)
+    linesBtn:SetScript("OnClick", function()
+      Options.ToggleLines()
+    end)
+
     local localeBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     localeBtn:SetSize(340, 22)
     localeBtn:SetPoint("BOTTOM", 0, 42)
@@ -207,6 +251,143 @@ function Options.TogglePanel()
     end
   end
   panel:Show()
+end
+
+local linesFrame
+
+local function fillLineList(font, list)
+  if type(list) ~= "table" or #list == 0 then
+    font:SetText(L.LINES_EMPTY)
+    return
+  end
+  local lines = {}
+  for i = 1, #list do
+    lines[#lines + 1] = i .. ". " .. list[i]
+  end
+  font:SetText(table.concat(lines, "\n"))
+end
+
+local function refreshLines()
+  if not linesFrame then
+    return
+  end
+  local settings = Options.Get()
+  linesFrame.Title:SetText(L.LINES_TITLE)
+  linesFrame.Hint:SetText(L.LINES_HINT)
+  linesFrame.CommonLabel:SetText(L.RARITY_COMMON)
+  linesFrame.EpicLabel:SetText(L.RARITY_EPIC)
+  fillLineList(linesFrame.CommonList, settings.customCommon)
+  fillLineList(linesFrame.EpicList, settings.customEpic)
+  linesFrame.AddCommon:SetText(L.LINES_ADD_COMMON)
+  linesFrame.AddEpic:SetText(L.LINES_ADD_EPIC)
+  linesFrame.Clear:SetText(L.LINES_CLEAR)
+  linesFrame.Close:SetText(L.OPT_CLOSE)
+end
+
+function Options.ToggleLines()
+  if linesFrame and linesFrame:IsShown() then
+    linesFrame:Hide()
+    return
+  end
+  if not linesFrame then
+    linesFrame = CreateFrame("Frame", "BanterCombatLines", UIParent)
+    linesFrame:SetSize(440, 360)
+    linesFrame:SetPoint("CENTER", 40, 0)
+    linesFrame:SetFrameStrata("DIALOG")
+    linesFrame:EnableMouse(true)
+    linesFrame:SetMovable(true)
+    linesFrame:RegisterForDrag("LeftButton")
+    linesFrame:SetScript("OnDragStart", linesFrame.StartMoving)
+    linesFrame:SetScript("OnDragStop", linesFrame.StopMovingOrSizing)
+    if linesFrame.SetBackdrop then
+      linesFrame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true, tileSize = 32, edgeSize = 32,
+        insets = { left = 8, right = 8, top = 8, bottom = 8 },
+      })
+    end
+    linesFrame.Title = linesFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    linesFrame.Title:SetPoint("TOP", 0, -14)
+    linesFrame.Hint = linesFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    linesFrame.Hint:SetPoint("TOP", 0, -36)
+    linesFrame.Hint:SetWidth(400)
+    linesFrame.Hint:SetJustifyH("CENTER")
+
+    linesFrame.CommonLabel = linesFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    linesFrame.CommonLabel:SetPoint("TOPLEFT", 20, -62)
+    linesFrame.CommonList = linesFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    linesFrame.CommonList:SetPoint("TOPLEFT", 20, -78)
+    linesFrame.CommonList:SetWidth(190)
+    linesFrame.CommonList:SetJustifyH("LEFT")
+    linesFrame.CommonList:SetJustifyV("TOP")
+
+    linesFrame.EpicLabel = linesFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    linesFrame.EpicLabel:SetPoint("TOPLEFT", 230, -62)
+    linesFrame.EpicList = linesFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    linesFrame.EpicList:SetPoint("TOPLEFT", 230, -78)
+    linesFrame.EpicList:SetWidth(190)
+    linesFrame.EpicList:SetJustifyH("LEFT")
+    linesFrame.EpicList:SetJustifyV("TOP")
+
+    local ok, edit = pcall(CreateFrame, "EditBox", "BanterCombatLineInput", linesFrame, "InputBoxTemplate")
+    if not ok or not edit then
+      edit = CreateFrame("EditBox", "BanterCombatLineInput", linesFrame)
+      edit:SetFontObject("ChatFontNormal")
+      edit:SetTextInsets(6, 6, 0, 0)
+    end
+    edit:SetSize(280, 20)
+    edit:SetPoint("BOTTOM", 0, 72)
+    edit:SetAutoFocus(false)
+    edit:SetMaxLetters(120)
+    linesFrame.Edit = edit
+
+    local function makeBtn(text, width, x)
+      local button = CreateFrame("Button", nil, linesFrame, "UIPanelButtonTemplate")
+      button:SetSize(width, 22)
+      button:SetPoint("BOTTOMLEFT", x, 40)
+      button:SetText(text)
+      return button
+    end
+    linesFrame.AddCommon = makeBtn(L.LINES_ADD_COMMON, 130, 16)
+    linesFrame.AddEpic = makeBtn(L.LINES_ADD_EPIC, 130, 152)
+    linesFrame.Clear = makeBtn(L.LINES_CLEAR, 80, 288)
+    linesFrame.AddCommon:SetScript("OnClick", function()
+      if Options.AddCustomLine("common", edit:GetText() or "") then
+        edit:SetText("")
+      end
+      refreshLines()
+    end)
+    linesFrame.AddEpic:SetScript("OnClick", function()
+      if Options.AddCustomLine("epic", edit:GetText() or "") then
+        edit:SetText("")
+      end
+      refreshLines()
+    end)
+    linesFrame.Clear:SetScript("OnClick", function()
+      Options.ClearCustomLines()
+      refreshLines()
+    end)
+    edit:SetScript("OnEnterPressed", function(self)
+      Options.AddCustomLine("common", self:GetText() or "")
+      self:SetText("")
+      self:ClearFocus()
+      refreshLines()
+    end)
+    edit:SetScript("OnEscapePressed", function(self)
+      self:ClearFocus()
+    end)
+
+    linesFrame.Close = CreateFrame("Button", nil, linesFrame, "UIPanelButtonTemplate")
+    linesFrame.Close:SetSize(80, 22)
+    linesFrame.Close:SetPoint("BOTTOM", 0, 12)
+    linesFrame.Close:SetScript("OnClick", function()
+      linesFrame:Hide()
+    end)
+    linesFrame:Hide()
+  end
+  refreshLines()
+  linesFrame:Show()
 end
 
 _G[addonName] = ns

@@ -22,6 +22,11 @@
 | 14 | `/banter ignore AlvoTeste` + kill sync | Remote/local do nome ignorado não aparece |
 | 15 | Botão do minimapa | Abre o compêndio com abates e mortes por raça e classe. Arrastar move o botão. Clique direito abre as opções |
 | 16 | Opções → Idioma | Cicla os idiomas oficiais. A fala de teste seguinte sai nesse idioma. `auto` segue o idioma do cliente |
+| 17 | Compêndio → Rivais | Lista nome, placar dos dois lados e data do último encontro. Vazio até existir histórico |
+| 18 | Compêndio → Feitos | Feitos trancados com travessão. A data aparece só depois do acontecimento |
+| 19 | `/banter rival`, `/banter streak`, `/banter zone` | Fala de rival (4–2), série de 5 com título debaixo do nome, e linha da zona atual (ou da ravina) |
+| 20 | `/banter lines` | Editor abre. Linha comum e épica ficam salvas depois de `/reload`. Máximo 8 por lista |
+| 21 | Som ligado, botão Testar | Comum quase mudo, incomum um clique, épico um acorde, lendário uma fanfarra. Vingança e conquista continuam com o aviso de raide. Morte continua com o som de falha |
 
 ## PvP (2 clientes com o addon)
 
@@ -37,6 +42,8 @@
 | H | `showDeaths` off | Morte registra stats, sem pop-up |
 | I | `showGroupBanter` off | Recebe whisper, ignora PARTY/RAID |
 | J | `chatAnnounce` on | Emote com a fala no chat |
+| K | Dois clientes, série de 3+ | O pop-up do outro mostra o título debaixo do nome |
+| L | Morrer com série ≥ 3 | A fala é de queda e a série zera |
 
 ## Não-regredir
 
