@@ -220,7 +220,7 @@ local function playAnnouncer(id)
     end
     return true
   end
-  return try("Master") or try(nil)
+  return try(nil) or try("SFX") or try("Master")
 end
 
 local function playShowSound(kind, rarity, announcer)

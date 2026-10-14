@@ -328,16 +328,9 @@ function Stats.ResetAnnouncer()
   lastAnnounceAt = 0
 end
 
-function Stats.AnnouncerCue()
-  local streak = ensureDB().streak or 0
-  local now = GetTime and GetTime() or 0
-  if lastAnnounceAt > 0 and (now - lastAnnounceAt) <= MULTI_WINDOW then
-    multiCount = multiCount + 1
-  else
-    multiCount = 1
-  end
-  lastAnnounceAt = now
-
+function Stats.CueFor(streak, multiCount)
+  streak = tonumber(streak) or 0
+  multiCount = tonumber(multiCount) or 1
   if streak <= 1 then
     return "FirstBlood"
   end
@@ -375,6 +368,18 @@ function Stats.AnnouncerCue()
     return "Carnage"
   end
   return nil
+end
+
+function Stats.AnnouncerCue()
+  local streak = ensureDB().streak or 0
+  local now = GetTime and GetTime() or 0
+  if lastAnnounceAt > 0 and (now - lastAnnounceAt) <= MULTI_WINDOW then
+    multiCount = multiCount + 1
+  else
+    multiCount = 1
+  end
+  lastAnnounceAt = now
+  return Stats.CueFor(streak, multiCount)
 end
 
 function Stats.BreakStreak()

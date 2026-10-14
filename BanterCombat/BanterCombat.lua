@@ -934,6 +934,30 @@ eventFrame:SetScript("OnEvent", OnEvent)
 
 local PREVIEW_ORDER = { "kill", "common", "rare", "epic", "legendary", "revenge", "milestone", "death" }
 local previewIndex = 0
+local testStreak = 0
+local testMulti = 0
+local testAnnounceAt = 0
+
+local function resetTestAnnouncer()
+  testStreak = 0
+  testMulti = 0
+  testAnnounceAt = 0
+end
+
+local function nextTestAnnouncer()
+  local now = GetTime and GetTime() or 0
+  testStreak = testStreak + 1
+  if testAnnounceAt > 0 and (now - testAnnounceAt) <= 12 then
+    testMulti = testMulti + 1
+  else
+    testMulti = 1
+  end
+  testAnnounceAt = now
+  if Stats.CueFor then
+    return Stats.CueFor(testStreak, testMulti)
+  end
+  return "FirstBlood"
+end
 
 function ns.Preview(kind)
   local classToken = select(2, UnitClass("player"))
@@ -996,6 +1020,7 @@ function ns.Preview(kind)
       rarity = "common",
     }, "player")
   elseif kind == "death" then
+    resetTestAnnouncer()
     local killer = { name = "AlvoTeste", race = "Orc", class = "MAGE", sex = sex }
     local text, rarity, badge = SelectDeathSpeech(killer)
     Present({
@@ -1027,6 +1052,7 @@ function ns.Preview(kind)
       class = classToken,
       kind = "kill",
       rarity = rarity,
+      announcer = nextTestAnnouncer(),
     }, "player")
   end
 end
