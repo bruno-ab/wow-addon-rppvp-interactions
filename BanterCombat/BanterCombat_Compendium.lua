@@ -129,7 +129,7 @@ local function buildFrame()
   frame.Close = close
 
   local function tab(text, x, page)
-    local button = makeButton(frame, text, 88)
+    local button = makeButton(frame, text, 78)
     button:SetPoint("TOPLEFT", x, -36)
     button:SetScript("OnClick", function()
       frame.page = page
@@ -138,9 +138,10 @@ local function buildFrame()
     end)
     return button
   end
-  frame.TabCounts = tab("", 16, "counts")
-  frame.TabRivals = tab("", 108, "rivals")
-  frame.TabFeats = tab("", 200, "feats")
+  frame.TabCounts = tab("", 12, "counts")
+  frame.TabRivals = tab("", 94, "rivals")
+  frame.TabFeats = tab("", 176, "feats")
+  frame.TabStory = tab("", 258, "story")
   frame.page = "counts"
   frame.listPage = 1
 
@@ -156,6 +157,17 @@ local function buildFrame()
     frame.listPage = (frame.listPage or 1) + 1
     Compendium.Refresh()
   end)
+
+  frame.Story = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  frame.Story:SetPoint("TOPLEFT", 24, -78)
+  frame.Story:SetWidth(492)
+  frame.Story:SetHeight(190)
+  frame.Story:SetJustifyH("LEFT")
+  frame.Story:SetJustifyV("TOP")
+  if frame.Story.SetWordWrap then
+    frame.Story:SetWordWrap(true)
+  end
+  frame.Story:Hide()
   frame:Hide()
 end
 
@@ -171,8 +183,14 @@ function Compendium.Refresh()
   frame.TabCounts:SetText(L.COMP_COUNTS)
   frame.TabRivals:SetText(L.COMP_RIVALS)
   frame.TabFeats:SetText(L.COMP_FEATS)
+  if frame.TabStory then
+    frame.TabStory:SetText(L.COMP_STORY)
+  end
   frame.Back:SetText(L.COMP_BACK)
   frame.More:SetText(L.COMP_MORE)
+  if frame.Story then
+    frame.Story:Hide()
+  end
 
   local function widen(wide)
     for i = 1, 9 do
@@ -222,6 +240,44 @@ function Compendium.Refresh()
       return L.COMP_LOCKED
     end
     return date("%d/%m/%Y", ts)
+  end
+
+  if page == "story" then
+    widen(true)
+    clearRows()
+    frame.RaceHeader:SetText("")
+    frame.ClassHeader:SetText("")
+    frame.Story:Show()
+    local chapters = ns.Chronicle and ns.Chronicle.Chapters and ns.Chronicle.Chapters() or {}
+    local index = frame.listPage or 1
+    if #chapters == 0 then
+      frame.Story:SetText(L.NARR_EMPTY)
+      frame.Hint:SetText(L.NARR_HINT)
+      frame.Back:Hide()
+      frame.More:Hide()
+      return
+    end
+    if index > #chapters then
+      index = #chapters
+    end
+    if index < 1 then
+      index = 1
+    end
+    frame.listPage = index
+    local chapter = chapters[index]
+    frame.Story:SetText(chapter.title .. "\n\n" .. chapter.text)
+    frame.Hint:SetText(L.NARR_PAGE:format(index, #chapters))
+    if index > 1 then
+      frame.Back:Show()
+    else
+      frame.Back:Hide()
+    end
+    if index < #chapters then
+      frame.More:Show()
+    else
+      frame.More:Hide()
+    end
+    return
   end
 
   if page == "counts" then

@@ -5,7 +5,7 @@ ns.Stats = ns.Stats or {}
 local Stats = ns.Stats
 local Data = ns.Data
 
-local DB_VERSION = 3
+local DB_VERSION = 4
 
 local VALID_RACE = {
   Human = true, Dwarf = true, NightElf = true, Gnome = true,
@@ -105,6 +105,46 @@ local function scrubFeats(map)
   return out
 end
 
+local function scrubPlain(text, maxLen)
+  if type(text) ~= "string" then
+    return nil
+  end
+  text = text:gsub("|", ""):gsub("[\001-\031]", " ")
+  text = text:match("^%s*(.-)%s*$") or ""
+  if text == "" then
+    return nil
+  end
+  return text:sub(1, maxLen)
+end
+
+local function scrubChronicle(list)
+  if type(list) ~= "table" then
+    return {}
+  end
+  local out = {}
+  local limit = math.min(#list, 40)
+  for i = 1, limit do
+    local row = list[i]
+    if type(row) == "table" and type(row.name) == "string" and row.name ~= "" then
+      local sex = tonumber(row.sex)
+      out[#out + 1] = {
+        name = scrubPlain(row.name, 48) or "?",
+        race = (type(row.race) == "string" and VALID_RACE[row.race]) and row.race or nil,
+        class = (type(row.class) == "string" and VALID_CLASS[row.class]) and row.class or nil,
+        zone = scrubPlain(row.zone, 64),
+        spell = scrubPlain(row.spell, 48),
+        level = math.max(0, math.floor(tonumber(row.level) or 0)),
+        myClass = (type(row.myClass) == "string" and VALID_CLASS[row.myClass]) and row.myClass or nil,
+        sex = (sex == 2 or sex == 3) and sex or nil,
+        mySex = (tonumber(row.mySex) == 2 or tonumber(row.mySex) == 3) and tonumber(row.mySex) or nil,
+        time = math.max(0, math.floor(tonumber(row.time) or 0)),
+        first = row.first and true or nil,
+      }
+    end
+  end
+  return out
+end
+
 local function scrubLastKiller(lk)
   if type(lk) ~= "table" or type(lk.name) ~= "string" or lk.name == "" then
     return nil
@@ -139,6 +179,7 @@ local function ensureDB()
   db.settings.customEpic = scrubLines(db.settings.customEpic)
   db.rivals = scrubRivals(db.rivals)
   db.feats = scrubFeats(db.feats)
+  db.chronicle = scrubChronicle(db.chronicle)
   db.streak = math.max(0, math.floor(tonumber(db.streak) or 0))
   db.bestStreak = math.max(db.streak, math.floor(tonumber(db.bestStreak) or 0))
   local tier = tonumber(db.titleStreak)
@@ -149,7 +190,7 @@ local function ensureDB()
   end
 
   if from < 2 then
-    -- v2: settings + scrubbed counters. v3: rivals, feats, streak.
+    -- v2: settings + scrubbed counters. v3: rivals, feats, streak. v4: chronicle.
     db.version = DB_VERSION
   else
     db.version = DB_VERSION
@@ -159,6 +200,40 @@ end
 
 function Stats.GetDB()
   return ensureDB()
+end
+
+function Stats.Chronicle()
+  return ensureDB().chronicle
+end
+
+function Stats.RememberChronicle(info)
+  if type(info) ~= "table" or type(info.name) ~= "string" or info.name == "" then
+    return
+  end
+  local db = ensureDB()
+  local sex = tonumber(info.sex)
+  local row = {
+    name = info.name,
+    race = (type(info.race) == "string" and VALID_RACE[info.race]) and info.race or nil,
+    class = (type(info.class) == "string" and VALID_CLASS[info.class]) and info.class or nil,
+    zone = info.zone,
+    spell = info.spell,
+    level = tonumber(info.level) or 0,
+    myClass = (type(info.myClass) == "string" and VALID_CLASS[info.myClass]) and info.myClass or nil,
+    sex = (sex == 2 or sex == 3) and sex or nil,
+    mySex = (tonumber(info.mySex) == 2 or tonumber(info.mySex) == 3) and tonumber(info.mySex) or nil,
+    time = time(),
+    first = #db.chronicle == 0 and true or nil,
+  }
+  db.chronicle[#db.chronicle + 1] = row
+  while #db.chronicle > 40 do
+    if db.chronicle[2] then
+      table.remove(db.chronicle, 2)
+    else
+      break
+    end
+  end
+  db.chronicle = scrubChronicle(db.chronicle)
 end
 
 function Stats.IsValidRace(race)

@@ -637,6 +637,33 @@ local function OnPlayerKill(victim, destFlags)
     announcer = Stats.AnnouncerCue and Stats.AnnouncerCue(),
   }
 
+  local zoneName = ""
+  if GetRealZoneText then
+    zoneName = GetRealZoneText() or ""
+  end
+  if zoneName == "" and GetZoneText then
+    zoneName = GetZoneText() or ""
+  end
+  local spellName
+  local blow = ns._lastBlow
+  if blow and victim.guid and blow.guid == victim.guid and type(blow.spell) == "string" then
+    spellName = blow.spell
+  end
+  local _, myClass = UnitClass("player")
+  if Stats.RememberChronicle then
+    Stats.RememberChronicle({
+      name = victim.name,
+      race = victim.race,
+      class = victim.class,
+      zone = zoneName,
+      spell = spellName,
+      level = UnitLevel and UnitLevel("player") or 0,
+      myClass = myClass,
+      mySex = UnitSex and UnitSex("player") or nil,
+      sex = victim.sex,
+    })
+  end
+
   Debug("kill", victim.name, payload.kind, rarity)
   Present(payload, "player")
   MaybeChatAnnounce(text)
@@ -714,6 +741,17 @@ local function HandleCombatLog()
 
   if not playerGUID then
     playerGUID = UnitGUID("player")
+  end
+
+  if sourceGUID == playerGUID and destGUID and IsPlayerFlags(destFlags) then
+    if subevent == "SWING_DAMAGE" then
+      ns._lastBlow = { guid = destGUID }
+    elseif subevent == "RANGE_DAMAGE" or subevent == "SPELL_DAMAGE" or subevent == "SPELL_PERIODIC_DAMAGE" then
+      local spellName = select(13, CombatLogGetCurrentEventInfo())
+      if type(spellName) == "string" and spellName ~= "" then
+        ns._lastBlow = { guid = destGUID, spell = spellName }
+      end
+    end
   end
 
   if subevent == "PARTY_KILL" then
