@@ -53,24 +53,30 @@ local function paintSheet(parent)
   local dark = type(DialogueUI_DB) == "table" and DialogueUI_DB.Theme == 2
   local folder = dark and "Theme_Dark" or "Theme_Brown"
   local file = "Interface\\AddOns\\DialogueUI\\Art\\" .. folder .. "\\Parchment.png"
-  local width = parent:GetWidth()
-  if not width or width < 64 then
-    width = 780
+  local frameWidth = parent:GetWidth()
+  if not frameWidth or frameWidth < 64 then
+    frameWidth = 780
   end
-  local cap = math.floor(width * (256 / 1024))
+  -- The sheet art has empty margins. Crop to the paper and place it on the
+  -- feat column so the roll does not sit on the category menu.
+  local sheetLeft, sheetRight = 176, 12
+  local texLeft, texRight = 156, 867
+  local sheetWidth = frameWidth - sheetLeft - sheetRight
+  local cap = math.floor(sheetWidth * (256 / (texRight - texLeft)))
+  local u0, u1 = texLeft / 1024, texRight / 1024
   local top = parent:CreateTexture(nil, "BORDER")
   local mid = parent:CreateTexture(nil, "BORDER")
   local bot = parent:CreateTexture(nil, "BORDER")
   top:SetTexture(file)
   mid:SetTexture(file)
   bot:SetTexture(file)
-  top:SetTexCoord(0, 1, 0, 256 / 2048)
-  mid:SetTexCoord(0, 1, 256 / 2048, 896 / 2048)
-  bot:SetTexCoord(0, 1, 896 / 2048, 1152 / 2048)
-  top:SetSize(width, cap)
-  bot:SetSize(width, cap)
-  top:SetPoint("TOP", parent, "TOP", 0, 8)
-  bot:SetPoint("BOTTOM", parent, "BOTTOM", 0, -6)
+  top:SetTexCoord(u0, u1, 0, 256 / 2048)
+  mid:SetTexCoord(u0, u1, 256 / 2048, 896 / 2048)
+  bot:SetTexCoord(u0, u1, 896 / 2048, 1152 / 2048)
+  top:SetSize(sheetWidth, cap)
+  bot:SetSize(sheetWidth, cap)
+  top:SetPoint("TOPLEFT", parent, "TOPLEFT", sheetLeft, 8)
+  bot:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", sheetLeft, -6)
   mid:SetPoint("TOPLEFT", top, "BOTTOMLEFT", 0, 0)
   mid:SetPoint("BOTTOMRIGHT", bot, "TOPRIGHT", 0, 0)
 end
@@ -107,8 +113,9 @@ local function buildFrame()
   end
 
   local side = frame:CreateTexture(nil, "BORDER")
-  side:SetPoint("TOPLEFT", 18, -48)
-  side:SetSize(156, 410)
+  side:SetPoint("TOPLEFT", 14, -36)
+  side:SetPoint("BOTTOMLEFT", 14, 12)
+  side:SetWidth(162)
   side:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
   side:SetVertexColor(0.22, 0.14, 0.07, 0.92)
 
@@ -121,7 +128,7 @@ local function buildFrame()
   frame.Title:SetPoint("TOP", banner, "TOP", 0, -14)
 
   frame.Totals = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  frame.Totals:SetPoint("TOPRIGHT", -28, -36)
+  frame.Totals:SetPoint("TOPRIGHT", -40, -36)
 
   frame.Hint = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
   frame.Hint:SetPoint("BOTTOM", 80, 40)
@@ -143,7 +150,7 @@ local function buildFrame()
     return race, kills, deaths
   end
 
-  frame.RaceHeader, frame.RaceKillsHeader, frame.RaceDeathsHeader = header(frame, 196)
+  frame.RaceHeader, frame.RaceKillsHeader, frame.RaceDeathsHeader = header(frame, 210)
   frame.ClassHeader, frame.ClassKillsHeader, frame.ClassDeathsHeader = header(frame, 470)
 
   frame.rows = {}
@@ -151,15 +158,15 @@ local function buildFrame()
     local y = -98 - (i - 1) * 16
     local row = {}
     row.race = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.race:SetPoint("TOPLEFT", 196, y)
+    row.race:SetPoint("TOPLEFT", 210, y)
     row.race:SetWidth(128)
     row.race:SetJustifyH("LEFT")
     row.raceKills = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.raceKills:SetPoint("TOPLEFT", 328, y)
+    row.raceKills:SetPoint("TOPLEFT", 342, y)
     row.raceKills:SetWidth(28)
     row.raceKills:SetJustifyH("RIGHT")
     row.raceDeaths = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.raceDeaths:SetPoint("TOPLEFT", 380, y)
+    row.raceDeaths:SetPoint("TOPLEFT", 394, y)
     row.raceDeaths:SetWidth(28)
     row.raceDeaths:SetJustifyH("RIGHT")
 
@@ -249,7 +256,7 @@ local function buildFrame()
     return button
   end
   frame.Back = arrowButton("prev")
-  frame.Back:SetPoint("BOTTOMLEFT", 196, 8)
+  frame.Back:SetPoint("BOTTOMLEFT", 188, 8)
   frame.Back:SetScript("OnClick", function()
     frame.listPage = math.max(1, (frame.listPage or 1) - 1)
     Compendium.Refresh()
@@ -264,8 +271,8 @@ local function buildFrame()
   frame.achRows = {}
   for i = 1, 6 do
     local row = CreateFrame("Frame", nil, frame)
-    row:SetSize(560, 56)
-    row:SetPoint("TOPLEFT", 188, -58 - (i - 1) * 60)
+    row:SetSize(520, 56)
+    row:SetPoint("TOPLEFT", 206, -58 - (i - 1) * 60)
     local bg = row:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints()
     bg:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
@@ -276,11 +283,11 @@ local function buildFrame()
     row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     row.title = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     row.title:SetPoint("TOPLEFT", 56, -6)
-    row.title:SetWidth(330)
+    row.title:SetWidth(300)
     row.title:SetJustifyH("LEFT")
     row.desc = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     row.desc:SetPoint("TOPLEFT", 56, -24)
-    row.desc:SetWidth(330)
+    row.desc:SetWidth(300)
     row.desc:SetHeight(30)
     row.desc:SetJustifyH("LEFT")
     row.desc:SetJustifyV("TOP")
@@ -288,7 +295,7 @@ local function buildFrame()
       row.desc:SetWordWrap(true)
     end
     row.bar = CreateFrame("StatusBar", nil, row)
-    row.bar:SetSize(150, 14)
+    row.bar:SetSize(140, 14)
     row.bar:SetPoint("BOTTOMRIGHT", -10, 8)
     row.bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
     row.bar:SetMinMaxValues(0, 1)
@@ -304,8 +311,8 @@ local function buildFrame()
   end
 
   frame.Story = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  frame.Story:SetPoint("TOPLEFT", 196, -78)
-  frame.Story:SetWidth(540)
+  frame.Story:SetPoint("TOPLEFT", 210, -78)
+  frame.Story:SetWidth(500)
   frame.Story:SetHeight(340)
   frame.Story:SetJustifyH("LEFT")
   frame.Story:SetJustifyV("TOP")
