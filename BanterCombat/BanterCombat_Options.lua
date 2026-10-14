@@ -17,6 +17,7 @@ local DEFAULTS = {
   pvpOnly = false,
   hostileOnly = true,
   chatAnnounce = false,
+  chatOnly = false,
   debug = false,
   point = "CENTER",
   relPoint = "CENTER",
@@ -131,7 +132,7 @@ function Options.TogglePanel()
   end
   if not panel then
     panel = CreateFrame("Frame", "BanterCombatOptions", UIParent)
-    panel:SetSize(380, 448)
+    panel:SetSize(380, 500)
     panel:SetPoint("CENTER")
     panel:SetFrameStrata("DIALOG")
     panel:EnableMouse(true)
@@ -139,14 +140,9 @@ function Options.TogglePanel()
     panel:RegisterForDrag("LeftButton")
     panel:SetScript("OnDragStart", panel.StartMoving)
     panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
-    if panel.SetBackdrop then
-      panel:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true, tileSize = 32, edgeSize = 32,
-        insets = { left = 8, right = 8, top = 8, bottom = 8 },
-      })
-    end
+    local plate = panel:CreateTexture(nil, "BACKGROUND")
+    plate:SetAllPoints()
+    plate:SetTexture("Interface\\AddOns\\BanterCombat\\Art\\Plate.tga")
     local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOP", 0, -14)
     title:SetText(L.OPT_TITLE)
@@ -161,13 +157,14 @@ function Options.TogglePanel()
     makeCheck(panel, L.OPT_PVP_ONLY, "pvpOnly", -208)
     makeCheck(panel, L.OPT_HOSTILE, "hostileOnly", -232)
     makeCheck(panel, L.OPT_CHAT, "chatAnnounce", -256)
-    makeCheck(panel, L.OPT_DEBUG, "debug", -280)
+    makeCheck(panel, L.OPT_CHAT_ONLY, "chatOnly", -280)
+    makeCheck(panel, L.OPT_DEBUG, "debug", -304)
 
     local durLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    durLabel:SetPoint("TOPLEFT", 24, -318)
+    durLabel:SetPoint("TOPLEFT", 24, -348)
     durLabel:SetText(L.OPT_DURATION)
     local slider = CreateFrame("Slider", "BanterCombatDurSlider", panel, "OptionsSliderTemplate")
-    slider:SetPoint("TOPLEFT", 170, -320)
+    slider:SetPoint("TOPLEFT", 170, -350)
     slider:SetMinMaxValues(2, 8)
     slider:SetValueStep(0.5)
     if slider.SetObeyStepOnDrag then
@@ -390,6 +387,319 @@ function Options.ToggleLines()
   linesFrame:Show()
 end
 
+local function encodeValue(value, depth, seen)
+  local kind = type(value)
+  if kind == "number" then
+    if value ~= value or value == math.huge or value == -math.huge then
+      return "0"
+    end
+    if value == math.floor(value) then
+      return string.format("%.0f", value)
+    end
+    return string.format("%.8f", value)
+  end
+  if kind == "string" then
+    return string.format("%q", value)
+  end
+  if kind == "boolean" then
+    return value and "true" or "false"
+  end
+  if kind ~= "table" or depth > 12 or seen[value] then
+    return nil
+  end
+  seen[value] = true
+  local keys = {}
+  for k in pairs(value) do
+    local keyType = type(k)
+    if keyType == "string" or keyType == "number" then
+      keys[#keys + 1] = k
+    end
+  end
+  table.sort(keys, function(a, b)
+    local ta, tb = type(a), type(b)
+    if ta ~= tb then
+      return ta < tb
+    end
+    if ta == "number" then
+      return a < b
+    end
+    return tostring(a) < tostring(b)
+  end)
+  local parts = {}
+  for i = 1, #keys do
+    local key = keys[i]
+    local encoded = encodeValue(value[key], depth + 1, seen)
+    if encoded then
+      local shown
+      if type(key) == "string" and key:match("^[%a_][%w_]*$") then
+        shown = key
+      elseif type(key) == "string" then
+        shown = "[" .. string.format("%q", key) .. "]"
+      else
+        shown = "[" .. tostring(key) .. "]"
+      end
+      parts[#parts + 1] = shown .. "=" .. encoded
+    end
+  end
+  seen[value] = nil
+  return "{" .. table.concat(parts, ",") .. "}"
+end
+
+local function decodeBackup(src)
+  if type(src) ~= "string" then
+    return nil, false
+  end
+  local i = 1
+  local n = #src
+  local function skip()
+    while i <= n do
+      local c = src:sub(i, i)
+      if c == " " or c == "\n" or c == "\r" or c == "\t" then
+        i = i + 1
+      else
+        break
+      end
+    end
+  end
+  local parseValue
+  local function fail()
+    return nil, false
+  end
+  local function parseString()
+    i = i + 1
+    local out = {}
+    while i <= n do
+      local c = src:sub(i, i)
+      if c == '"' then
+        i = i + 1
+        return table.concat(out), true
+      end
+      if c == "\\" then
+        local e = src:sub(i + 1, i + 1)
+        if e == "n" then
+          out[#out + 1] = "\n"
+          i = i + 2
+        elseif e == "r" then
+          out[#out + 1] = "\r"
+          i = i + 2
+        elseif e == "t" then
+          out[#out + 1] = "\t"
+          i = i + 2
+        elseif e == "\\" or e == '"' or e == "'" then
+          out[#out + 1] = e
+          i = i + 2
+        elseif e:match("%d") then
+          local digits = src:sub(i + 1):match("^%d%d?%d?")
+          local byte = digits and tonumber(digits)
+          if not byte or byte > 255 then
+            return fail()
+          end
+          out[#out + 1] = string.char(byte)
+          i = i + 1 + #digits
+        else
+          return fail()
+        end
+      else
+        out[#out + 1] = c
+        i = i + 1
+      end
+    end
+    return fail()
+  end
+  parseValue = function()
+    skip()
+    if i > n then
+      return fail()
+    end
+    local c = src:sub(i, i)
+    if c == '"' then
+      return parseString()
+    end
+    if c == "{" then
+      i = i + 1
+      local built = {}
+      skip()
+      if src:sub(i, i) == "}" then
+        i = i + 1
+        return built, true
+      end
+      while true do
+        skip()
+        local key, keyOk
+        if src:sub(i, i) == "[" then
+          i = i + 1
+          key, keyOk = parseValue()
+          if not keyOk or (type(key) ~= "string" and type(key) ~= "number") then
+            return fail()
+          end
+          skip()
+          if src:sub(i, i) ~= "]" then
+            return fail()
+          end
+          i = i + 1
+        else
+          local ident = src:sub(i):match("^[%a_][%w_]*")
+          if not ident or ident == "true" or ident == "false" then
+            return fail()
+          end
+          i = i + #ident
+          key = ident
+        end
+        skip()
+        if src:sub(i, i) ~= "=" then
+          return fail()
+        end
+        i = i + 1
+        local val, valOk = parseValue()
+        if not valOk then
+          return fail()
+        end
+        built[key] = val
+        skip()
+        local sep = src:sub(i, i)
+        if sep == "," then
+          i = i + 1
+        elseif sep == "}" then
+          i = i + 1
+          return built, true
+        else
+          return fail()
+        end
+      end
+    end
+    if src:sub(i, i + 3) == "true" and not src:sub(i + 4, i + 4):match("[%w_]") then
+      i = i + 4
+      return true, true
+    end
+    if src:sub(i, i + 4) == "false" and not src:sub(i + 5, i + 5):match("[%w_]") then
+      i = i + 5
+      return false, true
+    end
+    local token = src:sub(i):match("^%-?%d+%.?%d*")
+    if not token or token == "-" or token == "." or token == "-." then
+      return fail()
+    end
+    i = i + #token
+    return tonumber(token), true
+  end
+  local value, ok = parseValue()
+  if not ok then
+    return nil, false
+  end
+  skip()
+  if i <= n then
+    return nil, false
+  end
+  return value, true
+end
+
+local function sayStatus(text)
+  if DEFAULT_CHAT_FRAME and text then
+    DEFAULT_CHAT_FRAME:AddMessage(text)
+  end
+end
+
+local dataFrame
+
+local function showDataFrame(mode)
+  if not dataFrame then
+    dataFrame = CreateFrame("Frame", "BanterCombatData", UIParent)
+    dataFrame:SetSize(480, 320)
+    dataFrame:SetPoint("CENTER")
+    dataFrame:SetFrameStrata("FULLSCREEN_DIALOG")
+    dataFrame:EnableMouse(true)
+    dataFrame:SetMovable(true)
+    dataFrame:RegisterForDrag("LeftButton")
+    dataFrame:SetScript("OnDragStart", dataFrame.StartMoving)
+    dataFrame:SetScript("OnDragStop", dataFrame.StopMovingOrSizing)
+    local plate = dataFrame:CreateTexture(nil, "BACKGROUND")
+    plate:SetAllPoints()
+    plate:SetTexture("Interface\\AddOns\\BanterCombat\\Art\\Plate.tga")
+    dataFrame.Title = dataFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    dataFrame.Title:SetPoint("TOP", 0, -14)
+    dataFrame.Hint = dataFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    dataFrame.Hint:SetPoint("TOPLEFT", 16, -40)
+    dataFrame.Hint:SetWidth(448)
+    dataFrame.Hint:SetJustifyH("LEFT")
+    local scroll = CreateFrame("ScrollFrame", nil, dataFrame)
+    scroll:SetPoint("TOPLEFT", 16, -72)
+    scroll:SetPoint("BOTTOMRIGHT", -16, 46)
+    local edit = CreateFrame("EditBox", nil, scroll)
+    edit:SetMultiLine(true)
+    edit:SetFontObject("ChatFontNormal")
+    edit:SetWidth(440)
+    edit:SetHeight(800)
+    edit:SetAutoFocus(false)
+    pcall(function()
+      edit:SetMaxLetters(100000)
+    end)
+    edit:SetScript("OnEscapePressed", function(self)
+      self:ClearFocus()
+    end)
+    scroll:SetScrollChild(edit)
+    dataFrame.Edit = edit
+    local go = CreateFrame("Button", nil, dataFrame, "UIPanelButtonTemplate")
+    go:SetSize(120, 22)
+    go:SetPoint("BOTTOMLEFT", 16, 14)
+    go:SetScript("OnClick", function()
+      if dataFrame.mode ~= "load" then
+        dataFrame.Edit:HighlightText()
+        dataFrame.Edit:SetFocus()
+        return
+      end
+      local text = dataFrame.Edit:GetText() or ""
+      text = text:match("^%s*(.-)%s*$") or ""
+      if text:sub(1, 4) == "BC1:" then
+        text = text:sub(5)
+      end
+      local value, ok = decodeBackup(text)
+      if not ok or type(value) ~= "table" then
+        sayStatus(L.LOAD_BAD)
+        return
+      end
+      BanterCombatDB = value
+      if ns.Stats and ns.Stats.GetDB then
+        ns.Stats.GetDB()
+      end
+      if ns.ApplySavedLocale then
+        ns.ApplySavedLocale()
+      end
+      refreshChecks()
+      if ns.Compendium and ns.Compendium.Refresh then
+        ns.Compendium.Refresh()
+      end
+      sayStatus(L.LOAD_OK)
+      dataFrame:Hide()
+    end)
+    dataFrame.Go = go
+    local close = CreateFrame("Button", nil, dataFrame, "UIPanelButtonTemplate")
+    close:SetSize(80, 22)
+    close:SetPoint("BOTTOMRIGHT", -16, 14)
+    close:SetScript("OnClick", function()
+      dataFrame:Hide()
+    end)
+    dataFrame.Close = close
+    dataFrame:Hide()
+  end
+  dataFrame.mode = mode
+  dataFrame.Close:SetText(L.OPT_CLOSE)
+  if mode == "load" then
+    dataFrame.Title:SetText(L.LOAD_TITLE)
+    dataFrame.Hint:SetText(L.LOAD_HINT)
+    dataFrame.Go:SetText(L.LOAD_GO)
+    dataFrame.Edit:SetText("")
+  else
+    local db = ns.Stats and ns.Stats.GetDB and ns.Stats.GetDB() or {}
+    dataFrame.Title:SetText(L.BACKUP_TITLE)
+    dataFrame.Hint:SetText(L.BACKUP_HINT)
+    dataFrame.Go:SetText(L.MENU_BACKUP)
+    dataFrame.Edit:SetText("BC1:" .. (encodeValue(db, 0, {}) or "{}"))
+    dataFrame.Edit:HighlightText()
+    dataFrame.Edit:SetFocus()
+  end
+  dataFrame:Show()
+end
+
 local MENU_TOGGLES = {
   { key = "enabled", label = "OPT_ENABLE" },
   { key = "sound", label = "OPT_SOUND" },
@@ -401,6 +711,7 @@ local MENU_TOGGLES = {
   { key = "pvpOnly", label = "OPT_PVP_ONLY" },
   { key = "hostileOnly", label = "OPT_HOSTILE" },
   { key = "chatAnnounce", label = "OPT_CHAT" },
+  { key = "chatOnly", label = "OPT_CHAT_ONLY" },
 }
 
 local menuCatcher
@@ -458,6 +769,8 @@ local function paintMenu()
   end
   local code = settings.locale or "auto"
   menu.localeRow.text:SetText(L.OPT_LOCALE:format(ns.LocaleName and ns.LocaleName(code) or code))
+  menu.backupRow.text:SetText(L.MENU_BACKUP)
+  menu.loadRow.text:SetText(L.MENU_LOAD)
   menu.linesRow.text:SetText(L.OPT_LINES)
   menu.panelRow.text:SetText(L.MENU_PANEL)
   menu.testRow.text:SetText(L.MENU_TEST)
@@ -478,17 +791,12 @@ function Options.ToggleMinimapMenu(anchor)
     end)
 
     menu = CreateFrame("Frame", "BanterCombatMinimapMenu", menuCatcher)
-    menu:SetSize(280, 36 + (#MENU_TOGGLES + 4) * 20)
+    menu:SetSize(280, 36 + (#MENU_TOGGLES + 6) * 20)
     menu:SetFrameStrata("DIALOG")
     menu:SetClampedToScreen(true)
-    if menu.SetBackdrop then
-      menu:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true, tileSize = 32, edgeSize = 16,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 },
-      })
-    end
+    local plate = menu:CreateTexture(nil, "BACKGROUND")
+    plate:SetAllPoints()
+    plate:SetTexture("Interface\\AddOns\\BanterCombat\\Art\\Plate.tga")
     menu.Title = menu:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     menu.Title:SetPoint("TOP", 0, -10)
     menu.rows = {}
@@ -536,6 +844,12 @@ function Options.ToggleMinimapMenu(anchor)
     end
 
     menu.localeRow = actionRow(cycleLocale, true)
+    menu.backupRow = actionRow(function()
+      showDataFrame("backup")
+    end)
+    menu.loadRow = actionRow(function()
+      showDataFrame("load")
+    end)
     menu.linesRow = actionRow(function()
       Options.ToggleLines()
     end)

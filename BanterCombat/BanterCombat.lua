@@ -665,8 +665,14 @@ local function OnPlayerKill(victim, destFlags)
   end
 
   Debug("kill", victim.name, payload.kind, rarity)
-  Present(payload, "player")
-  MaybeChatAnnounce(text)
+  if Options.Get().chatOnly then
+    if SendChatMessage and text and text ~= "" then
+      pcall(SendChatMessage, Truncate(text, 255), "SAY")
+    end
+  else
+    Present(payload, "player")
+    MaybeChatAnnounce(text)
+  end
   BroadcastPayload(EncodeMessage(
     payload.speaker, payload.race, payload.class, payload.kind, payload.rarity, payload.badge, payload.text, payload.title
   ), victim.name)

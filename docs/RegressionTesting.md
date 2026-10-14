@@ -20,7 +20,7 @@
 | 12 | `/banter debug` | Toggle; com on, kills imprimem log |
 | 13 | `/banter history` | Últimas falas após testes |
 | 14 | `/banter ignore AlvoTeste` + kill sync | Remote/local do nome ignorado não aparece |
-| 15 | Botão do minimapa | Clique esquerdo abre o compêndio. Clique direito abre o menu: liga e desliga as opções, troca o idioma, abre Minhas falas, o painel completo e um teste. Arrastar move o botão |
+| 15 | Botão do minimapa | Clique esquerdo abre o compêndio. Clique direito abre o menu: liga e desliga as opções, troca o idioma, faz backup, carrega dados, abre Minhas falas, o painel completo e um teste. Arrastar move o botão |
 | 16 | Opções → Idioma | Cicla os idiomas oficiais. A fala de teste seguinte sai nesse idioma. `auto` segue o idioma do cliente |
 | 17 | Compêndio → Rivais | Lista nome, placar dos dois lados e data do último encontro. Vazio até existir histórico |
 | 18 | Compêndio → Feitos | Feitos trancados com travessão. A data aparece só depois do acontecimento |
@@ -29,8 +29,9 @@
 | 21 | Som ligado, botão Testar | Comum quase mudo, incomum um clique, épico um acorde, lendário uma fanfarra. Vingança e conquista continuam com o aviso de raide. Morte continua com o som de falha |
 | 22 | `/banter announce` | Cada chamada toca o próximo anúncio, de First Blood até Godlike. Em combate, o primeiro abate da vida é First Blood, o segundo em até 12s é Double Kill, o nono sem morrer é Godlike. Morrer volta a First Blood |
 | 22b | `/banter test` com som ligado | O primeiro teste de abate toca First Blood. Outro teste em até 12s sobe a escada. O teste de morte zera, e o abate seguinte volta a First Blood |
-| 23 | Compêndio → Crônica | Sem abates novos, mostra o texto vazio ou os capítulos de feitos e conquistas já alcançados. Depois de um abate, o capítulo traz raça, classe, zona, nível, golpe e nome. Mais e Voltar trocam de capítulo |
-| 24 | Compêndio | Janela com pergaminho, faixa e categorias à esquerda. Visão mostra as conquistas mais perto do fim. Raça ou classe errada fica cinza. Mais e Voltar trocam a página. Contas, Rivais, Feitos e Crônica continuam na lista |
+| 23 | Compêndio → Crônica | Sem abates novos, mostra o texto vazio ou os capítulos de feitos e conquistas já alcançados. Depois de um abate, o capítulo traz raça, classe, zona, nível, golpe e nome. As setas trocam de capítulo |
+| 24 | Compêndio | Janela com pergaminho, faixa e categorias à esquerda. Visão mostra as conquistas mais perto do fim. Raça ou classe errada fica cinza. As setas trocam a página e ficam cinza no fim. Contas não mostra setas. Rivais, Feitos e Crônica continuam na lista |
+| 25 | Menu → backup, carregar, só no chat | Backup abre o texto já selecionado, começando com `BC1:`. Colar um texto inválido não apaga nada. Colar o backup devolve as contas. Com “janela de abate vira uma frase no chat” ligado, o abate sai em SAY e o pop-up não abre. O botão Testar ainda mostra a janela |
 
 ## PvP (2 clientes com o addon)
 

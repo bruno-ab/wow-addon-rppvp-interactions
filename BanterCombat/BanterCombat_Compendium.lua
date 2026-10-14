@@ -223,14 +223,39 @@ local function buildFrame()
   frame.page = "summary"
   frame.listPage = 1
 
-  frame.Back = makeButton(frame, "", 80)
-  frame.Back:SetPoint("BOTTOMLEFT", 190, 12)
+  local function arrowButton(direction)
+    local button = CreateFrame("Button", nil, frame)
+    button:SetSize(32, 32)
+    local prefix = direction == "prev"
+      and "Interface\\Buttons\\UI-SpellbookIcon-PrevPage-"
+      or "Interface\\Buttons\\UI-SpellbookIcon-NextPage-"
+    button:SetNormalTexture(prefix .. "Up")
+    button:SetPushedTexture(prefix .. "Down")
+    button:SetDisabledTexture(prefix .. "Disabled")
+    button:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
+    button:SetScript("OnEnter", function(self)
+      if not GameTooltip then
+        return
+      end
+      GameTooltip:SetOwner(self, "ANCHOR_TOP")
+      GameTooltip:SetText(direction == "prev" and L.COMP_BACK or L.COMP_MORE, 1, 0.82, 0)
+      GameTooltip:Show()
+    end)
+    button:SetScript("OnLeave", function()
+      if GameTooltip then
+        GameTooltip:Hide()
+      end
+    end)
+    return button
+  end
+  frame.Back = arrowButton("prev")
+  frame.Back:SetPoint("BOTTOMLEFT", 196, 8)
   frame.Back:SetScript("OnClick", function()
     frame.listPage = math.max(1, (frame.listPage or 1) - 1)
     Compendium.Refresh()
   end)
-  frame.More = makeButton(frame, "", 80)
-  frame.More:SetPoint("BOTTOMRIGHT", -24, 12)
+  frame.More = arrowButton("next")
+  frame.More:SetPoint("BOTTOMRIGHT", -24, 8)
   frame.More:SetScript("OnClick", function()
     frame.listPage = (frame.listPage or 1) + 1
     Compendium.Refresh()
@@ -299,8 +324,21 @@ function Compendium.Refresh()
   local page = frame.page or "counts"
   frame.Title:SetText(L.COMP_TITLE)
   frame.Close:SetText(L.COMP_CLOSE)
-  frame.Back:SetText(L.COMP_BACK)
-  frame.More:SetText(L.COMP_MORE)
+  local function setPager(canBack, canMore)
+    if not canBack and not canMore then
+      frame.Back:Hide()
+      frame.More:Hide()
+      return
+    end
+    frame.Back:Show()
+    frame.More:Show()
+    if frame.Back.SetEnabled then
+      frame.Back:SetEnabled(canBack and true or false)
+    end
+    if frame.More.SetEnabled then
+      frame.More:SetEnabled(canMore and true or false)
+    end
+  end
   if frame.Story then
     frame.Story:Hide()
   end
@@ -428,16 +466,7 @@ function Compendium.Refresh()
     else
       frame.Hint:SetText(L.ACH_PAGE:format(start + 1, last, #list))
     end
-    if index > 1 then
-      frame.Back:Show()
-    else
-      frame.Back:Hide()
-    end
-    if index < pages then
-      frame.More:Show()
-    else
-      frame.More:Hide()
-    end
+    setPager(index > 1, index < pages)
     return
   end
 
@@ -506,8 +535,7 @@ function Compendium.Refresh()
     if #chapters == 0 then
       frame.Story:SetText(L.NARR_EMPTY)
       frame.Hint:SetText(L.NARR_HINT)
-      frame.Back:Hide()
-      frame.More:Hide()
+      setPager(false, false)
       return
     end
     if index > #chapters then
@@ -520,16 +548,7 @@ function Compendium.Refresh()
     local chapter = chapters[index]
     frame.Story:SetText(chapter.title .. "\n\n" .. chapter.text)
     frame.Hint:SetText(L.NARR_PAGE:format(index, #chapters))
-    if index > 1 then
-      frame.Back:Show()
-    else
-      frame.Back:Hide()
-    end
-    if index < #chapters then
-      frame.More:Show()
-    else
-      frame.More:Hide()
-    end
+    setPager(index > 1, index < #chapters)
     return
   end
 
@@ -542,8 +561,7 @@ function Compendium.Refresh()
     frame.RaceDeathsHeader:SetText(L.COMP_DEATHS)
     frame.ClassKillsHeader:SetText(L.COMP_KILLS)
     frame.ClassDeathsHeader:SetText(L.COMP_DEATHS)
-    frame.Back:Hide()
-    frame.More:Hide()
+    setPager(false, false)
     local kills = db.kills or {}
     local deaths = db.deaths or {}
     local classes = Data.CLASSES
@@ -628,16 +646,7 @@ function Compendium.Refresh()
     row.race:SetText(items[start + i] or "")
     row.class:SetText(items[start + 9 + i] or "")
   end
-  if pageIndex > 1 then
-    frame.Back:Show()
-  else
-    frame.Back:Hide()
-  end
-  if start + 18 < #items then
-    frame.More:Show()
-  else
-    frame.More:Hide()
-  end
+  setPager(pageIndex > 1, start + 18 < #items)
 end
 
 function Compendium.Toggle()
