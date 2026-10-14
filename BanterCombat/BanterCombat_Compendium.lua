@@ -45,8 +45,45 @@ local function makeButton(parent, text, width)
   return button
 end
 
+local function paintSheet(parent)
+  local plate = parent:CreateTexture(nil, "BACKGROUND")
+  plate:SetAllPoints()
+  plate:SetTexture("Interface\\AddOns\\BanterCombat\\Art\\Plate.tga")
+
+  local dark = type(DialogueUI_DB) == "table" and DialogueUI_DB.Theme == 2
+  local folder = dark and "Theme_Dark" or "Theme_Brown"
+  local file = "Interface\\AddOns\\DialogueUI\\Art\\" .. folder .. "\\Parchment.png"
+  local width = parent:GetWidth()
+  if not width or width < 64 then
+    width = 780
+  end
+  local cap = math.floor(width * (256 / 1024))
+  local top = parent:CreateTexture(nil, "BORDER")
+  local mid = parent:CreateTexture(nil, "BORDER")
+  local bot = parent:CreateTexture(nil, "BORDER")
+  top:SetTexture(file)
+  mid:SetTexture(file)
+  bot:SetTexture(file)
+  top:SetTexCoord(0, 1, 0, 256 / 2048)
+  mid:SetTexCoord(0, 1, 256 / 2048, 896 / 2048)
+  bot:SetTexCoord(0, 1, 896 / 2048, 1152 / 2048)
+  top:SetSize(width, cap)
+  bot:SetSize(width, cap)
+  top:SetPoint("TOP", parent, "TOP", 0, 8)
+  bot:SetPoint("BOTTOM", parent, "BOTTOM", 0, -6)
+  mid:SetPoint("TOPLEFT", top, "BOTTOMLEFT", 0, 0)
+  mid:SetPoint("BOTTOMRIGHT", bot, "TOPRIGHT", 0, 0)
+end
+
 local function buildFrame()
-  frame = CreateFrame("Frame", "BanterCombatCompendium", UIParent)
+  local made
+  local ok, created = pcall(CreateFrame, "Frame", "BanterCombatCompendium", UIParent, "BackdropTemplate")
+  if ok and created then
+    made = created
+  else
+    made = CreateFrame("Frame", "BanterCombatCompendium", UIParent)
+  end
+  frame = made
   frame:SetSize(780, 512)
   frame:SetPoint("CENTER")
   frame:SetFrameStrata("DIALOG")
@@ -56,26 +93,24 @@ local function buildFrame()
   frame:SetScript("OnDragStart", frame.StartMoving)
   frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
   frame:SetClampedToScreen(true)
+  paintSheet(frame)
   if frame.SetBackdrop then
-    frame:SetBackdrop({
-      bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
+    pcall(frame.SetBackdrop, frame, {
+      bgFile = "Interface\\AddOns\\BanterCombat\\Art\\Plate.tga",
       edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-      tile = true, tileSize = 32, edgeSize = 32,
-      insets = { left = 11, right = 12, top = 12, bottom = 11 },
+      tile = false, edgeSize = 32,
+      insets = { left = 8, right = 8, top = 8, bottom = 8 },
     })
+    if frame.SetBackdropColor then
+      frame:SetBackdropColor(1, 1, 1, 1)
+    end
   end
-
-  local paper = frame:CreateTexture(nil, "BACKGROUND")
-  paper:SetPoint("TOPLEFT", 16, -16)
-  paper:SetPoint("BOTTOMRIGHT", -16, 16)
-  paper:SetTexture("Interface\\Stationery\\StationeryTest1")
-  paper:SetVertexColor(1, 0.95, 0.82, 0.55)
 
   local side = frame:CreateTexture(nil, "BORDER")
   side:SetPoint("TOPLEFT", 18, -48)
   side:SetSize(156, 410)
   side:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-  side:SetVertexColor(0.12, 0.08, 0.04, 0.72)
+  side:SetVertexColor(0.22, 0.14, 0.07, 0.92)
 
   local banner = frame:CreateTexture(nil, "ARTWORK")
   banner:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
