@@ -1143,6 +1143,97 @@ function EnsureTestButton()
     end
   end)
   testButton = button
+
+  local soundOk, soundButton = pcall(CreateFrame, "Button", "BanterCombatSoundButton", testButton, "UIPanelButtonTemplate")
+  if not soundOk or not soundButton then
+    soundButton = CreateFrame("Button", "BanterCombatSoundButton", testButton)
+  end
+  if not soundButton.SetText then
+    local font = soundButton:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    font:SetPoint("CENTER")
+    soundButton.SetText = function(_, text)
+      font:SetText(text)
+    end
+  end
+  soundButton:SetSize(148, 22)
+  soundButton:SetPoint("TOPLEFT", testButton, "BOTTOMLEFT", 0, -4)
+  soundButton:SetFrameStrata("HIGH")
+  soundButton:SetText(L.SOUND_TEST)
+
+  local soundTestIndex = 0
+  local soundTestToken = 0
+  local soundQueue = {
+    { announcer = "FirstBlood", label = "First Blood" },
+    { announcer = "DoubleKill", label = "Double Kill" },
+    { announcer = "TripleKill", label = "Triple Kill" },
+    { announcer = "Rampage", label = "Rampage" },
+    { announcer = "Massacre", label = "Massacre" },
+    { announcer = "KillingSpree", label = "Killing Spree" },
+    { announcer = "Dominating", label = "Dominating" },
+    { announcer = "MegaKill", label = "Mega Kill" },
+    { announcer = "Ownage", label = "Ownage" },
+    { announcer = "Mayhem", label = "Mayhem" },
+    { announcer = "Carnage", label = "Carnage" },
+    { announcer = "Godlike", label = "Godlike" },
+    { sound = "igMainMenuOptionCheckBoxOn", key = "TEST_COMMON" },
+    { sound = "igQuestListOpen", key = "TEST_UNCOMMON" },
+    { sound = "ReadyCheck", key = "TEST_EPIC" },
+    { sound = "LEVELUPSOUND", key = "TEST_LEGENDARY" },
+    { sound = "RaidWarning", key = "TEST_REVENGE" },
+    { sound = "igQuestFailed", key = "TEST_DEATH" },
+  }
+
+  local function stopSoundTest()
+    soundTestToken = soundTestToken + 1
+    soundTestIndex = 0
+    soundButton:SetText(L.SOUND_TEST)
+  end
+
+  local function stepSoundTest(token)
+    if token ~= soundTestToken then
+      return
+    end
+    soundTestIndex = soundTestIndex + 1
+    local row = soundQueue[soundTestIndex]
+    if not row then
+      stopSoundTest()
+      return
+    end
+    soundButton:SetText(row.label or (row.key and L[row.key]) or L.SOUND_TEST)
+    if ns.UI and ns.UI.PlayPreviewSound then
+      ns.UI.PlayPreviewSound(row)
+    end
+    if C_Timer and C_Timer.After then
+      C_Timer.After(2.2, function()
+        stepSoundTest(token)
+      end)
+    else
+      stopSoundTest()
+    end
+  end
+
+  soundButton:SetScript("OnClick", function()
+    if soundTestIndex > 0 then
+      stopSoundTest()
+      return
+    end
+    soundTestToken = soundTestToken + 1
+    stepSoundTest(soundTestToken)
+  end)
+  soundButton:SetScript("OnEnter", function(self)
+    if not GameTooltip then
+      return
+    end
+    GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+    GameTooltip:SetText(L.SOUND_TEST, 1, 0.82, 0)
+    GameTooltip:AddLine(L.SOUND_TEST_TIP, 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  soundButton:SetScript("OnLeave", function()
+    if GameTooltip then
+      GameTooltip:Hide()
+    end
+  end)
 end
 
 local announcePreview = 0

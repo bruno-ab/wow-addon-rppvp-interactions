@@ -251,6 +251,20 @@ local function playShowSound(kind, rarity, announcer)
   end
 end
 
+function UI.PlayPreviewSound(entry)
+  if type(entry) ~= "table" then
+    return false
+  end
+  if entry.announcer then
+    return playAnnouncer(entry.announcer)
+  end
+  if entry.sound and PlaySound then
+    local ok = pcall(PlaySound, entry.sound)
+    return ok and true or false
+  end
+  return false
+end
+
 local function tintEdge(frame, kind, rarity)
   if frame._dialogueSkin or not frame.EdgeGlow then
     return
