@@ -390,4 +390,176 @@ function Options.ToggleLines()
   linesFrame:Show()
 end
 
+local MENU_TOGGLES = {
+  { key = "enabled", label = "OPT_ENABLE" },
+  { key = "sound", label = "OPT_SOUND" },
+  { key = "syncWhisper", label = "OPT_SYNC" },
+  { key = "syncGroup", label = "OPT_GROUP" },
+  { key = "showGroupBanter", label = "OPT_SHOW_GROUP" },
+  { key = "showDeaths", label = "OPT_SHOW_DEATHS" },
+  { key = "useModel", label = "OPT_MODEL" },
+  { key = "pvpOnly", label = "OPT_PVP_ONLY" },
+  { key = "hostileOnly", label = "OPT_HOSTILE" },
+  { key = "chatAnnounce", label = "OPT_CHAT" },
+}
+
+local menuCatcher
+local menu
+
+local function menuMark(on)
+  if on then
+    return "|cFF55FF55+|r "
+  end
+  return "|cFF888888-|r "
+end
+
+local function cycleLocale()
+  local order = ns.LOCALE_ORDER or { "auto" }
+  local current = Options.Get().locale or "auto"
+  local index = 1
+  for i, code in ipairs(order) do
+    if code == current then
+      index = i
+      break
+    end
+  end
+  local nextCode = order[(index % #order) + 1]
+  Options.Set("locale", nextCode)
+  if ns.ApplySavedLocale then
+    ns.ApplySavedLocale()
+  end
+  if panel and panel._localeBtn then
+    panel._localeBtn:SetText(L.OPT_LOCALE:format(ns.LocaleName and ns.LocaleName(nextCode) or nextCode))
+  end
+end
+
+function Options.HideMinimapMenu()
+  if menu and menu._anchor then
+    menu._anchor:SetFrameStrata("MEDIUM")
+    menu._anchor:SetFrameLevel(8)
+  end
+  if menu then
+    menu:Hide()
+  end
+  if menuCatcher then
+    menuCatcher:Hide()
+  end
+end
+
+local function paintMenu()
+  if not menu then
+    return
+  end
+  local settings = Options.Get()
+  menu.Title:SetText(L.MENU_TITLE)
+  for i = 1, #menu.rows do
+    local row = menu.rows[i]
+    row.text:SetText(menuMark(settings[row.key]) .. L[row.label])
+  end
+  local code = settings.locale or "auto"
+  menu.localeRow.text:SetText(L.OPT_LOCALE:format(ns.LocaleName and ns.LocaleName(code) or code))
+  menu.linesRow.text:SetText(L.OPT_LINES)
+  menu.panelRow.text:SetText(L.MENU_PANEL)
+  menu.testRow.text:SetText(L.MENU_TEST)
+end
+
+function Options.ToggleMinimapMenu(anchor)
+  if menu and menu:IsShown() then
+    Options.HideMinimapMenu()
+    return
+  end
+  if not menuCatcher then
+    menuCatcher = CreateFrame("Button", "BanterCombatMinimapCatcher", UIParent)
+    menuCatcher:SetAllPoints(UIParent)
+    menuCatcher:SetFrameStrata("DIALOG")
+    menuCatcher:EnableMouse(true)
+    menuCatcher:SetScript("OnClick", function()
+      Options.HideMinimapMenu()
+    end)
+
+    menu = CreateFrame("Frame", "BanterCombatMinimapMenu", menuCatcher)
+    menu:SetSize(280, 36 + (#MENU_TOGGLES + 4) * 20)
+    menu:SetFrameStrata("DIALOG")
+    menu:SetClampedToScreen(true)
+    if menu.SetBackdrop then
+      menu:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true, tileSize = 32, edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+      })
+    end
+    menu.Title = menu:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    menu.Title:SetPoint("TOP", 0, -10)
+    menu.rows = {}
+    local y = -28
+    for i = 1, #MENU_TOGGLES do
+      local info = MENU_TOGGLES[i]
+      local row = CreateFrame("Button", nil, menu)
+      row:SetSize(260, 18)
+      row:SetPoint("TOPLEFT", 10, y)
+      row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+      row.text:SetPoint("LEFT", 2, 0)
+      row.text:SetWidth(254)
+      row.text:SetJustifyH("LEFT")
+      row.key = info.key
+      row.label = info.label
+      row:SetScript("OnClick", function(self)
+        local current = Options.Get()[self.key]
+        Options.Set(self.key, not current)
+        refreshChecks()
+        paintMenu()
+      end)
+      menu.rows[i] = row
+      y = y - 20
+    end
+
+    local function actionRow(handler, keepOpen)
+      local row = CreateFrame("Button", nil, menu)
+      row:SetSize(260, 18)
+      row:SetPoint("TOPLEFT", 10, y)
+      row.text = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      row.text:SetPoint("LEFT", 2, 0)
+      row.text:SetWidth(254)
+      row.text:SetJustifyH("LEFT")
+      row:SetScript("OnClick", function()
+        if not keepOpen then
+          Options.HideMinimapMenu()
+        end
+        handler()
+        if keepOpen then
+          paintMenu()
+        end
+      end)
+      y = y - 20
+      return row
+    end
+
+    menu.localeRow = actionRow(cycleLocale, true)
+    menu.linesRow = actionRow(function()
+      Options.ToggleLines()
+    end)
+    menu.panelRow = actionRow(function()
+      Options.TogglePanel()
+    end)
+    menu.testRow = actionRow(function()
+      if ns.Preview then
+        ns.Preview("kill")
+      end
+    end)
+    menu:Hide()
+    menuCatcher:Hide()
+  end
+
+  menu._anchor = anchor
+  if anchor then
+    anchor:SetFrameStrata("FULLSCREEN_DIALOG")
+    menu:ClearAllPoints()
+    menu:SetPoint("TOPRIGHT", anchor, "TOPLEFT", 2, 0)
+  end
+  paintMenu()
+  menuCatcher:Show()
+  menu:Show()
+end
+
 _G[addonName] = ns

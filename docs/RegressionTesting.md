@@ -20,7 +20,7 @@
 | 12 | `/banter debug` | Toggle; com on, kills imprimem log |
 | 13 | `/banter history` | Últimas falas após testes |
 | 14 | `/banter ignore AlvoTeste` + kill sync | Remote/local do nome ignorado não aparece |
-| 15 | Botão do minimapa | Abre o compêndio com abates e mortes por raça e classe. Arrastar move o botão. Clique direito abre as opções |
+| 15 | Botão do minimapa | Clique esquerdo abre o compêndio. Clique direito abre o menu: liga e desliga as opções, troca o idioma, abre Minhas falas, o painel completo e um teste. Arrastar move o botão |
 | 16 | Opções → Idioma | Cicla os idiomas oficiais. A fala de teste seguinte sai nesse idioma. `auto` segue o idioma do cliente |
 | 17 | Compêndio → Rivais | Lista nome, placar dos dois lados e data do último encontro. Vazio até existir histórico |
 | 18 | Compêndio → Feitos | Feitos trancados com travessão. A data aparece só depois do acontecimento |

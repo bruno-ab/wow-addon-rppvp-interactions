@@ -441,16 +441,22 @@ function Compendium.Init()
   border:SetPoint("TOPLEFT")
   border:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
 
-  button:SetScript("OnClick", function(_, mouse)
+  button:SetScript("OnClick", function(self, mouse)
     if mouse == "RightButton" then
-      if ns.Options and ns.Options.TogglePanel then
-        ns.Options.TogglePanel()
+      if ns.Options and ns.Options.ToggleMinimapMenu then
+        ns.Options.ToggleMinimapMenu(self)
       end
       return
+    end
+    if ns.Options and ns.Options.HideMinimapMenu then
+      ns.Options.HideMinimapMenu()
     end
     Compendium.Toggle()
   end)
   button:SetScript("OnDragStart", function(self)
+    if ns.Options and ns.Options.HideMinimapMenu then
+      ns.Options.HideMinimapMenu()
+    end
     if InCombatLockdown and InCombatLockdown() then
       return
     end

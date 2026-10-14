@@ -80,7 +80,7 @@ local ptBR = withNames({
   COMP_HINT = "Marcas de feito: 10 incomum, 50 épico, 100 lendário.",
   MINIMAP_TITLE = "BanterCombat",
   MINIMAP_LEFT = "Clique esquerdo: compêndio",
-  MINIMAP_RIGHT = "Clique direito: opções",
+  MINIMAP_RIGHT = "Clique direito: menu",
   MINIMAP_DRAG = "Arraste para mover no minimapa",
   RIVAL = "Rival",
   RIVAL_SCORE = "%d–%d",
@@ -98,6 +98,9 @@ local ptBR = withNames({
   NARR_CHAPTER = "Capítulo %d",
   NARR_ZONE = "um campo sem nome",
   NARR_SPELL = "um golpe",
+  MENU_TITLE = "Configurações",
+  MENU_PANEL = "Painel completo",
+  MENU_TEST = "Testar fala",
   COMP_COUNTS = "Contas",
   COMP_SCORE = "Placar",
   COMP_LAST = "Último",
@@ -174,7 +177,10 @@ local enUS = withNames({
   COMP_HINT = "Feat marks: 10 uncommon, 50 epic, 100 legendary.",
   MINIMAP_TITLE = "BanterCombat",
   MINIMAP_LEFT = "Left-click: compendium",
-  MINIMAP_RIGHT = "Right-click: options",
+  MINIMAP_RIGHT = "Right-click: menu",
+  MENU_TITLE = "Settings",
+  MENU_PANEL = "Full options",
+  MENU_TEST = "Test a line",
   MINIMAP_DRAG = "Drag to move around the minimap",
   RIVAL = "Rival",
   RIVAL_SCORE = "%d–%d",
@@ -268,7 +274,7 @@ local deDE = withNames({
   COMP_HINT = "Taten: 10 ungewöhnlich, 50 episch, 100 legendär.",
   MINIMAP_TITLE = "BanterCombat",
   MINIMAP_LEFT = "Linksklick: Kompendium",
-  MINIMAP_RIGHT = "Rechtsklick: Optionen",
+  MINIMAP_RIGHT = "Rechtsklick: Menü",
   MINIMAP_DRAG = "Ziehen, um die Minikarte zu umrunden",
 })
 
@@ -325,7 +331,7 @@ local esES = withNames({
   COMP_HINT = "Hazañas: 10 poco común, 50 épico, 100 legendario.",
   MINIMAP_TITLE = "BanterCombat",
   MINIMAP_LEFT = "Clic izquierdo: compendio",
-  MINIMAP_RIGHT = "Clic derecho: opciones",
+  MINIMAP_RIGHT = "Clic derecho: menú",
   MINIMAP_DRAG = "Arrastra para moverlo en el minimapa",
 })
 
@@ -382,7 +388,7 @@ local esMX = withNames({
   COMP_HINT = "Hazañas: 10 poco común, 50 épico, 100 legendario.",
   MINIMAP_TITLE = "BanterCombat",
   MINIMAP_LEFT = "Clic izquierdo: compendio",
-  MINIMAP_RIGHT = "Clic derecho: opciones",
+  MINIMAP_RIGHT = "Clic derecho: menú",
   MINIMAP_DRAG = "Arrastra para moverlo en el minimapa",
 })
 
@@ -439,7 +445,7 @@ local frFR = withNames({
   COMP_HINT = "Exploits : 10 inhabituel, 50 épique, 100 légendaire.",
   MINIMAP_TITLE = "BanterCombat",
   MINIMAP_LEFT = "Clic gauche : compendium",
-  MINIMAP_RIGHT = "Clic droit : options",
+  MINIMAP_RIGHT = "Clic droit : menu",
   MINIMAP_DRAG = "Glisser pour déplacer autour de la minicarte",
 })
 
@@ -496,7 +502,7 @@ local itIT = withNames({
   COMP_HINT = "Imprese: 10 non comune, 50 epico, 100 leggendario.",
   MINIMAP_TITLE = "BanterCombat",
   MINIMAP_LEFT = "Clic sinistro: compendio",
-  MINIMAP_RIGHT = "Clic destro: opzioni",
+  MINIMAP_RIGHT = "Clic destro: menu",
   MINIMAP_DRAG = "Trascina per spostarlo sulla minimappa",
 })
 
@@ -553,7 +559,7 @@ local ruRU = withNames({
   COMP_HINT = "Подвиги: 10 необычный, 50 эпический, 100 легендарный.",
   MINIMAP_TITLE = "BanterCombat",
   MINIMAP_LEFT = "ЛКМ: компендиум",
-  MINIMAP_RIGHT = "ПКМ: настройки",
+  MINIMAP_RIGHT = "ПКМ: меню",
   MINIMAP_DRAG = "Перетащите вокруг миникарты",
 })
 
@@ -610,7 +616,7 @@ local koKR = withNames({
   COMP_HINT = "위업 표시: 10 고급, 50 영웅, 100 전설.",
   MINIMAP_TITLE = "BanterCombat",
   MINIMAP_LEFT = "왼쪽 클릭: 도감",
-  MINIMAP_RIGHT = "오른쪽 클릭: 설정",
+  MINIMAP_RIGHT = "오른쪽 클릭: 메뉴",
   MINIMAP_DRAG = "드래그해서 미니맵 주위로 이동",
 })
 
@@ -667,7 +673,7 @@ local zhCN = withNames({
   COMP_HINT = "功绩标记：10 优秀，50 史诗，100 传说。",
   MINIMAP_TITLE = "BanterCombat",
   MINIMAP_LEFT = "左键：图鉴",
-  MINIMAP_RIGHT = "右键：选项",
+  MINIMAP_RIGHT = "右键：菜单",
   MINIMAP_DRAG = "拖动以绕小地图移动",
 })
 
@@ -724,7 +730,7 @@ local zhTW = withNames({
   COMP_HINT = "功績標記：10 優秀，50 史詩，100 傳說。",
   MINIMAP_TITLE = "BanterCombat",
   MINIMAP_LEFT = "左鍵：圖鑑",
-  MINIMAP_RIGHT = "右鍵：選項",
+  MINIMAP_RIGHT = "右鍵：選單",
   MINIMAP_DRAG = "拖曳以繞小地圖移動",
 })
 
