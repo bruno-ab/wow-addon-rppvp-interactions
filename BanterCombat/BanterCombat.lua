@@ -998,6 +998,51 @@ local function PrintTopMap(title, map, labelLookup, limit)
   end
 end
 
+local scoreLock = false
+
+local function ShowRivalScore(tip)
+  if scoreLock or not tip or not tip.GetUnit then
+    return
+  end
+  local _, unit = tip:GetUnit()
+  if not unit or not UnitIsPlayer or not UnitIsPlayer(unit) then
+    return
+  end
+  if UnitIsUnit and UnitIsUnit(unit, "player") then
+    return
+  end
+  local name = UnitName(unit)
+  local rival = Stats.RivalByName and Stats.RivalByName(name)
+  if not rival then
+    return
+  end
+  scoreLock = true
+  tip:AddLine(L.TIP_SCORE:format(rival.kills or 0, rival.deaths or 0), 1, 0.82, 0)
+  if tip.Show then
+    tip:Show()
+  end
+  scoreLock = false
+end
+
+local function HookRivalTooltip()
+  if ns._scoreTip or not GameTooltip then
+    return
+  end
+  ns._scoreTip = true
+  if GameTooltip.HasScript and GameTooltip:HasScript("OnTooltipSetUnit") and GameTooltip.HookScript then
+    if pcall(GameTooltip.HookScript, GameTooltip, "OnTooltipSetUnit", ShowRivalScore) then
+      return
+    end
+  end
+  if hooksecurefunc and GameTooltip.SetUnit then
+    hooksecurefunc(GameTooltip, "SetUnit", ShowRivalScore)
+    return
+  end
+  if GameTooltip.HasScript and GameTooltip:HasScript("OnShow") and GameTooltip.HookScript then
+    pcall(GameTooltip.HookScript, GameTooltip, "OnShow", ShowRivalScore)
+  end
+end
+
 local function OnEvent(_, event, ...)
   if event == "ADDON_LOADED" then
     local name = ...
@@ -1024,25 +1069,7 @@ local function OnEvent(_, event, ...)
         ns.Achievements.PrimeFeats()
       end
       EnsureTestButton()
-      if GameTooltip and GameTooltip.HookScript and not ns._scoreTip then
-        ns._scoreTip = true
-        GameTooltip:HookScript("OnTooltipSetUnit", function(tip)
-          local _, unit = tip:GetUnit()
-          if not unit or not UnitIsPlayer or not UnitIsPlayer(unit) then
-            return
-          end
-          if UnitIsUnit and UnitIsUnit(unit, "player") then
-            return
-          end
-          local name = UnitName(unit)
-          local rival = Stats.RivalByName and Stats.RivalByName(name)
-          if not rival then
-            return
-          end
-          tip:AddLine(L.TIP_SCORE:format(rival.kills or 0, rival.deaths or 0), 1, 0.82, 0)
-          tip:Show()
-        end)
-      end
+      HookRivalTooltip()
       if ns.Compendium and ns.Compendium.Init then
         ns.Compendium.Init()
       end
