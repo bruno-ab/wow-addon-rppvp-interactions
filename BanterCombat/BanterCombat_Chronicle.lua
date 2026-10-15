@@ -527,7 +527,15 @@ function Chronicle.Chapters()
       mySex = row.mySex,
       detail = detailFor(lang, row.race, row.class, seen[key]),
     }
-    add(chapters, L.NARR_CHAPTER:format(i), fill(spine, ctx))
+    local body = fill(spine, ctx)
+    local vlevel = tonumber(row.victimLevel) or 0
+    if vlevel > 0 then
+      body = body .. " " .. L.NARR_LEVEL:format(vlevel)
+    end
+    if type(row.subzone) == "string" and row.subzone ~= "" and row.subzone ~= row.zone then
+      body = body .. " " .. L.NARR_PLACE:format(row.subzone)
+    end
+    add(chapters, L.NARR_CHAPTER:format(i), body)
   end
 
   local feats = FEATS[lang] or {}

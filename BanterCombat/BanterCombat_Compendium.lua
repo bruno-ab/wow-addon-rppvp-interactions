@@ -133,7 +133,7 @@ local function buildFrame()
   frame.Hint = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
   frame.Hint:SetPoint("BOTTOM", 80, 40)
   frame.Hint:SetWidth(520)
-  frame.Hint:SetHeight(28)
+  frame.Hint:SetHeight(40)
   frame.Hint:SetJustifyH("CENTER")
   frame.Hint:SetJustifyV("TOP")
   if frame.Hint.SetWordWrap then
@@ -468,10 +468,20 @@ function Compendium.Refresh()
       end
     end
     local last = math.min(#list, start + 6)
+    local pageLine
     if #list == 0 then
-      frame.Hint:SetText(L.ACH_HINT)
+      pageLine = L.ACH_HINT
     else
-      frame.Hint:SetText(L.ACH_PAGE:format(start + 1, last, #list))
+      pageLine = L.ACH_PAGE:format(start + 1, last, #list)
+    end
+    if page == "summary" and ns.Stats and ns.Stats.Spotlight then
+      local nemesis, prey, zone = ns.Stats.Spotlight()
+      local nemesisText = nemesis and L.SPOT_NEMESIS:format(nemesis.name or "?", nemesis.deaths or 0) or L.SPOT_EMPTY
+      local preyText = prey and L.SPOT_PREY:format(prey.name or "?", prey.kills or 0) or L.SPOT_EMPTY
+      local zoneText = zone and L.SPOT_ZONE:format(zone) or L.SPOT_EMPTY
+      frame.Hint:SetText(nemesisText .. "   ·   " .. preyText .. "   ·   " .. zoneText .. "\n" .. pageLine)
+    else
+      frame.Hint:SetText(pageLine)
     end
     setPager(index > 1, index < pages)
     return
@@ -611,7 +621,19 @@ function Compendium.Refresh()
     for i = 1, #list do
       local row = list[i]
       local score = L.RIVAL_SCORE:format(row.kills or 0, row.deaths or 0)
-      items[#items + 1] = (row.name or "?") .. "   " .. score .. "   " .. formatWhen(row.last)
+      local line = (row.name or "?") .. "   " .. score .. "   " .. formatWhen(row.last)
+      local meetings = row.meetings
+      if type(meetings) == "table" and #meetings > 0 then
+        local last = meetings[#meetings]
+        local side = last.side == "deaths" and L.MEET_DEATH or L.MEET_KILL
+        local where = type(last.zone) == "string" and last.zone or ""
+        if where ~= "" then
+          line = line .. "   " .. side .. " · " .. where
+        else
+          line = line .. "   " .. side
+        end
+      end
+      items[#items + 1] = line
     end
   else
     frame.Hint:SetText(L.COMP_FEATS)
@@ -763,6 +785,10 @@ function Compendium.Init()
     GameTooltip:AddLine(L.MINIMAP_LEFT, 1, 1, 1)
     GameTooltip:AddLine(L.MINIMAP_RIGHT, 1, 1, 1)
     GameTooltip:AddLine(L.MINIMAP_DRAG, 0.8, 0.8, 0.8)
+    if ns.Stats and ns.Stats.Session then
+      local kills, deaths, streak = ns.Stats.Session()
+      GameTooltip:AddLine(L.MINIMAP_SESSION:format(kills or 0, deaths or 0, streak or 0), 1, 0.82, 0)
+    end
     GameTooltip:Show()
   end)
   button:SetScript("OnLeave", function()

@@ -2093,6 +2093,46 @@ function Achievements.List(page)
   return rows
 end
 
+function Achievements.PrimeFeats()
+  seedBook()
+  local book = Store()
+  if not book or book.featSeeded then
+    return
+  end
+  for i = 1, #DEFS do
+    viewOf(DEFS[i])
+  end
+  book.featSeeded = true
+end
+
+function Achievements.FreshTitle()
+  seedBook()
+  local book = Store()
+  if not book then
+    return nil
+  end
+  if not book.featSeeded then
+    Achievements.PrimeFeats()
+    return nil
+  end
+  local known = {}
+  for id, when in pairs(book.when) do
+    if when then
+      known[id] = true
+    end
+  end
+  local first
+  for i = 1, #DEFS do
+    local row = viewOf(DEFS[i])
+    if row.done and not row.blocked and not known[row.id] then
+      if not first then
+        first = row.title
+      end
+    end
+  end
+  return first
+end
+
 function Achievements.Counts()
   local done, total = 0, #DEFS
   for i = 1, #DEFS do

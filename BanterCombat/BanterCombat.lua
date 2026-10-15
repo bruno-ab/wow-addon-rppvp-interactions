@@ -56,6 +56,7 @@ local COMBATLOG_OBJECT_REACTION_HOSTILE = COMBATLOG_OBJECT_REACTION_HOSTILE or 0
 
 local recentEvents = {} -- key -> GetTime()
 local DEDUP_WINDOW = 1.5
+local alertAt = {}
 local ignoredNames = {} -- Ambiguate(name) -> true
 
 ------------------------------------------------------------
@@ -193,6 +194,43 @@ local function SeenRecently(key)
     end
   end
   return false
+end
+
+local function FightContext(flags)
+  if UnitInBattleground and UnitInBattleground("player") then
+    return "bg"
+  end
+  if flags and not IsHostileFlags(flags) then
+    return "duel"
+  end
+  return "world"
+end
+
+local function PlaceNow(flags)
+  local zone = ""
+  if GetRealZoneText then
+    zone = GetRealZoneText() or ""
+  end
+  if zone == "" and GetZoneText then
+    zone = GetZoneText() or ""
+  end
+  local subzone = ""
+  if GetSubZoneText then
+    subzone = GetSubZoneText() or ""
+  end
+  return {
+    context = FightContext(flags),
+    zone = zone,
+    subzone = subzone,
+  }
+end
+
+local function OwnLine(key)
+  local text = Options.Get()[key]
+  if type(text) == "string" and text ~= "" then
+    return text
+  end
+  return nil
 end
 
 local function IsPvPContextAllowed()
@@ -341,14 +379,15 @@ local function CurrentTitle()
   return nil
 end
 
-local function SelectKillSpeech(victim, isRevenge, milestoneKind, milestoneValue, milestoneKey, forcedRarity, rival, streakHit)
+local function SelectKillSpeech(victim, isRevenge, milestoneKind, milestoneValue, milestoneKey, forcedRarity, rival, streakHit, personalHit)
   local pack = SpeechPack()
   if isRevenge then
     local badge = L.REVENGE
     if rival and ((rival.kills or 0) > 0 or (rival.deaths or 0) > 0) then
       badge = badge .. " " .. L.RIVAL_SCORE:format(rival.kills or 0, rival.deaths or 0)
     end
-    return FormatTemplate(Pick(pack.revenge), victim), "revenge", badge, "revenge"
+    local line = OwnLine("lineRevenge") or Pick(pack.revenge)
+    return FormatTemplate(line, victim), "revenge", badge, "revenge"
   end
 
   if milestoneKind and milestoneValue and milestoneKey then
@@ -362,6 +401,17 @@ local function SelectKillSpeech(victim, isRevenge, milestoneKind, milestoneValue
     end
   end
 
+  if not forcedRarity and personalHit and pack.personal and pack.personal[personalHit] then
+    local ctx = {
+      name = victim.name,
+      race = victim.race,
+      class = victim.class,
+      sex = victim.sex,
+      kills = personalHit,
+    }
+    return FormatTemplate(pack.personal[personalHit], ctx), "epic", L.RIVAL_MARK:format(personalHit, victim.name or "?"), "rival"
+  end
+
   if not forcedRarity and streakHit and pack.streak and pack.streak[streakHit] then
     local streakRarity = "rare"
     if streakHit >= 10 then
@@ -369,7 +419,8 @@ local function SelectKillSpeech(victim, isRevenge, milestoneKind, milestoneValue
     elseif streakHit >= 5 then
       streakRarity = "epic"
     end
-    return FormatTemplate(Pick(pack.streak[streakHit]), victim), streakRarity, L.STREAK:format(streakHit), "streak"
+    local line = OwnLine("lineStreak") or Pick(pack.streak[streakHit])
+    return FormatTemplate(line, victim), streakRarity, L.STREAK:format(streakHit), "streak"
   end
 
   if not forcedRarity and rival and ((rival.deaths or 0) >= 1 or (rival.kills or 0) >= 2) and pack.rival then
@@ -491,6 +542,10 @@ local function SelectKillSpeech(victim, isRevenge, milestoneKind, milestoneValue
 end
 
 local function SelectDeathSpeech(killer)
+  local own = OwnLine("lineDeath")
+  if own then
+    return FormatTemplate(own, killer or {}), "rare", L.RARITY_UNCOMMON
+  end
   local rarity = RollRarity()
   local speech = SpeechPack().death
   local text
@@ -584,6 +639,7 @@ local function Present(payload, unit)
     rarity = payload.rarity,
     title = payload.title,
     announcer = payload.announcer,
+    silent = payload.silent,
     unit = unit,
   })
 end
@@ -612,14 +668,15 @@ local function OnPlayerKill(victim, destFlags)
     return
   end
 
+  local place = PlaceNow(destFlags)
   local isRevenge = Stats.IsRevenge(victim.name)
-  local _, _, mKind, mValue, mKey, rival, streakHit = Stats.RecordKill(victim)
+  local _, _, mKind, mValue, mKey, rival, streakHit, _, personalHit = Stats.RecordKill(victim, place)
   if isRevenge then
     Stats.ClearRevenge()
     Stats.UnlockFeat("revenge")
   end
 
-  local text, rarity, badge, kind = SelectKillSpeech(victim, isRevenge, mKind, mValue, mKey, nil, rival, streakHit)
+  local text, rarity, badge, kind = SelectKillSpeech(victim, isRevenge, mKind, mValue, mKey, nil, rival, streakHit, personalHit)
   kind = kind or "kill"
   if kind == "kill" and rarity == "legendary" then
     Stats.UnlockFeat("legendary")
@@ -637,13 +694,7 @@ local function OnPlayerKill(victim, destFlags)
     announcer = Stats.AnnouncerCue and Stats.AnnouncerCue(),
   }
 
-  local zoneName = ""
-  if GetRealZoneText then
-    zoneName = GetRealZoneText() or ""
-  end
-  if zoneName == "" and GetZoneText then
-    zoneName = GetZoneText() or ""
-  end
+  local zoneName = place.zone or ""
   local spellName
   local blow = ns._lastBlow
   if blow and victim.guid and blow.guid == victim.guid and type(blow.spell) == "string" then
@@ -656,6 +707,9 @@ local function OnPlayerKill(victim, destFlags)
       race = victim.race,
       class = victim.class,
       zone = zoneName,
+      subzone = place.subzone,
+      context = place.context,
+      victimLevel = victim.level,
       spell = spellName,
       level = UnitLevel and UnitLevel("player") or 0,
       myClass = myClass,
@@ -665,19 +719,37 @@ local function OnPlayerKill(victim, destFlags)
   end
 
   Debug("kill", victim.name, payload.kind, rarity)
-  if Options.Get().chatOnly then
+  local quietBg = Options.Get().quietBg and place.context == "bg"
+  if Options.Get().chatOnly and not quietBg then
     if SendChatMessage and text and text ~= "" then
       pcall(SendChatMessage, Truncate(text, 255), "SAY")
     end
   else
     Present(payload, "player")
-    MaybeChatAnnounce(text)
+    if not quietBg then
+      MaybeChatAnnounce(text)
+    end
   end
   BroadcastPayload(EncodeMessage(
     payload.speaker, payload.race, payload.class, payload.kind, payload.rarity, payload.badge, payload.text, payload.title
   ), victim.name)
   if ns.Achievements and ns.Achievements.OnKill then
     ns.Achievements.OnKill(victim, isRevenge)
+  end
+  if ns.Achievements and ns.Achievements.FreshTitle then
+    local featTitle = ns.Achievements.FreshTitle()
+    if featTitle then
+      Present({
+        speaker = selfInfo.name,
+        race = selfInfo.race,
+        class = selfInfo.class,
+        kind = "milestone",
+        rarity = "epic",
+        badge = L.FEAT_DONE,
+        text = featTitle,
+        silent = true,
+      }, "player")
+    end
   end
 end
 
@@ -689,19 +761,20 @@ local function OnPlayerDeath(killer)
   if not s.enabled then
     return
   end
+  local place = PlaceNow()
   if s.showDeaths == false then
-    Stats.RecordDeathBy(killer)
+    Stats.RecordDeathBy(killer, place)
     return
   end
   if SeenRecently("death:" .. (playerGUID or "self")) then
     return
   end
   if killer and IsIgnored(killer.name) then
-    Stats.RecordDeathBy(killer)
+    Stats.RecordDeathBy(killer, place)
     Debug("death recorded, popup skipped (ignored)", killer.name)
     return
   end
-  local broken = Stats.RecordDeathBy(killer)
+  local broken = Stats.RecordDeathBy(killer, place)
   local playerSex = UnitSex and UnitSex("player") or nil
   local ctx = {
     name = killer and killer.name,
@@ -730,7 +803,9 @@ local function OnPlayerDeath(killer)
   }
   Debug("death", killer and killer.name or "?", rarity)
   Present(payload, "player")
-  MaybeChatAnnounce(text)
+  if not (s.quietBg and place.context == "bg") then
+    MaybeChatAnnounce(text)
+  end
   if killer and killer.name then
     BroadcastPayload(EncodeMessage(
       payload.speaker, payload.race, payload.class, payload.kind, payload.rarity, payload.badge, payload.text, nil
@@ -786,6 +861,12 @@ local function HandleCombatLog()
         if UnitSex then
           victim.sex = victim.sex or UnitSex("target")
         end
+        if UnitLevel then
+          local level = UnitLevel("target")
+          if level and level > 0 then
+            victim.level = level
+          end
+        end
       end
       OnPlayerKill(victim, destFlags)
     end
@@ -813,6 +894,27 @@ local function HandleCombatLog()
         name = sourceName,
         guid = sourceGUID,
       }
+      if s.rivalAlert and sourceName and Stats.RivalByName then
+        local rival = Stats.RivalByName(sourceName)
+        local meetings = rival and ((rival.kills or 0) + (rival.deaths or 0)) or 0
+        if rival and meetings >= 2 then
+          local key = "alert:" .. (Ambiguate and Ambiguate(sourceName, "none") or sourceName)
+          local now = GetTime()
+          if not alertAt[key] or now - alertAt[key] >= 60 then
+            alertAt[key] = now
+            local selfInfo = PlayerSelfInfo()
+            Present({
+              speaker = selfInfo.name,
+              race = selfInfo.race,
+              class = selfInfo.class,
+              kind = "revenge",
+              rarity = "rare",
+              badge = L.RIVAL,
+              text = L.RIVAL_NEAR:format(rival.name or sourceName, rival.kills or 0, rival.deaths or 0),
+            }, "player")
+          end
+        end
+      end
     end
   end
 end
@@ -918,7 +1020,29 @@ local function OnEvent(_, event, ...)
         UI.ApplySavedPosition()
       end
       print("|cFFFFD100BanterCombat|r " .. L.LOADED)
+      if ns.Achievements and ns.Achievements.PrimeFeats then
+        ns.Achievements.PrimeFeats()
+      end
       EnsureTestButton()
+      if GameTooltip and GameTooltip.HookScript and not ns._scoreTip then
+        ns._scoreTip = true
+        GameTooltip:HookScript("OnTooltipSetUnit", function(tip)
+          local _, unit = tip:GetUnit()
+          if not unit or not UnitIsPlayer or not UnitIsPlayer(unit) then
+            return
+          end
+          if UnitIsUnit and UnitIsUnit(unit, "player") then
+            return
+          end
+          local name = UnitName(unit)
+          local rival = Stats.RivalByName and Stats.RivalByName(name)
+          if not rival then
+            return
+          end
+          tip:AddLine(L.TIP_SCORE:format(rival.kills or 0, rival.deaths or 0), 1, 0.82, 0)
+          tip:Show()
+        end)
+      end
       if ns.Compendium and ns.Compendium.Init then
         ns.Compendium.Init()
       end

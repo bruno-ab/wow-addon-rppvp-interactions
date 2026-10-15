@@ -18,6 +18,12 @@ local DEFAULTS = {
   hostileOnly = true,
   chatAnnounce = false,
   chatOnly = false,
+  quietBg = true,
+  rivalAlert = false,
+  soundFolder = "",
+  lineRevenge = "",
+  lineStreak = "",
+  lineDeath = "",
   debug = false,
   point = "CENTER",
   relPoint = "CENTER",
@@ -97,6 +103,23 @@ function Options.ClearCustomLines()
   settings.customEpic = {}
 end
 
+function Options.SetOwnLine(key, text)
+  if key ~= "lineRevenge" and key ~= "lineStreak" and key ~= "lineDeath" and key ~= "soundFolder" then
+    return
+  end
+  if type(text) ~= "string" then
+    text = ""
+  end
+  text = text:gsub("|", ""):gsub("[\001-\031]", " ")
+  text = text:match("^%s*(.-)%s*$") or ""
+  if key == "soundFolder" then
+    text = (text:gsub("[^%w]", "")):sub(1, 32)
+  else
+    text = text:sub(1, 120)
+  end
+  Options.Set(key, text)
+end
+
 local panel
 local checks = {}
 
@@ -132,7 +155,7 @@ function Options.TogglePanel()
   end
   if not panel then
     panel = CreateFrame("Frame", "BanterCombatOptions", UIParent)
-    panel:SetSize(380, 500)
+    panel:SetSize(380, 560)
     panel:SetPoint("CENTER")
     panel:SetFrameStrata("DIALOG")
     panel:EnableMouse(true)
@@ -158,13 +181,15 @@ function Options.TogglePanel()
     makeCheck(panel, L.OPT_HOSTILE, "hostileOnly", -232)
     makeCheck(panel, L.OPT_CHAT, "chatAnnounce", -256)
     makeCheck(panel, L.OPT_CHAT_ONLY, "chatOnly", -280)
-    makeCheck(panel, L.OPT_DEBUG, "debug", -304)
+    makeCheck(panel, L.OPT_QUIET_BG, "quietBg", -304)
+    makeCheck(panel, L.OPT_RIVAL_ALERT, "rivalAlert", -328)
+    makeCheck(panel, L.OPT_DEBUG, "debug", -352)
 
     local durLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    durLabel:SetPoint("TOPLEFT", 24, -348)
+    durLabel:SetPoint("TOPLEFT", 24, -396)
     durLabel:SetText(L.OPT_DURATION)
     local slider = CreateFrame("Slider", "BanterCombatDurSlider", panel, "OptionsSliderTemplate")
-    slider:SetPoint("TOPLEFT", 170, -350)
+    slider:SetPoint("TOPLEFT", 170, -398)
     slider:SetMinMaxValues(2, 8)
     slider:SetValueStep(0.5)
     if slider.SetObeyStepOnDrag then
@@ -275,6 +300,21 @@ local function refreshLines()
   linesFrame.EpicLabel:SetText(L.RARITY_EPIC)
   fillLineList(linesFrame.CommonList, settings.customCommon)
   fillLineList(linesFrame.EpicList, settings.customEpic)
+  local function showOwn(edit, key)
+    if edit and not (edit.HasFocus and edit:HasFocus()) then
+      edit:SetText(settings[key] or "")
+    end
+  end
+  showOwn(linesFrame.RevengeEdit, "lineRevenge")
+  showOwn(linesFrame.StreakEdit, "lineStreak")
+  showOwn(linesFrame.DeathEdit, "lineDeath")
+  showOwn(linesFrame.FolderEdit, "soundFolder")
+  if linesFrame.RevengeLabel then
+    linesFrame.RevengeLabel:SetText(L.LINES_REVENGE)
+    linesFrame.StreakLabel:SetText(L.LINES_STREAK)
+    linesFrame.DeathLabel:SetText(L.LINES_DEATH)
+    linesFrame.FolderLabel:SetText(L.OPT_SOUND_FOLDER)
+  end
   linesFrame.AddCommon:SetText(L.LINES_ADD_COMMON)
   linesFrame.AddEpic:SetText(L.LINES_ADD_EPIC)
   linesFrame.Clear:SetText(L.LINES_CLEAR)
@@ -288,7 +328,7 @@ function Options.ToggleLines()
   end
   if not linesFrame then
     linesFrame = CreateFrame("Frame", "BanterCombatLines", UIParent)
-    linesFrame:SetSize(440, 360)
+    linesFrame:SetSize(440, 500)
     linesFrame:SetPoint("CENTER", 40, 0)
     linesFrame:SetFrameStrata("DIALOG")
     linesFrame:EnableMouse(true)
@@ -296,6 +336,9 @@ function Options.ToggleLines()
     linesFrame:RegisterForDrag("LeftButton")
     linesFrame:SetScript("OnDragStart", linesFrame.StartMoving)
     linesFrame:SetScript("OnDragStop", linesFrame.StopMovingOrSizing)
+    local linesPlate = linesFrame:CreateTexture(nil, "BACKGROUND")
+    linesPlate:SetAllPoints()
+    linesPlate:SetTexture("Interface\\AddOns\\BanterCombat\\Art\\Plate.tga")
     if linesFrame.SetBackdrop then
       linesFrame:SetBackdrop({
         bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
@@ -334,10 +377,48 @@ function Options.ToggleLines()
       edit:SetTextInsets(6, 6, 0, 0)
     end
     edit:SetSize(280, 20)
-    edit:SetPoint("BOTTOM", 0, 72)
+    edit:SetPoint("BOTTOM", 0, 118)
     edit:SetAutoFocus(false)
     edit:SetMaxLetters(120)
     linesFrame.Edit = edit
+
+    local function ownEdit(name, x, key)
+      local boxOk, box = pcall(CreateFrame, "EditBox", name, linesFrame, "InputBoxTemplate")
+      if not boxOk or not box then
+        box = CreateFrame("EditBox", name, linesFrame)
+        box:SetFontObject("ChatFontNormal")
+        box:SetTextInsets(6, 6, 0, 0)
+      end
+      box:SetSize(128, 20)
+      box:SetPoint("BOTTOMLEFT", x, 168)
+      box:SetAutoFocus(false)
+      box:SetMaxLetters(key == "soundFolder" and 32 or 120)
+      box:SetScript("OnEnterPressed", function(self)
+        Options.SetOwnLine(key, self:GetText() or "")
+        self:ClearFocus()
+        refreshLines()
+      end)
+      box:SetScript("OnEscapePressed", function(self)
+        self:ClearFocus()
+        refreshLines()
+      end)
+      return box
+    end
+    linesFrame.RevengeLabel = linesFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    linesFrame.RevengeLabel:SetPoint("BOTTOMLEFT", 20, 190)
+    linesFrame.StreakLabel = linesFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    linesFrame.StreakLabel:SetPoint("BOTTOMLEFT", 156, 190)
+    linesFrame.DeathLabel = linesFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    linesFrame.DeathLabel:SetPoint("BOTTOMLEFT", 292, 190)
+    linesFrame.RevengeEdit = ownEdit("BanterCombatRevengeLine", 16, "lineRevenge")
+    linesFrame.StreakEdit = ownEdit("BanterCombatStreakLine", 152, "lineStreak")
+    linesFrame.DeathEdit = ownEdit("BanterCombatDeathLine", 288, "lineDeath")
+    linesFrame.FolderLabel = linesFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    linesFrame.FolderLabel:SetPoint("BOTTOMLEFT", 20, 142)
+    linesFrame.FolderEdit = ownEdit("BanterCombatSoundFolder", 150, "soundFolder")
+    linesFrame.FolderEdit:SetSize(200, 20)
+    linesFrame.FolderEdit:ClearAllPoints()
+    linesFrame.FolderEdit:SetPoint("BOTTOMLEFT", 150, 140)
 
     local function makeBtn(text, width, x)
       local button = CreateFrame("Button", nil, linesFrame, "UIPanelButtonTemplate")
@@ -712,6 +793,8 @@ local MENU_TOGGLES = {
   { key = "hostileOnly", label = "OPT_HOSTILE" },
   { key = "chatAnnounce", label = "OPT_CHAT" },
   { key = "chatOnly", label = "OPT_CHAT_ONLY" },
+  { key = "quietBg", label = "OPT_QUIET_BG" },
+  { key = "rivalAlert", label = "OPT_RIVAL_ALERT" },
 }
 
 local menuCatcher

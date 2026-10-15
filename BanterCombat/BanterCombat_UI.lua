@@ -203,8 +203,7 @@ local ANNOUNCER_FILES = {
   Godlike = "Interface\\AddOns\\BanterCombat\\Sounds\\Godlike.ogg",
 }
 
-local function playAnnouncer(id)
-  local path = id and ANNOUNCER_FILES[id]
+local function playFile(path)
   if not path or not PlaySoundFile then
     return false
   end
@@ -221,6 +220,25 @@ local function playAnnouncer(id)
     return true
   end
   return try(nil) or try("SFX") or try("Master")
+end
+
+local function playAnnouncer(id)
+  local builtin = id and ANNOUNCER_FILES[id]
+  if not builtin then
+    return false
+  end
+  local settings = ns.Options and ns.Options.Get and ns.Options.Get()
+  local folder = settings and settings.soundFolder
+  if type(folder) == "string" then
+    folder = folder:gsub("[^%w]", "")
+  end
+  if folder and folder ~= "" then
+    local custom = "Interface\\AddOns\\BanterCombat\\Sounds\\" .. folder .. "\\" .. id .. ".ogg"
+    if playFile(custom) then
+      return true
+    end
+  end
+  return playFile(builtin)
 end
 
 local function playShowSound(kind, rarity, announcer)
@@ -526,7 +544,9 @@ local function showNow(payload)
   ag:Stop()
   ag:Play()
   UIFrameFadeIn(frame, 0.22, 0, 1)
-  playShowSound(kind, rarity, payload.announcer)
+  if not payload.silent then
+    playShowSound(kind, rarity, payload.announcer)
+  end
 
   hideTicker = C_Timer.NewTimer(duration, function()
     hideTicker = nil

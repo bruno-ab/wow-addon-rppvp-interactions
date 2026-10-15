@@ -29,6 +29,32 @@ local function scrubCounterMap(map, valid)
   return out
 end
 
+local sessionKills = 0
+local sessionDeaths = 0
+
+local function clip(text, maxLen)
+  if type(text) ~= "string" then
+    return nil
+  end
+  text = text:gsub("|", ""):gsub("[\001-\031]", " ")
+  text = text:match("^%s*(.-)%s*$") or ""
+  if text == "" then
+    return nil
+  end
+  return text:sub(1, maxLen)
+end
+
+local function countOf(n)
+  return math.max(0, math.floor(tonumber(n) or 0))
+end
+
+local function contextOf(value)
+  if value == "bg" or value == "duel" or value == "world" then
+    return value
+  end
+  return "world"
+end
+
 local function nameKey(name)
   if type(name) ~= "string" or name == "" then
     return nil
@@ -78,6 +104,21 @@ local function scrubRivals(map)
       local kills = math.max(0, math.floor(tonumber(v.kills) or 0))
       local deaths = math.max(0, math.floor(tonumber(v.deaths) or 0))
       if kills + deaths > 0 then
+        local meetings = {}
+        if type(v.meetings) == "table" then
+          local startAt = math.max(1, #v.meetings - 11)
+          for i = startAt, #v.meetings do
+            local meeting = v.meetings[i]
+            if type(meeting) == "table" and (meeting.side == "kills" or meeting.side == "deaths") then
+              meetings[#meetings + 1] = {
+                side = meeting.side,
+                time = math.max(0, math.floor(tonumber(meeting.time) or 0)),
+                zone = clip(meeting.zone, 48),
+                context = contextOf(meeting.context),
+              }
+            end
+          end
+        end
         out[k] = {
           name = v.name:sub(1, 48),
           kills = kills,
@@ -85,6 +126,13 @@ local function scrubRivals(map)
           last = math.max(0, math.floor(tonumber(v.last) or 0)),
           race = (type(v.race) == "string" and VALID_RACE[v.race]) and v.race or nil,
           class = (type(v.class) == "string" and VALID_CLASS[v.class]) and v.class or nil,
+          worldKills = countOf(v.worldKills),
+          bgKills = countOf(v.bgKills),
+          duelKills = countOf(v.duelKills),
+          worldDeaths = countOf(v.worldDeaths),
+          bgDeaths = countOf(v.bgDeaths),
+          duelDeaths = countOf(v.duelDeaths),
+          meetings = meetings,
         }
       end
     end
@@ -106,15 +154,23 @@ local function scrubFeats(map)
 end
 
 local function scrubPlain(text, maxLen)
-  if type(text) ~= "string" then
-    return nil
+  return clip(text, maxLen)
+end
+
+local function scrubZones(map)
+  if type(map) ~= "table" then
+    return {}
   end
-  text = text:gsub("|", ""):gsub("[\001-\031]", " ")
-  text = text:match("^%s*(.-)%s*$") or ""
-  if text == "" then
-    return nil
+  local out = {}
+  local n = 0
+  for k, v in pairs(map) do
+    local name = clip(k, 64)
+    if name and type(v) == "number" and v > 0 and n < 40 then
+      out[name] = math.floor(v)
+      n = n + 1
+    end
   end
-  return text:sub(1, maxLen)
+  return out
 end
 
 local function scrubChronicle(list)
@@ -140,6 +196,9 @@ local function scrubChronicle(list)
         time = math.max(0, math.floor(tonumber(row.time) or 0)),
         first = row.first and true or nil,
         test = row.test and true or nil,
+        victimLevel = math.max(0, math.floor(tonumber(row.victimLevel) or 0)),
+        subzone = scrubPlain(row.subzone, 64),
+        context = (row.context == "bg" or row.context == "duel" or row.context == "world") and row.context or nil,
       }
     end
   end
@@ -178,9 +237,21 @@ local function ensureDB()
   db.settings = type(db.settings) == "table" and db.settings or {}
   db.settings.customCommon = scrubLines(db.settings.customCommon)
   db.settings.customEpic = scrubLines(db.settings.customEpic)
+  db.settings.lineRevenge = scrubPlain(db.settings.lineRevenge, 120)
+  db.settings.lineStreak = scrubPlain(db.settings.lineStreak, 120)
+  db.settings.lineDeath = scrubPlain(db.settings.lineDeath, 120)
+  local folder = scrubPlain(db.settings.soundFolder, 32)
+  if folder then
+    folder = folder:gsub("[^%w]", "")
+    if folder == "" then
+      folder = nil
+    end
+  end
+  db.settings.soundFolder = folder
   db.rivals = scrubRivals(db.rivals)
   db.feats = scrubFeats(db.feats)
   db.chronicle = scrubChronicle(db.chronicle)
+  db.zones = scrubZones(db.zones)
   db.streak = math.max(0, math.floor(tonumber(db.streak) or 0))
   db.bestStreak = math.max(db.streak, math.floor(tonumber(db.bestStreak) or 0))
   local tier = tonumber(db.titleStreak)
@@ -247,6 +318,9 @@ function Stats.RememberChronicle(info)
     time = time(),
     first = #db.chronicle == 0 and true or nil,
     test = info.test and true or nil,
+    victimLevel = math.max(0, math.floor(tonumber(info.victimLevel) or 0)),
+    subzone = info.subzone,
+    context = (info.context == "bg" or info.context == "duel" or info.context == "world") and info.context or nil,
   }
   db.chronicle[#db.chronicle + 1] = row
   while #db.chronicle > 40 do
@@ -283,7 +357,7 @@ local function pruneRivals(db)
   end
 end
 
-function Stats.TouchRival(person, side)
+function Stats.TouchRival(person, side, info)
   if not person or type(person.name) ~= "string" then
     return nil
   end
@@ -291,15 +365,30 @@ function Stats.TouchRival(person, side)
   if not key or (side ~= "kills" and side ~= "deaths") then
     return nil
   end
+  info = info or {}
+  local ctx = contextOf(info.context)
   local db = ensureDB()
   local row = db.rivals[key]
   if not row then
-    row = { name = displayName(person.name), kills = 0, deaths = 0, last = 0 }
+    row = { name = displayName(person.name), kills = 0, deaths = 0, last = 0, meetings = {} }
     db.rivals[key] = row
   end
   row.name = displayName(person.name)
   row[side] = (row[side] or 0) + 1
   row.last = time()
+  local prefix = ctx == "bg" and "bg" or ctx == "duel" and "duel" or "world"
+  local field = prefix .. (side == "kills" and "Kills" or "Deaths")
+  row[field] = (row[field] or 0) + 1
+  row.meetings = type(row.meetings) == "table" and row.meetings or {}
+  row.meetings[#row.meetings + 1] = {
+    side = side,
+    time = time(),
+    zone = clip(info.zone, 48),
+    context = ctx,
+  }
+  while #row.meetings > 12 do
+    table.remove(row.meetings, 1)
+  end
   if Stats.IsValidRace(person.race) then
     row.race = person.race
   end
@@ -436,8 +525,9 @@ function Stats.RivalList()
   return rows
 end
 
-function Stats.RecordDeathBy(killer)
+function Stats.RecordDeathBy(killer, info)
   local db = ensureDB()
+  sessionDeaths = sessionDeaths + 1
   db.totalDeaths = db.totalDeaths + 1
   if killer and Stats.IsValidRace(killer.race) then
     db.deaths.Race[killer.race] = (db.deaths.Race[killer.race] or 0) + 1
@@ -447,14 +537,19 @@ function Stats.RecordDeathBy(killer)
   end
   if killer and type(killer.name) == "string" and killer.name ~= "" then
     db.lastKiller = scrubLastKiller(killer)
-    Stats.TouchRival(killer, "deaths")
+    Stats.TouchRival(killer, "deaths", info)
   end
   return Stats.BreakStreak()
 end
 
-function Stats.RecordKill(victim)
+function Stats.RecordKill(victim, info)
   local db = ensureDB()
+  sessionKills = sessionKills + 1
   db.totalKills = db.totalKills + 1
+  info = info or {}
+  if type(info.zone) == "string" and info.zone ~= "" then
+    db.zones[info.zone] = (db.zones[info.zone] or 0) + 1
+  end
   local raceCount, classCount = 0, 0
   if victim and Stats.IsValidRace(victim.race) then
     db.kills.Race[victim.race] = (db.kills.Race[victim.race] or 0) + 1
@@ -489,9 +584,54 @@ function Stats.RecordKill(victim)
   if hitValue == 100 then
     Stats.UnlockFeat("milestone100")
   end
-  local rival = Stats.TouchRival(victim, "kills")
+  local rival = Stats.TouchRival(victim, "kills", info)
+  local personal
+  if rival and (rival.kills == 5 or rival.kills == 10) then
+    personal = rival.kills
+  end
   local streak, streakHit = bumpStreak()
-  return raceCount, classCount, hitKind, hitValue, hitKey, rival, streakHit, streak
+  return raceCount, classCount, hitKind, hitValue, hitKey, rival, streakHit, streak, personal
+end
+
+function Stats.Session()
+  return sessionKills, sessionDeaths, ensureDB().streak or 0
+end
+
+function Stats.RivalByName(name)
+  local key = nameKey(name)
+  if not key then
+    return nil
+  end
+  return ensureDB().rivals[key]
+end
+
+function Stats.Spotlight()
+  local db = ensureDB()
+  local nemesis, prey
+  local nemesisDeaths, preyKills = -1, -1
+  for _, row in pairs(db.rivals) do
+    if (row.deaths or 0) > nemesisDeaths then
+      nemesisDeaths = row.deaths or 0
+      nemesis = row
+    end
+    if (row.kills or 0) > preyKills then
+      preyKills = row.kills or 0
+      prey = row
+    end
+  end
+  local zone, best = nil, 0
+  for name, count in pairs(db.zones) do
+    if count > best then
+      zone, best = name, count
+    end
+  end
+  if nemesisDeaths <= 0 then
+    nemesis = nil
+  end
+  if preyKills <= 0 then
+    prey = nil
+  end
+  return nemesis, prey, zone
 end
 
 function Stats.IsRevenge(victimName)
