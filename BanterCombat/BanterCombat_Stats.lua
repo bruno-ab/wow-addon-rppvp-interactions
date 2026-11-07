@@ -512,7 +512,10 @@ function Stats.CueFor(streak, multiCount, opts)
   if streak >= 10 then
     return "HolyShit"
   end
-  -- streak 1–2 without First Blood / multi: silent (rarity sting only)
+  -- streak 1–2 after First Blood: light kill sting (PvPSound-like; not silent)
+  if streak >= 1 then
+    return "Kill"
+  end
   return nil
 end
 

@@ -841,50 +841,70 @@ local function HandleCombatLog()
   end
 
   if sourceGUID == playerGUID and destGUID and IsPlayerFlags(destFlags) then
-    if subevent == "SWING_DAMAGE" then
-      ns._lastBlow = { guid = destGUID }
-    elseif subevent == "RANGE_DAMAGE" or subevent == "SPELL_DAMAGE" or subevent == "SPELL_PERIODIC_DAMAGE" then
+    if subevent == "SWING_DAMAGE"
+      or subevent == "RANGE_DAMAGE"
+      or subevent == "SPELL_DAMAGE"
+      or subevent == "SPELL_PERIODIC_DAMAGE"
+      or (type(subevent) == "string" and find(subevent, "_DAMAGE", 1, true) and not find(subevent, "_MISSED", 1, true)) then
       local spellName = select(13, CombatLogGetCurrentEventInfo())
-      if type(spellName) == "string" and spellName ~= "" then
-        ns._lastBlow = { guid = destGUID, spell = spellName }
+      ns._lastBlow = {
+        guid = destGUID,
+        spell = (type(spellName) == "string" and spellName ~= "") and spellName or nil,
+        at = GetTime and GetTime() or 0,
+      }
+    end
+  end
+
+  local function fillVictim(guid, name)
+    local victim = InfoFromGUID(guid) or {
+      name = name,
+      guid = guid,
+    }
+    if UnitExists("target") and UnitGUID("target") == guid then
+      local _, class = UnitClass("target")
+      local _, race = UnitRace("target")
+      victim.class = victim.class or class
+      victim.race = victim.race or race
+      victim.name = victim.name or UnitName("target")
+      if UnitSex then
+        victim.sex = victim.sex or UnitSex("target")
+      end
+      if UnitLevel then
+        local level = UnitLevel("target")
+        if level and level > 0 then
+          victim.level = level
+        end
       end
     end
+    return victim
   end
 
   if subevent == "PARTY_KILL" then
     if sourceGUID == playerGUID and IsPlayerFlags(destFlags) then
-      local victim = InfoFromGUID(destGUID) or {
-        name = destName,
-        guid = destGUID,
-      }
-      if UnitExists("target") and UnitGUID("target") == destGUID then
-        local _, class = UnitClass("target")
-        local _, race = UnitRace("target")
-        victim.class = victim.class or class
-        victim.race = victim.race or race
-        victim.name = victim.name or UnitName("target")
-        if UnitSex then
-          victim.sex = victim.sex or UnitSex("target")
-        end
-        if UnitLevel then
-          local level = UnitLevel("target")
-          if level and level > 0 then
-            victim.level = level
-          end
-        end
-      end
-      OnPlayerKill(victim, destFlags)
+      OnPlayerKill(fillVictim(destGUID, destName), destFlags)
     end
     return
   end
 
-  if subevent == "UNIT_DIED" and destGUID == playerGUID then
-    local killer = ns._lastHostileAttacker
-    if killer and killer.guid == playerGUID then
-      killer = nil
+  if subevent == "UNIT_DIED" then
+    if destGUID == playerGUID then
+      local killer = ns._lastHostileAttacker
+      if killer and killer.guid == playerGUID then
+        killer = nil
+      end
+      OnPlayerDeath(killer)
+      ns._lastHostileAttacker = nil
+      return
     end
-    OnPlayerDeath(killer)
-    ns._lastHostileAttacker = nil
+    -- Forever/world PvP sometimes skips PARTY_KILL; treat recent killing blow as the abate.
+    if IsPlayerFlags(destFlags) then
+      local blow = ns._lastBlow
+      local now = GetTime and GetTime() or 0
+      if blow and blow.guid == destGUID and (now - (blow.at or 0)) <= 2.5 then
+        OnPlayerKill(fillVictim(destGUID, destName), destFlags)
+        ns._lastBlow = nil
+      end
+    end
     return
   end
 

@@ -21,7 +21,7 @@ local DEFAULTS = {
   quietBg = true,
   rivalAlert = false,
   soundFolder = "",
-  soundChannel = "Dialog",
+  soundChannel = "Master",
   announcerVolume = 100,
   lineRevenge = "",
   lineStreak = "",
@@ -105,7 +105,7 @@ function Options.ClearCustomLines()
   settings.customEpic = {}
 end
 
-local SOUND_CHANNEL_ORDER = { "Dialog", "SFX", "Master", "Ambience" }
+local SOUND_CHANNEL_ORDER = { "Master", "SFX", "Dialog", "Ambience" }
 
 function Options.CycleSoundChannel()
   local current = Options.Get().soundChannel or "Dialog"

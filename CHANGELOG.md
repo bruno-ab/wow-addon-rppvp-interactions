@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.2
+
+- Fix silent kills on Forever: PlaySoundFile now prefers Master (Dialog is often muted), and ordinary streak 1–2 kills play a light sting.
+- Detect killing blows via `UNIT_DIED` when `PARTY_KILL` is missing in world PvP.
+
 ## 1.0.1
 
 - Fix ADDON_ACTION_BLOCKED on Forever/Classic: rival score tooltip no longer calls `GameTooltip:Show()` from a hooked path (that tainted Blizzard UI).

@@ -232,33 +232,76 @@ local function playFile(path, settings)
     return false
   end
   local preferred = resolveChannel(settings)
-  -- Classic/Forever PlaySoundFile has no per-file gain; quieter mix uses Ambience.
+  -- Classic/Forever: no per-file gain. Low slider → quieter bus.
   if volume < 40 then
     preferred = "Ambience"
-  elseif volume < 70 and preferred == "Master" then
+  elseif volume < 70 and preferred == "Dialog" then
     preferred = "SFX"
   end
-  local function try(channel)
-    local ok, played
-    if channel then
-      ok, played = pcall(PlaySoundFile, path, channel)
-    else
-      ok, played = pcall(PlaySoundFile, path)
+  -- Forever often mutes Dialog; Master first, then the rest.
+  -- A nil return from PlaySoundFile is ambiguous — keep trying channels.
+  local order = { "Master", preferred, "SFX", "Dialog", "Ambience", false }
+  local seen = {}
+  local ambiguous = false
+  for i = 1, #order do
+    local channel = order[i]
+    local key = channel == false and "*" or channel
+    if not seen[key] then
+      seen[key] = true
+      local ok, played
+      if channel then
+        ok, played = pcall(PlaySoundFile, path, channel)
+      elseif channel == false then
+        ok, played = pcall(PlaySoundFile, path)
+      end
+      if ok then
+        if played == false then
+          -- try next
+        elseif played == true or type(played) == "number" then
+          return true
+        else
+          ambiguous = true
+        end
+      end
     end
-    if not ok or played == false then
-      return false
-    end
-    return true
   end
-  return try(preferred) or try("Dialog") or try("SFX") or try("Master") or try(nil)
+  return ambiguous
+end
+
+local function playSoftKit(settings)
+  local volume = tonumber(settings and settings.announcerVolume)
+  if volume ~= nil and volume <= 0 then
+    return false
+  end
+  -- Numeric kits are more reliable than string names on Forever.
+  local kits = { 856, 888, 8959, 8960 }
+  for i = 1, #kits do
+    local kit = kits[i]
+    if PlaySound then
+      if pcall(PlaySound, kit, "Master") then
+        return true
+      end
+      if pcall(PlaySound, kit) then
+        return true
+      end
+    end
+  end
+  return false
 end
 
 local function playAnnouncer(id)
-  local builtin = id and ANNOUNCER_FILES[id]
-  if not builtin then
+  if not id then
     return false
   end
   local settings = ns.Options and ns.Options.Get and ns.Options.Get()
+  -- Light sting for ordinary kills (streak 1–2 after First Blood).
+  if id == "Kill" then
+    return playSoftKit(settings)
+  end
+  local builtin = ANNOUNCER_FILES[id]
+  if not builtin then
+    return false
+  end
   local folder = settings and settings.soundFolder
   if type(folder) == "string" then
     folder = folder:gsub("[^%w]", "")
@@ -280,6 +323,9 @@ local function playShowSound(kind, rarity, announcer)
   if playAnnouncer(announcer) then
     return
   end
+  if playSoftKit(s) then
+    return
+  end
   local name = "igMainMenuOptionCheckBoxOn"
   if kind == "revenge" or kind == "milestone" then
     name = "RaidWarning"
@@ -292,11 +338,9 @@ local function playShowSound(kind, rarity, announcer)
   elseif rarity == "rare" then
     name = "igQuestListOpen"
   end
-  if pcall(PlaySound, name) then
-    return
-  end
-  if not pcall(PlaySound, "igMainMenuOptionCheckBoxOn") then
-    pcall(PlaySound, 888)
+  if PlaySound then
+    pcall(PlaySound, name, "Master")
+    pcall(PlaySound, name)
   end
 end
 
