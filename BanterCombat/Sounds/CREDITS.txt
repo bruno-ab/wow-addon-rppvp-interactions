@@ -1,16 +1,26 @@
-Dota 2 default announcer / killing-spree lines
+Announcer pack shipped with BanterCombat
+========================================
+
+Primary cues from the Dota 2 default announcer / killing-spree lines
 © Valve Corporation
 
-Responses reference:
+Reference:
   https://liquipedia.net/dota2/Announcer_responses
 
-Files shipped with BanterCombat:
+Files:
   FirstBlood, DoubleKill, TripleKill, UltraKill, Rampage,
   KillingSpree, Dominating, MegaKill, Unstoppable, WickedSick,
   MonsterKill, Godlike, HolyShit, Ownage
 
+Playback rules in BanterCombat 1.0:
+  - First Blood: once per login session; resets when entering a battleground
+  - Multi-kill window (12s): Double → Triple → Ultra → Rampage
+  - Revenge kill (and streak 6): Ownage
+  - Streak ladder: Killing Spree (3) → Dominating (4) → Mega Kill (5)
+    → Ownage (6) → Wicked Sick (7) → Monster Kill (8) → Godlike (9)
+    → Holy Shit (10+)
+  - Unstoppable.ogg remains for /banter announce and custom packs
+
 These audio files are not licensed by the BanterCombat author.
-They are bundled as fan / non-commercial game audio for personal play.
-For CurseForge or other redistribution that forbids third-party game audio,
-delete these .ogg files and point Options → sound folder at your own pack
-using the same file names.
+For redistribution that forbids third-party game audio, delete the .ogg
+files and point Options → sound folder at your own pack (see Packs/README.txt).

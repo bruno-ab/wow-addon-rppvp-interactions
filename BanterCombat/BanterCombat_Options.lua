@@ -21,6 +21,8 @@ local DEFAULTS = {
   quietBg = true,
   rivalAlert = false,
   soundFolder = "",
+  soundChannel = "Dialog",
+  announcerVolume = 100,
   lineRevenge = "",
   lineStreak = "",
   lineDeath = "",
@@ -103,6 +105,22 @@ function Options.ClearCustomLines()
   settings.customEpic = {}
 end
 
+local SOUND_CHANNEL_ORDER = { "Dialog", "SFX", "Master", "Ambience" }
+
+function Options.CycleSoundChannel()
+  local current = Options.Get().soundChannel or "Dialog"
+  local index = 1
+  for i = 1, #SOUND_CHANNEL_ORDER do
+    if SOUND_CHANNEL_ORDER[i] == current then
+      index = i
+      break
+    end
+  end
+  local nextChannel = SOUND_CHANNEL_ORDER[(index % #SOUND_CHANNEL_ORDER) + 1]
+  Options.Set("soundChannel", nextChannel)
+  return nextChannel
+end
+
 function Options.SetOwnLine(key, text)
   if key ~= "lineRevenge" and key ~= "lineStreak" and key ~= "lineDeath" and key ~= "soundFolder" then
     return
@@ -155,7 +173,7 @@ function Options.TogglePanel()
   end
   if not panel then
     panel = CreateFrame("Frame", "BanterCombatOptions", UIParent)
-    panel:SetSize(380, 560)
+    panel:SetSize(380, 620)
     panel:SetPoint("CENTER")
     panel:SetFrameStrata("DIALOG")
     panel:EnableMouse(true)
@@ -186,10 +204,10 @@ function Options.TogglePanel()
     makeCheck(panel, L.OPT_DEBUG, "debug", -352)
 
     local durLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    durLabel:SetPoint("TOPLEFT", 24, -396)
+    durLabel:SetPoint("TOPLEFT", 24, -386)
     durLabel:SetText(L.OPT_DURATION)
     local slider = CreateFrame("Slider", "BanterCombatDurSlider", panel, "OptionsSliderTemplate")
-    slider:SetPoint("TOPLEFT", 170, -398)
+    slider:SetPoint("TOPLEFT", 170, -388)
     slider:SetMinMaxValues(2, 8)
     slider:SetValueStep(0.5)
     if slider.SetObeyStepOnDrag then
@@ -205,6 +223,36 @@ function Options.TogglePanel()
       Options.Set("duration", value)
       _G[self:GetName() .. "Text"]:SetText(string.format("%.1f", value))
     end)
+
+    local volLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    volLabel:SetPoint("TOPLEFT", 24, -426)
+    volLabel:SetText(L.OPT_ANNOUNCER_VOLUME)
+    local volSlider = CreateFrame("Slider", "BanterCombatVolSlider", panel, "OptionsSliderTemplate")
+    volSlider:SetPoint("TOPLEFT", 170, -428)
+    volSlider:SetMinMaxValues(0, 100)
+    volSlider:SetValueStep(5)
+    if volSlider.SetObeyStepOnDrag then
+      volSlider:SetObeyStepOnDrag(true)
+    end
+    volSlider:SetWidth(160)
+    volSlider:SetValue(Options.Get().announcerVolume or 100)
+    _G[volSlider:GetName() .. "Low"]:SetText("0")
+    _G[volSlider:GetName() .. "High"]:SetText("100")
+    _G[volSlider:GetName() .. "Text"]:SetText(tostring(Options.Get().announcerVolume or 100))
+    volSlider:SetScript("OnValueChanged", function(self, value)
+      value = math.floor((tonumber(value) or 100) / 5 + 0.5) * 5
+      Options.Set("announcerVolume", value)
+      _G[self:GetName() .. "Text"]:SetText(tostring(value))
+    end)
+
+    local channelBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    channelBtn:SetSize(340, 22)
+    channelBtn:SetPoint("TOPLEFT", 20, -468)
+    channelBtn:SetScript("OnClick", function(self)
+      local channel = Options.CycleSoundChannel()
+      self:SetText(L.OPT_SOUND_CHANNEL:format(channel))
+    end)
+    panel._channelBtn = channelBtn
 
     local linesBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     linesBtn:SetSize(200, 22)
@@ -264,12 +312,26 @@ function Options.TogglePanel()
     local code = Options.Get().locale or "auto"
     panel._localeBtn:SetText(L.OPT_LOCALE:format(ns.LocaleName and ns.LocaleName(code) or code))
   end
+  if panel._channelBtn then
+    panel._channelBtn:SetText(L.OPT_SOUND_CHANNEL:format(Options.Get().soundChannel or "Dialog"))
+  end
   local slider = _G.BanterCombatDurSlider
   if slider then
     local d = Options.Get().duration or 4
     slider:SetValue(d)
     if _G[slider:GetName() .. "Text"] then
       _G[slider:GetName() .. "Text"]:SetText(string.format("%.1f", d))
+    end
+  end
+  local volSlider = _G.BanterCombatVolSlider
+  if volSlider then
+    local v = tonumber(Options.Get().announcerVolume)
+    if v == nil then
+      v = 100
+    end
+    volSlider:SetValue(v)
+    if _G[volSlider:GetName() .. "Text"] then
+      _G[volSlider:GetName() .. "Text"]:SetText(tostring(v))
     end
   end
   panel:Show()

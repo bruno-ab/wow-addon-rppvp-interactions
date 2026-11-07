@@ -205,9 +205,38 @@ local ANNOUNCER_FILES = {
   Ownage = "Interface\\AddOns\\BanterCombat\\Sounds\\Ownage.ogg",
 }
 
-local function playFile(path)
+local SOUND_CHANNELS = {
+  Master = true,
+  SFX = true,
+  Dialog = true,
+  Ambience = true,
+}
+
+local function resolveChannel(settings)
+  local channel = settings and settings.soundChannel
+  if type(channel) == "string" and SOUND_CHANNELS[channel] then
+    return channel
+  end
+  return "Dialog"
+end
+
+local function playFile(path, settings)
   if not path or not PlaySoundFile then
     return false
+  end
+  local volume = tonumber(settings and settings.announcerVolume)
+  if volume == nil then
+    volume = 100
+  end
+  if volume <= 0 then
+    return false
+  end
+  local preferred = resolveChannel(settings)
+  -- Classic/Forever PlaySoundFile has no per-file gain; quieter mix uses Ambience.
+  if volume < 40 then
+    preferred = "Ambience"
+  elseif volume < 70 and preferred == "Master" then
+    preferred = "SFX"
   end
   local function try(channel)
     local ok, played
@@ -221,7 +250,7 @@ local function playFile(path)
     end
     return true
   end
-  return try(nil) or try("SFX") or try("Master")
+  return try(preferred) or try("Dialog") or try("SFX") or try("Master") or try(nil)
 end
 
 local function playAnnouncer(id)
@@ -236,11 +265,11 @@ local function playAnnouncer(id)
   end
   if folder and folder ~= "" then
     local custom = "Interface\\AddOns\\BanterCombat\\Sounds\\" .. folder .. "\\" .. id .. ".ogg"
-    if playFile(custom) then
+    if playFile(custom, settings) then
       return true
     end
   end
-  return playFile(builtin)
+  return playFile(builtin, settings)
 end
 
 local function playShowSound(kind, rarity, announcer)

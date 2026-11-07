@@ -341,6 +341,7 @@ ns.Data.Speech = {
   },
 
   personal = {
+    [1] = "Primeiro encontro, {name}. O nome já ficou marcado.",
     [5] = "Cinco vezes, {name}. O nome já tem dono.",
     [10] = "Dez vezes, {name}. Isso deixou de ser encontro.",
   },

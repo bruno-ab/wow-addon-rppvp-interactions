@@ -408,7 +408,13 @@ local function SelectKillSpeech(victim, isRevenge, milestoneKind, milestoneValue
       sex = victim.sex,
       kills = personalHit,
     }
-    return FormatTemplate(pack.personal[personalHit], ctx), "epic", L.RIVAL_MARK:format(personalHit, victim.name or "?"), "rival"
+    local markRarity = "rare"
+    if personalHit >= 10 then
+      markRarity = "legendary"
+    elseif personalHit >= 5 then
+      markRarity = "epic"
+    end
+    return FormatTemplate(pack.personal[personalHit], ctx), markRarity, L.RIVAL_MARK:format(personalHit, victim.name or "?"), "rival"
   end
 
   if not forcedRarity and streakHit and pack.streak and pack.streak[streakHit] then
@@ -690,7 +696,7 @@ local function OnPlayerKill(victim, destFlags)
     badge = badge,
     text = text,
     title = CurrentTitle(),
-    announcer = Stats.AnnouncerCue and Stats.AnnouncerCue(),
+    announcer = Stats.AnnouncerCue and Stats.AnnouncerCue({ revenge = isRevenge }),
   }
 
   local zoneName = place.zone or ""
@@ -1056,6 +1062,12 @@ local function OnEvent(_, event, ...)
     RegisterPrefix(PREFIX)
   elseif event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
     playerGUID = UnitGUID("player")
+    if event == "PLAYER_ENTERING_WORLD" then
+      local _, instanceType = IsInInstance and IsInInstance()
+      if instanceType == "pvp" and Stats.ResetFirstBlood then
+        Stats.ResetFirstBlood()
+      end
+    end
     if event == "PLAYER_LOGIN" then
       if math.randomseed then
         math.randomseed(time() + (playerGUID and tonumber(playerGUID:sub(-6), 16) or 0))
@@ -1107,7 +1119,9 @@ local function nextTestAnnouncer()
   end
   testAnnounceAt = now
   if Stats.CueFor then
-    return Stats.CueFor(testStreak, testMulti)
+    return Stats.CueFor(testStreak, testMulti, {
+      firstBlood = (testStreak == 1 and testMulti == 1),
+    })
   end
   return "FirstBlood"
 end

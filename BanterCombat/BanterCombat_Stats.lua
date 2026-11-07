@@ -248,6 +248,18 @@ local function ensureDB()
     end
   end
   db.settings.soundFolder = folder
+  local channel = scrubPlain(db.settings.soundChannel, 16)
+  if channel ~= "Master" and channel ~= "SFX" and channel ~= "Dialog" and channel ~= "Ambience" then
+    channel = "Dialog"
+  end
+  db.settings.soundChannel = channel
+  local volume = math.floor(tonumber(db.settings.announcerVolume) or 100)
+  if volume < 0 then
+    volume = 0
+  elseif volume > 100 then
+    volume = 100
+  end
+  db.settings.announcerVolume = volume
   db.rivals = scrubRivals(db.rivals)
   db.feats = scrubFeats(db.feats)
   db.chronicle = scrubChronicle(db.chronicle)
@@ -434,21 +446,30 @@ end
 local multiCount = 0
 local lastAnnounceAt = 0
 local MULTI_WINDOW = 12
+-- First Blood is once per session, and again when you enter a battleground.
+local firstBloodTaken = false
 
 function Stats.ResetAnnouncer()
   multiCount = 0
   lastAnnounceAt = 0
 end
 
---- Dota 2 default announcer cues (Liquipedia Announcer responses).
---- Multi-kill window: Double → Triple → Ultra → Rampage (5+).
---- Kill streak: Spree → Dominating → Mega → Unstoppable → Wicked Sick → Monster → Godlike → Holy Shit.
-function Stats.CueFor(streak, multiCount)
+function Stats.ResetFirstBlood()
+  firstBloodTaken = false
+end
+
+function Stats.FirstBloodTaken()
+  return firstBloodTaken and true or false
+end
+
+--- Announcer cues (Dota multi/streak + UT Ownage + session First Blood).
+--- Priority: multi-kill → First Blood (once) → Ownage on revenge → streak ladder.
+--- Streak: Spree → Dominating → Mega → Ownage → Wicked Sick → Monster → Godlike → Holy Shit.
+--- Unstoppable remains available for /banter announce preview packs.
+function Stats.CueFor(streak, multiCount, opts)
   streak = tonumber(streak) or 0
   multiCount = tonumber(multiCount) or 1
-  if streak <= 1 then
-    return "FirstBlood"
-  end
+  opts = opts or {}
   if multiCount >= 2 then
     if multiCount == 2 then
       return "DoubleKill"
@@ -461,6 +482,12 @@ function Stats.CueFor(streak, multiCount)
     end
     return "Rampage"
   end
+  if opts.firstBlood then
+    return "FirstBlood"
+  end
+  if opts.revenge then
+    return "Ownage"
+  end
   if streak == 3 then
     return "KillingSpree"
   end
@@ -471,7 +498,7 @@ function Stats.CueFor(streak, multiCount)
     return "MegaKill"
   end
   if streak == 6 then
-    return "Unstoppable"
+    return "Ownage"
   end
   if streak == 7 then
     return "WickedSick"
@@ -485,11 +512,12 @@ function Stats.CueFor(streak, multiCount)
   if streak >= 10 then
     return "HolyShit"
   end
-  -- streak == 2 with a single kill: no dedicated cue (Dota waits for multi or spree at 3)
+  -- streak 1–2 without First Blood / multi: silent (rarity sting only)
   return nil
 end
 
-function Stats.AnnouncerCue()
+function Stats.AnnouncerCue(opts)
+  opts = opts or {}
   local streak = ensureDB().streak or 0
   local now = GetTime and GetTime() or 0
   if lastAnnounceAt > 0 and (now - lastAnnounceAt) <= MULTI_WINDOW then
@@ -498,7 +526,15 @@ function Stats.AnnouncerCue()
     multiCount = 1
   end
   lastAnnounceAt = now
-  return Stats.CueFor(streak, multiCount)
+  local firstBlood = false
+  if not firstBloodTaken and streak <= 1 and multiCount == 1 then
+    firstBloodTaken = true
+    firstBlood = true
+  end
+  return Stats.CueFor(streak, multiCount, {
+    firstBlood = firstBlood,
+    revenge = opts.revenge and true or false,
+  })
 end
 
 function Stats.BreakStreak()
@@ -593,7 +629,7 @@ function Stats.RecordKill(victim, info)
   end
   local rival = Stats.TouchRival(victim, "kills", info)
   local personal
-  if rival and (rival.kills == 5 or rival.kills == 10) then
+  if rival and (rival.kills == 1 or rival.kills == 5 or rival.kills == 10) then
     personal = rival.kills
   end
   local streak, streakHit = bumpStreak()
