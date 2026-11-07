@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1
+
+- Fix ADDON_ACTION_BLOCKED on Forever/Classic: rival score tooltip no longer calls `GameTooltip:Show()` from a hooked path (that tainted Blizzard UI).
+
 ## 1.0.0 — First public release
 
 ### Announcer (PvPSound-style for Forever)

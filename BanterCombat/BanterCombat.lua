@@ -1003,14 +1003,16 @@ local function PrintTopMap(title, map, labelLookup, limit)
   end
 end
 
+-- Placar no tooltip: never call tip:Show() from a hook — that taints GameTooltip
+-- and Forever/Classic then raise ADDON_ACTION_BLOCKED ("ação bloqueada").
 local scoreLock = false
 
-local function ShowRivalScore(tip)
+local function AppendRivalScore(tip)
   if scoreLock or not tip or not tip.GetUnit then
     return
   end
-  local _, unit = tip:GetUnit()
-  if not unit or not UnitIsPlayer or not UnitIsPlayer(unit) then
+  local okUnit, _, unit = pcall(tip.GetUnit, tip)
+  if not okUnit or not unit or not UnitIsPlayer or not UnitIsPlayer(unit) then
     return
   end
   if UnitIsUnit and UnitIsUnit(unit, "player") then
@@ -1022,10 +1024,7 @@ local function ShowRivalScore(tip)
     return
   end
   scoreLock = true
-  tip:AddLine(L.TIP_SCORE:format(rival.kills or 0, rival.deaths or 0), 1, 0.82, 0)
-  if tip.Show then
-    tip:Show()
-  end
+  pcall(tip.AddLine, tip, L.TIP_SCORE:format(rival.kills or 0, rival.deaths or 0), 1, 0.82, 0)
   scoreLock = false
 end
 
@@ -1034,17 +1033,17 @@ local function HookRivalTooltip()
     return
   end
   ns._scoreTip = true
-  if GameTooltip.HasScript and GameTooltip:HasScript("OnTooltipSetUnit") and GameTooltip.HookScript then
-    if pcall(GameTooltip.HookScript, GameTooltip, "OnTooltipSetUnit", ShowRivalScore) then
-      return
-    end
-  end
+  -- Prefer hooksecurefunc: does not replace the script handler chain (less taint).
   if hooksecurefunc and GameTooltip.SetUnit then
-    hooksecurefunc(GameTooltip, "SetUnit", ShowRivalScore)
+    hooksecurefunc(GameTooltip, "SetUnit", function(self)
+      AppendRivalScore(self)
+    end)
     return
   end
-  if GameTooltip.HasScript and GameTooltip:HasScript("OnShow") and GameTooltip.HookScript then
-    pcall(GameTooltip.HookScript, GameTooltip, "OnShow", ShowRivalScore)
+  if GameTooltip.HasScript and GameTooltip:HasScript("OnTooltipSetUnit") and GameTooltip.HookScript then
+    pcall(GameTooltip.HookScript, GameTooltip, "OnTooltipSetUnit", function(self)
+      AppendRivalScore(self)
+    end)
   end
 end
 
