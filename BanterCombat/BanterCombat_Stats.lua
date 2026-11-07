@@ -440,14 +440,14 @@ function Stats.ResetAnnouncer()
   lastAnnounceAt = 0
 end
 
+--- Dota 2 default announcer cues (Liquipedia Announcer responses).
+--- Multi-kill window: Double → Triple → Ultra → Rampage (5+).
+--- Kill streak: Spree → Dominating → Mega → Unstoppable → Wicked Sick → Monster → Godlike → Holy Shit.
 function Stats.CueFor(streak, multiCount)
   streak = tonumber(streak) or 0
   multiCount = tonumber(multiCount) or 1
   if streak <= 1 then
     return "FirstBlood"
-  end
-  if streak >= 9 then
-    return "Godlike"
   end
   if multiCount >= 2 then
     if multiCount == 2 then
@@ -457,9 +457,9 @@ function Stats.CueFor(streak, multiCount)
       return "TripleKill"
     end
     if multiCount == 4 then
-      return "Rampage"
+      return "UltraKill"
     end
-    return "Massacre"
+    return "Rampage"
   end
   if streak == 3 then
     return "KillingSpree"
@@ -471,14 +471,21 @@ function Stats.CueFor(streak, multiCount)
     return "MegaKill"
   end
   if streak == 6 then
-    return "Ownage"
+    return "Unstoppable"
   end
   if streak == 7 then
-    return "Mayhem"
+    return "WickedSick"
   end
   if streak == 8 then
-    return "Carnage"
+    return "MonsterKill"
   end
+  if streak == 9 then
+    return "Godlike"
+  end
+  if streak >= 10 then
+    return "HolyShit"
+  end
+  -- streak == 2 with a single kill: no dedicated cue (Dota waits for multi or spree at 3)
   return nil
 end
 

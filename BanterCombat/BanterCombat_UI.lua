@@ -192,15 +192,17 @@ local ANNOUNCER_FILES = {
   FirstBlood = "Interface\\AddOns\\BanterCombat\\Sounds\\FirstBlood.ogg",
   DoubleKill = "Interface\\AddOns\\BanterCombat\\Sounds\\DoubleKill.ogg",
   TripleKill = "Interface\\AddOns\\BanterCombat\\Sounds\\TripleKill.ogg",
+  UltraKill = "Interface\\AddOns\\BanterCombat\\Sounds\\UltraKill.ogg",
   Rampage = "Interface\\AddOns\\BanterCombat\\Sounds\\Rampage.ogg",
-  Massacre = "Interface\\AddOns\\BanterCombat\\Sounds\\Massacre.ogg",
   KillingSpree = "Interface\\AddOns\\BanterCombat\\Sounds\\KillingSpree.ogg",
   Dominating = "Interface\\AddOns\\BanterCombat\\Sounds\\Dominating.ogg",
   MegaKill = "Interface\\AddOns\\BanterCombat\\Sounds\\MegaKill.ogg",
-  Ownage = "Interface\\AddOns\\BanterCombat\\Sounds\\Ownage.ogg",
-  Mayhem = "Interface\\AddOns\\BanterCombat\\Sounds\\Mayhem.ogg",
-  Carnage = "Interface\\AddOns\\BanterCombat\\Sounds\\Carnage.ogg",
+  Unstoppable = "Interface\\AddOns\\BanterCombat\\Sounds\\Unstoppable.ogg",
+  WickedSick = "Interface\\AddOns\\BanterCombat\\Sounds\\WickedSick.ogg",
+  MonsterKill = "Interface\\AddOns\\BanterCombat\\Sounds\\MonsterKill.ogg",
   Godlike = "Interface\\AddOns\\BanterCombat\\Sounds\\Godlike.ogg",
+  HolyShit = "Interface\\AddOns\\BanterCombat\\Sounds\\HolyShit.ogg",
+  Ownage = "Interface\\AddOns\\BanterCombat\\Sounds\\Ownage.ogg",
 }
 
 local function playFile(path)

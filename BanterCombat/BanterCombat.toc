@@ -1,14 +1,18 @@
-## Interface: 16001, 11507
+## Interface: 11507, 16001
 ## Title: BanterCombat
-## Notes: PvP banter with revenge, milestones, popup queue, and addon-to-addon sync (WoW Forever classic beta 1.60 / Classic Era 1.15).
-## Notes-enUS: PvP banter with revenge, milestones, popup queue, and addon-to-addon sync (WoW Forever classic beta 1.60 / Classic Era 1.15).
-## Notes-ptBR: Provocações PvP com vingança, conquistas, fila de pop-ups e sync addon-to-addon (WoW Forever classic beta 1.60 / Classic Era 1.15).
-## Author: BanterCombat
+## Notes: PvP banter, Dota-style kill announcer, rivals, chronicle and feats (Classic Era / WoW Forever).
+## Notes-enUS: PvP banter, Dota-style kill announcer, rivals, chronicle and feats (Classic Era / WoW Forever).
+## Notes-ptBR: Provocações PvP, anunciador estilo Dota, rivais, crônica e feitos (Classic Era / WoW Forever).
+## Author: Bruno Alves
 ## Version: 1.8.1
 ## SavedVariablesPerCharacter: BanterCombatDB
 ## OptionalDeps: DialogueUI
+## DefaultState: enabled
 ## X-Category: PvP
+## X-License: All Rights Reserved
 ## X-Website: https://github.com/bruno-ab/wow-addon-rppvp-interactions
+## X-Localizations: enUS, ptBR, deDE, esES, esMX, frFR, itIT, koKR, ruRU, zhCN, zhTW
+# ## X-Curse-Project-ID: REPLACE_AFTER_PROJECT_APPROVAL
 
 BanterCombat_Data.lua
 BanterCombat_Locale.lua

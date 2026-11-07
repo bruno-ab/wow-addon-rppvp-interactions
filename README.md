@@ -1,64 +1,54 @@
-# BanterCombat — WoW Classic PvP Banter Addon
+# BanterCombat
 
-**Version 1.2.0** · WoW Classic Era / Hardcore (1.15)
+**Version 1.8.1** · WoW Classic Era (`11507`) · WoW Forever classic beta (`16001`)
 
-### English
+PvP immersion addon: kill/death banter popups, Dota-style announcer sounds, rivals ledger, chronicle, feats, and optional addon-to-addon sync.
 
-PvP banter addon for **WoW Classic Era / Hardcore**. When you kill (or die to) another player, BanterCombat shows a styled popup with taunts, revenge lines, race/class milestones, rarity colors, and optional addon-to-addon sync so opponents and party members can see the same moment.
+Addon de imersão PvP: falas de abate/morte, anunciador estilo Dota, rivais, crônica, feitos e sync opcional entre clientes.
 
-### Português
+## CurseForge package
 
-Addon de provocação PvP para **WoW Classic Era / Hardcore**. Ao matar (ou morrer para) outro jogador, o BanterCombat exibe um pop-up com falas, vingança, conquistas por raça/classe, cores por raridade e sync opcional entre addons para o oponente e o grupo verem o mesmo momento.
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/pack-curseforge.ps1
+```
 
-## Installation / Instalação
+Upload `dist/BanterCombat-1.8.1.zip`. Full steps: [docs/CURSEFORGE.md](docs/CURSEFORGE.md).
 
-Copy `BanterCombat/` → `World of Warcraft\_classic_era_\Interface\AddOns\` → `/reload`
+## Install
 
-Copie `BanterCombat/` → `World of Warcraft\_classic_era_\Interface\AddOns\` → `/reload`
+Copy `BanterCombat/` into:
 
-## Commands / Comandos
+- Classic Era: `World of Warcraft\_classic_era_\Interface\AddOns\`
+- WoW Forever: the client’s `Interface\AddOns\` folder
 
-| Command | English | Português |
-|---------|---------|-----------|
-| `/banter test` | Test popup | Pop-up de teste |
-| `/banter revenge` | Revenge line | Vingança |
-| `/banter milestone` | Milestone (50 Orcs) | Conquista (50 Orcs) |
-| `/banter stats` | Totals + top races/classes | Totais + top raças/classes |
-| `/banter config` | Options panel | Opções |
-| `/banter queue` | Queue size | Tamanho da fila |
-| `/banter hide` | Hide + clear queue | Esconde + limpa fila |
-| `/banter debug [on\|off]` | Debug log | Log de diagnóstico |
-| `/banter history` | Recent lines | Últimas falas |
-| `/banter ignore <name>` | Ignore player (`list` / `clear`) | Ignora jogador (`list` / `clear`) |
-| `/banter unignore <name>` | Remove ignore | Remove ignore |
-| `/banter help` | Help | Ajuda |
+Then `/reload`.
 
-## Highlights 1.2 / Destaques 1.2
+## Commands
 
-**EN**
-- Filters: hostile only, show deaths, group banters
-- Optional chat emote; debug / history / ignore
-- Truncated & sanitized encode; fixed dedup prune
-- Options refresh + UI Scale anim (Classic-safe)
+| Command | What it does |
+|---------|----------------|
+| `/banter` / `/banter help` | Help |
+| `/banter config` | Options |
+| `/banter announce` | Preview announcer cues |
+| `/banter test` | Test popup |
+| `/banter stats` | Kill/death totals |
+| `/banter hide` | Hide popup + clear queue |
 
-**PT**
-- Filtros: só inimigos, mostrar mortes, banters do grupo
-- Emote opcional no chat; debug / history / ignore
-- Encode truncado/sanitizado; dedup prune corrigido
-- Options refresh + UI Scale anim (Classic-safe)
+## Features
 
-## Highlights 1.1 / Destaques 1.1
+- Kill and death speech (revenge, streak titles, race/class milestones, custom lines)
+- Announcer cues: First Blood → multi-kills → Killing Spree … Holy Shit (+ Ownage preview)
+- Optional custom `Sounds/<folder>/` pack (same file names)
+- Rivals book, chronicle, achievements/compendium
+- Whisper + group sync when the other player also runs BanterCombat
+- Quiet battleground chat option (UI/sounds stay)
 
-**EN**
-- Popup queue, options, drag + saved position
-- Rarity colors + class icon
-- Sync WHISPER + PARTY/RAID/INSTANCE (protocol v2)
-- Revenge, milestones 10/50/100, sound, optional 3D model
+## License
 
-**PT**
-- Fila de pop-ups, opções, drag + posição salva
-- Cores por raridade + ícone de classe
-- Sync WHISPER + PARTY/RAID/INSTANCE (protocolo v2)
-- Vingança, marcos 10/50/100, som, model 3D opcional
+Code and art: **All Rights Reserved** (see [LICENSE](LICENSE)).  
+Announcer audio: **© Valve Corporation** — see `BanterCombat/Sounds/CREDITS.txt`.
 
-Changelog: [docs/17-9-2026.md](docs/17-9-2026.md) · Tests: [docs/RegressionTesting.md](docs/RegressionTesting.md)
+## Links
+
+- Source: https://github.com/bruno-ab/wow-addon-rppvp-interactions
+- Changelog: [CHANGELOG.md](CHANGELOG.md)

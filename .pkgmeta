@@ -1,0 +1,19 @@
+package-as: BanterCombat
+
+manual-changelog:
+  filename: CHANGELOG.md
+  markup-type: markdown
+
+ignore:
+  - .agents
+  - .github
+  - .gitignore
+  - .pkgmeta
+  - docs
+  - dist
+  - scripts
+  - skills-lock.json
+  - README.md
+  - CHANGELOG.md
+  - LICENSE
+  - "*.zip"

@@ -1,4 +1,16 @@
-Announcer lines by Antti Saari, edited by TripleSnail.
-Source: https://opengameart.org/content/announcer-kill-sounds
-License: Creative Commons Attribution 3.0 (CC-BY 3.0)
-https://creativecommons.org/licenses/by/3.0/
+Dota 2 default announcer / killing-spree lines
+© Valve Corporation
+
+Responses reference:
+  https://liquipedia.net/dota2/Announcer_responses
+
+Files shipped with BanterCombat:
+  FirstBlood, DoubleKill, TripleKill, UltraKill, Rampage,
+  KillingSpree, Dominating, MegaKill, Unstoppable, WickedSick,
+  MonsterKill, Godlike, HolyShit, Ownage
+
+These audio files are not licensed by the BanterCombat author.
+They are bundled as fan / non-commercial game audio for personal play.
+For CurseForge or other redistribution that forbids third-party game audio,
+delete these .ogg files and point Options → sound folder at your own pack
+using the same file names.

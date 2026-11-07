@@ -1,0 +1,16 @@
+All Rights Reserved
+
+Copyright (c) 2025-2026 Bruno Alves
+
+BanterCombat source code, locales, art, and documentation in this repository
+are proprietary unless a file states otherwise. You may install and use the
+addon for personal play. You may not redistribute modified builds without
+permission from the author.
+
+Third-party audio
+-----------------
+Files under BanterCombat/Sounds/*.ogg are NOT covered by this license.
+They are © Valve Corporation (Dota 2 default announcer / killing-spree pack).
+See BanterCombat/Sounds/CREDITS.txt. Redistribution of those files is subject
+to Valve’s rights; replace them with your own pack via the in-game sound
+folder option if you need a clean redistribution.

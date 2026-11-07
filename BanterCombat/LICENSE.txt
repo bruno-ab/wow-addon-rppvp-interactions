@@ -1,0 +1,8 @@
+BanterCombat — All Rights Reserved
+Copyright (c) 2025-2026 Bruno Alves
+
+Personal use only unless the author grants redistribution rights.
+
+Announcer .ogg files under Sounds/ are © Valve Corporation.
+See Sounds/CREDITS.txt. You may replace them with a custom pack
+using the sound folder option in /banter config.
