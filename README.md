@@ -1,6 +1,6 @@
 # BanterCombat
 
-**Version 1.8.1** · WoW Classic Era (`11507`) · WoW Forever classic beta (`16001`)
+**Version 1.8.2** · WoW Classic Era (`11507`) · WoW Forever classic beta (`16001`)
 
 PvP immersion addon: kill/death banter popups, Dota-style announcer sounds, rivals ledger, chronicle, feats, and optional addon-to-addon sync.
 
@@ -12,7 +12,7 @@ Addon de imersão PvP: falas de abate/morte, anunciador estilo Dota, rivais, cr�
 powershell -ExecutionPolicy Bypass -File scripts/pack-curseforge.ps1
 ```
 
-Upload `dist/BanterCombat-1.8.1.zip`. Full steps: [docs/CURSEFORGE.md](docs/CURSEFORGE.md).
+Upload `dist/BanterCombat-1.8.2.zip`. Full steps: [docs/CURSEFORGE.md](docs/CURSEFORGE.md).
 
 ## Install
 

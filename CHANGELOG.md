@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.8.2
+
+- Removed floating Test / Sounds / Chronicle debug buttons from the screen.
+- Removed “Test a line” from the minimap menu. Preview remains via `/banter test` and `/banter announce`.
+
 ## 1.8.1
 
 - Dota 2 announcer pack wired end-to-end (multi-kill + kill streak cues).

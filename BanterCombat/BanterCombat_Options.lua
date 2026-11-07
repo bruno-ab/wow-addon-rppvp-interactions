@@ -856,7 +856,6 @@ local function paintMenu()
   menu.loadRow.text:SetText(L.MENU_LOAD)
   menu.linesRow.text:SetText(L.OPT_LINES)
   menu.panelRow.text:SetText(L.MENU_PANEL)
-  menu.testRow.text:SetText(L.MENU_TEST)
 end
 
 function Options.ToggleMinimapMenu(anchor)
@@ -874,7 +873,7 @@ function Options.ToggleMinimapMenu(anchor)
     end)
 
     menu = CreateFrame("Frame", "BanterCombatMinimapMenu", menuCatcher)
-    menu:SetSize(280, 36 + (#MENU_TOGGLES + 6) * 20)
+    menu:SetSize(280, 36 + (#MENU_TOGGLES + 5) * 20)
     menu:SetFrameStrata("DIALOG")
     menu:SetClampedToScreen(true)
     local plate = menu:CreateTexture(nil, "BACKGROUND")
@@ -938,11 +937,6 @@ function Options.ToggleMinimapMenu(anchor)
     end)
     menu.panelRow = actionRow(function()
       Options.TogglePanel()
-    end)
-    menu.testRow = actionRow(function()
-      if ns.Preview then
-        ns.Preview("kill")
-      end
     end)
     menu:Hide()
     menuCatcher:Hide()
