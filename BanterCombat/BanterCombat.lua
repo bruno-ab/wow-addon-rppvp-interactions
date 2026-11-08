@@ -1265,6 +1265,13 @@ function ns.PreviewAnnouncer()
   announcePreview = (announcePreview % #ANNOUNCE_PREVIEW) + 1
   local row = ANNOUNCE_PREVIEW[announcePreview]
   local classToken = select(2, UnitClass("player"))
+  -- Play the cue immediately (not only via the popup fade) so Forever path issues are obvious.
+  if ns.UI and ns.UI.PlayPreviewSound then
+    local played = ns.UI.PlayPreviewSound({ announcer = row.id })
+    if Options.Get().debug then
+      print("|cFFFFD100BanterCombat|r announce", row.id, played and "ok" or "FAIL")
+    end
+  end
   Present({
     speaker = UnitName("player") or "?",
     text = row.label,

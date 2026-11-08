@@ -54,6 +54,13 @@ function Options.Get()
       db.settings[k] = v
     end
   end
+  -- Saved Dialog channel is often muted on Forever; Spoken plays on Master.
+  if db.settings.soundChannel == "Dialog" then
+    db.settings.soundChannel = "Master"
+  end
+  if db.settings.sound ~= true and db.settings.sound ~= false then
+    db.settings.sound = true
+  end
   return db.settings
 end
 

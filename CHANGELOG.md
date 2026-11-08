@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.3
+
+- Re-encode announcer `.ogg` to 44.1 kHz mono (Forever rejected 22.05 kHz Vorbis).
+- Fix PlaySoundFile success check (nil is failure); force Master instead of muted Dialog.
+
 ## 1.0.2
 
 - Fix silent kills on Forever: PlaySoundFile now prefers Master (Dialog is often muted), and ordinary streak 1–2 kills play a light sting.

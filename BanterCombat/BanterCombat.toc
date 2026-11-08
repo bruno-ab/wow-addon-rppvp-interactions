@@ -4,7 +4,7 @@
 ## Notes-enUS: PvP banter, Dota-style kill announcer, rivals, chronicle and feats (Classic Era / WoW Forever).
 ## Notes-ptBR: Provocações PvP, anunciador estilo Dota, rivais, crônica e feitos (Classic Era / WoW Forever).
 ## Author: Bruno Alves
-## Version: 1.0.2
+## Version: 1.0.3
 ## SavedVariablesPerCharacter: BanterCombatDB
 ## OptionalDeps: DialogueUI
 ## DefaultState: enabled

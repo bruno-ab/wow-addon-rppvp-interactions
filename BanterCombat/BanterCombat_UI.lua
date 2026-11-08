@@ -231,41 +231,39 @@ local function playFile(path, settings)
   if volume <= 0 then
     return false
   end
+  -- Forever often has Dialog muted (Spoken uses Master). Always prefer Master.
   local preferred = resolveChannel(settings)
-  -- Classic/Forever: no per-file gain. Low slider → quieter bus.
+  if preferred == "Dialog" then
+    preferred = "Master"
+  end
   if volume < 40 then
     preferred = "Ambience"
-  elseif volume < 70 and preferred == "Dialog" then
-    preferred = "SFX"
   end
-  -- Forever often mutes Dialog; Master first, then the rest.
-  -- A nil return from PlaySoundFile is ambiguous — keep trying channels.
-  local order = { "Master", preferred, "SFX", "Dialog", "Ambience", false }
+  -- Only true / numeric handle counts as success. Nil must NOT short-circuit —
+  -- Forever can return nil even when the file never started.
+  local order = { "Master", preferred, "SFX", false, "Ambience", "Dialog" }
   local seen = {}
-  local ambiguous = false
   for i = 1, #order do
     local channel = order[i]
     local key = channel == false and "*" or channel
     if not seen[key] then
       seen[key] = true
-      local ok, played
+      local ok, willPlay, handle
       if channel then
-        ok, played = pcall(PlaySoundFile, path, channel)
-      elseif channel == false then
-        ok, played = pcall(PlaySoundFile, path)
+        ok, willPlay, handle = pcall(function()
+          return PlaySoundFile(path, channel)
+        end)
+      else
+        ok, willPlay, handle = pcall(function()
+          return PlaySoundFile(path)
+        end)
       end
-      if ok then
-        if played == false then
-          -- try next
-        elseif played == true or type(played) == "number" then
-          return true
-        else
-          ambiguous = true
-        end
+      if ok and (willPlay == true or type(willPlay) == "number" or type(handle) == "number") then
+        return true
       end
     end
   end
-  return ambiguous
+  return false
 end
 
 local function playSoftKit(settings)
@@ -307,12 +305,14 @@ local function playAnnouncer(id)
     folder = folder:gsub("[^%w]", "")
   end
   if folder and folder ~= "" then
-    local custom = "Interface\\AddOns\\BanterCombat\\Sounds\\" .. folder .. "\\" .. id .. ".ogg"
-    if playFile(custom, settings) then
+    local customA = "Interface\\AddOns\\BanterCombat\\Sounds\\" .. folder .. "\\" .. id .. ".ogg"
+    local customB = "Interface/AddOns/BanterCombat/Sounds/" .. folder .. "/" .. id .. ".ogg"
+    if playFile(customA, settings) or playFile(customB, settings) then
       return true
     end
   end
-  return playFile(builtin, settings)
+  local slash = builtin:gsub("\\", "/")
+  return playFile(builtin, settings) or playFile(slash, settings)
 end
 
 local function playShowSound(kind, rarity, announcer)
