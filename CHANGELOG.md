@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.4
+
+- Real kills now play the announcer immediately (same path as `/banter announce`).
+- Detect players by GUID when combat-log flags omit TYPE_PLAYER; wider UNIT_DIED killing-blow window; friendlier hostile filter.
+
 ## 1.0.3
 
 - Re-encode announcer `.ogg` to 44.1 kHz mono (Forever rejected 22.05 kHz Vorbis).

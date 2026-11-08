@@ -152,8 +152,16 @@ end
 ------------------------------------------------------------
 -- Helpers
 ------------------------------------------------------------
-local function IsPlayerFlags(flags)
-  return flags and band(flags, COMBATLOG_OBJECT_TYPE_PLAYER) > 0
+local function IsPlayerGuid(guid)
+  return type(guid) == "string" and find(guid, "Player-", 1, true) == 1
+end
+
+local function IsPlayerFlags(flags, guid)
+  if flags and band(flags, COMBATLOG_OBJECT_TYPE_PLAYER) > 0 then
+    return true
+  end
+  -- Forever sometimes omits TYPE_PLAYER on PARTY_KILL / UNIT_DIED.
+  return IsPlayerGuid(guid)
 end
 
 local function IsHostileFlags(flags)
@@ -167,6 +175,40 @@ local function IsHostileFlags(flags)
     return false
   end
   return true
+end
+
+-- Only skip when we are sure the victim is friendly (duel / same faction).
+local function ShouldSkipFriendly(destFlags, destGUID)
+  local s = Options.Get()
+  if not s.hostileOnly then
+    return false
+  end
+  if destFlags and band(destFlags, COMBATLOG_OBJECT_REACTION_FRIENDLY) > 0
+    and band(destFlags, COMBATLOG_OBJECT_REACTION_HOSTILE) == 0 then
+    return true
+  end
+  if destGUID and UnitExists and UnitExists("target") and UnitGUID("target") == destGUID then
+    if UnitIsFriend and UnitIsFriend("player", "target") then
+      return true
+    end
+  end
+  return false
+end
+
+local function IsMineSource(guid)
+  if not guid then
+    return false
+  end
+  if not playerGUID then
+    playerGUID = UnitGUID("player")
+  end
+  if guid == playerGUID then
+    return true
+  end
+  if UnitGUID and UnitGUID("pet") == guid then
+    return true
+  end
+  return false
 end
 
 local function IsIgnored(name)
@@ -645,6 +687,7 @@ local function Present(payload, unit)
     title = payload.title,
     announcer = payload.announcer,
     silent = payload.silent,
+    soundPlayed = payload.soundPlayed,
     unit = unit,
   })
 end
@@ -664,8 +707,8 @@ local function OnPlayerKill(victim, destFlags)
     Debug("skip kill: ignored", victim.name)
     return
   end
-  if s.hostileOnly and not IsHostileFlags(destFlags) then
-    Debug("skip kill: not hostile", victim.name)
+  if ShouldSkipFriendly(destFlags, victim.guid) then
+    Debug("skip kill: friendly", victim.name)
     return
   end
   local dedupKey = "kill:" .. (victim.guid or victim.name)
@@ -687,6 +730,7 @@ local function OnPlayerKill(victim, destFlags)
     Stats.UnlockFeat("legendary")
   end
   local selfInfo = PlayerSelfInfo()
+  local announcer = Stats.AnnouncerCue and Stats.AnnouncerCue({ revenge = isRevenge })
   local payload = {
     speaker = selfInfo.name,
     race = selfInfo.race,
@@ -696,8 +740,15 @@ local function OnPlayerKill(victim, destFlags)
     badge = badge,
     text = text,
     title = CurrentTitle(),
-    announcer = Stats.AnnouncerCue and Stats.AnnouncerCue({ revenge = isRevenge }),
+    announcer = announcer,
   }
+  -- Same path as /banter announce: play cue immediately (UI queue can lag or skip sound).
+  if s.sound ~= false and announcer and ns.UI and ns.UI.PlayPreviewSound then
+    if ns.UI.PlayPreviewSound({ announcer = announcer }) then
+      payload.soundPlayed = true
+    end
+  end
+  Debug("kill", victim.name, payload.kind, rarity, announcer or "nil")
 
   local zoneName = place.zone or ""
   local spellName
@@ -723,7 +774,6 @@ local function OnPlayerKill(victim, destFlags)
     })
   end
 
-  Debug("kill", victim.name, payload.kind, rarity)
   local quietBg = Options.Get().quietBg and place.context == "bg"
   if Options.Get().chatOnly and not quietBg then
     if SendChatMessage and text and text ~= "" then
@@ -735,6 +785,7 @@ local function OnPlayerKill(victim, destFlags)
       MaybeChatAnnounce(text)
     end
   end
+  -- chatOnly still gets the announcer (already fired above)
   BroadcastPayload(EncodeMessage(
     payload.speaker, payload.race, payload.class, payload.kind, payload.rarity, payload.badge, payload.text, payload.title
   ), victim.name)
@@ -840,7 +891,7 @@ local function HandleCombatLog()
     ns.Achievements.OnLog(subevent, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellId, spellName)
   end
 
-  if sourceGUID == playerGUID and destGUID and IsPlayerFlags(destFlags) then
+  if IsMineSource(sourceGUID) and destGUID and IsPlayerFlags(destFlags, destGUID) then
     if subevent == "SWING_DAMAGE"
       or subevent == "RANGE_DAMAGE"
       or subevent == "SPELL_DAMAGE"
@@ -860,6 +911,9 @@ local function HandleCombatLog()
       name = name,
       guid = guid,
     }
+    if not victim.name or victim.name == "" then
+      victim.name = (name and name ~= "" and name) or "?"
+    end
     if UnitExists("target") and UnitGUID("target") == guid then
       local _, class = UnitClass("target")
       local _, race = UnitRace("target")
@@ -880,7 +934,7 @@ local function HandleCombatLog()
   end
 
   if subevent == "PARTY_KILL" then
-    if sourceGUID == playerGUID and IsPlayerFlags(destFlags) then
+    if IsMineSource(sourceGUID) and IsPlayerFlags(destFlags, destGUID) then
       OnPlayerKill(fillVictim(destGUID, destName), destFlags)
     end
     return
@@ -896,11 +950,11 @@ local function HandleCombatLog()
       ns._lastHostileAttacker = nil
       return
     end
-    -- Forever/world PvP sometimes skips PARTY_KILL; treat recent killing blow as the abate.
-    if IsPlayerFlags(destFlags) then
+    -- Forever/world PvP often skips PARTY_KILL; credit a recent killing blow.
+    if IsPlayerFlags(destFlags, destGUID) then
       local blow = ns._lastBlow
       local now = GetTime and GetTime() or 0
-      if blow and blow.guid == destGUID and (now - (blow.at or 0)) <= 2.5 then
+      if blow and blow.guid == destGUID and (now - (blow.at or 0)) <= 5 then
         OnPlayerKill(fillVictim(destGUID, destName), destFlags)
         ns._lastBlow = nil
       end
@@ -908,11 +962,11 @@ local function HandleCombatLog()
     return
   end
 
-  if sourceGUID and sourceGUID ~= playerGUID and destGUID == playerGUID and IsPlayerFlags(sourceFlags) then
+  if sourceGUID and not IsMineSource(sourceGUID) and destGUID == playerGUID and IsPlayerFlags(sourceFlags, sourceGUID) then
     if subevent == "SWING_DAMAGE" or subevent == "RANGE_DAMAGE"
       or subevent == "SPELL_DAMAGE" or subevent == "SPELL_PERIODIC_DAMAGE"
       or (type(subevent) == "string" and find(subevent, "_DAMAGE", 1, true)) then
-      if s.hostileOnly and not IsHostileFlags(sourceFlags) then
+      if ShouldSkipFriendly(sourceFlags, sourceGUID) then
         return
       end
       ns._lastHostileAttacker = InfoFromGUID(sourceGUID) or {

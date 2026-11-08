@@ -619,7 +619,7 @@ local function showNow(payload)
   ag:Stop()
   ag:Play()
   UIFrameFadeIn(frame, 0.22, 0, 1)
-  if not payload.silent then
+  if not payload.silent and not payload.soundPlayed then
     playShowSound(kind, rarity, payload.announcer)
   end
 
