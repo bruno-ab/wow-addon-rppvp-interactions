@@ -1240,7 +1240,12 @@ local function OnEvent(_, event, ...)
       if math.randomseed then
         math.randomseed(time() + (playerGUID and tonumber(playerGUID:sub(-6), 16) or 0))
       end
-      sessionHK = ReadSessionHK()
+      if GetPVPSessionStats then
+        local hk = GetPVPSessionStats()
+        if type(hk) == "number" then
+          sessionHK = hk
+        end
+      end
       if UI.ApplySavedPosition then
         UI.ApplySavedPosition()
       end
