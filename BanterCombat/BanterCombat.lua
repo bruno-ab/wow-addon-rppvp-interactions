@@ -153,15 +153,27 @@ end
 -- Helpers
 ------------------------------------------------------------
 local function IsPlayerGuid(guid)
-  return type(guid) == "string" and find(guid, "Player-", 1, true) == 1
+  if type(guid) ~= "string" or guid == "" then
+    return false
+  end
+  if find(guid, "Player-", 1, true) == 1 then
+    return true
+  end
+  -- Some Forever builds still use legacy 0x… GUIDs; treat as possible player via flags/target.
+  return false
 end
 
 local function IsPlayerFlags(flags, guid)
   if flags and band(flags, COMBATLOG_OBJECT_TYPE_PLAYER) > 0 then
     return true
   end
-  -- Forever sometimes omits TYPE_PLAYER on PARTY_KILL / UNIT_DIED.
-  return IsPlayerGuid(guid)
+  if IsPlayerGuid(guid) then
+    return true
+  end
+  if guid and UnitExists and UnitExists("target") and UnitGUID("target") == guid and UnitIsPlayer and UnitIsPlayer("target") then
+    return true
+  end
+  return false
 end
 
 local function IsHostileFlags(flags)
@@ -869,7 +881,37 @@ local function OnPlayerDeath(killer)
   end
 end
 
-local function HandleCombatLog()
+-- Forever/Classic: CLEU may come from CombatLogGetCurrentEventInfo() OR event varargs.
+local function ReadCombatLogArgs(...)
+  local timestamp, subevent, hideCaster, sourceGUID, sourceName, sourceFlags, sourceRaidFlags,
+    destGUID, destName, destFlags, destRaidFlags
+  if CombatLogGetCurrentEventInfo then
+    timestamp, subevent, hideCaster, sourceGUID, sourceName, sourceFlags, sourceRaidFlags,
+      destGUID, destName, destFlags, destRaidFlags = CombatLogGetCurrentEventInfo()
+  end
+  if type(subevent) ~= "string" and select("#", ...) > 0 then
+    -- Pref-Cata style / private-server payload on the event itself.
+    local a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11 = ...
+    if type(a2) == "string" and (type(a3) == "string" or type(a3) == "nil" or type(a3) == "boolean") then
+      -- timestamp, subevent, hideCaster?, sourceGUID...
+      if type(a3) == "boolean" or (type(a3) == "string" and find(a3, "-", 1, true)) then
+        if type(a3) == "boolean" then
+          timestamp, subevent, hideCaster, sourceGUID, sourceName, sourceFlags, sourceRaidFlags,
+            destGUID, destName, destFlags = a1, a2, a3, a4, a5, a6, a7, a8, a9, a10
+        else
+          -- no hideCaster: timestamp, subevent, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags
+          timestamp, subevent, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags = a1, a2, a3, a4, a5, a6, a7, a8
+        end
+      end
+    end
+  end
+  return timestamp, subevent, hideCaster, sourceGUID, sourceName, sourceFlags, sourceRaidFlags,
+    destGUID, destName, destFlags, destRaidFlags
+end
+
+local cleuSeen = 0
+
+local function HandleCombatLog(...)
   local s = Options.Get()
   if not s.enabled then
     return
@@ -880,10 +922,35 @@ local function HandleCombatLog()
 
   local _, subevent, _,
     sourceGUID, sourceName, sourceFlags, _,
-    destGUID, destName, destFlags = CombatLogGetCurrentEventInfo()
+    destGUID, destName, destFlags = ReadCombatLogArgs(...)
+
+  if type(subevent) ~= "string" then
+    if s.debug then
+      Debug("cleu empty (no subevent)")
+    end
+    return
+  end
+
+  cleuSeen = cleuSeen + 1
+  if s.debug and cleuSeen == 1 then
+    Debug("cleu live")
+  end
 
   if not playerGUID then
     playerGUID = UnitGUID("player")
+  end
+
+  -- With debug on, mirror kill-related CLEU so we can see what Forever sends.
+  if s.debug then
+    local interesting = subevent == "PARTY_KILL" or subevent == "UNIT_DIED"
+      or (IsMineSource(sourceGUID) and type(subevent) == "string" and find(subevent, "_DAMAGE", 1, true)
+        and IsPlayerGuid(destGUID))
+    if interesting then
+      Debug("cleu", subevent,
+        tostring(sourceName or "?"),
+        tostring(destName or "?"),
+        IsPlayerGuid(destGUID) and "Player" or tostring(destGUID and destGUID:sub(1, 8) or "?"))
+    end
   end
 
   if ns.Achievements and ns.Achievements.OnLog then
@@ -891,18 +958,28 @@ local function HandleCombatLog()
     ns.Achievements.OnLog(subevent, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellId, spellName)
   end
 
-  if IsMineSource(sourceGUID) and destGUID and IsPlayerFlags(destFlags, destGUID) then
-    if subevent == "SWING_DAMAGE"
-      or subevent == "RANGE_DAMAGE"
-      or subevent == "SPELL_DAMAGE"
-      or subevent == "SPELL_PERIODIC_DAMAGE"
-      or (type(subevent) == "string" and find(subevent, "_DAMAGE", 1, true) and not find(subevent, "_MISSED", 1, true)) then
-      local spellName = select(13, CombatLogGetCurrentEventInfo())
-      ns._lastBlow = {
-        guid = destGUID,
-        spell = (type(spellName) == "string" and spellName ~= "") and spellName or nil,
-        at = GetTime and GetTime() or 0,
-      }
+  if IsMineSource(sourceGUID) and destGUID then
+    local hitPlayer = IsPlayerFlags(destFlags, destGUID)
+    if not hitPlayer and UnitExists("target") and UnitGUID("target") == destGUID and UnitIsPlayer("target") then
+      hitPlayer = true
+    end
+    if hitPlayer then
+      if subevent == "SWING_DAMAGE"
+        or subevent == "RANGE_DAMAGE"
+        or subevent == "SPELL_DAMAGE"
+        or subevent == "SPELL_PERIODIC_DAMAGE"
+        or (type(subevent) == "string" and find(subevent, "_DAMAGE", 1, true) and not find(subevent, "_MISSED", 1, true)) then
+        local spellName = select(13, CombatLogGetCurrentEventInfo())
+        if type(spellName) ~= "string" then
+          spellName = select(12, ...) -- varargs CLEU fallback
+        end
+        ns._lastBlow = {
+          guid = destGUID,
+          name = destName,
+          spell = (type(spellName) == "string" and spellName ~= "") and spellName or nil,
+          at = GetTime and GetTime() or 0,
+        }
+      end
     end
   end
 
@@ -951,13 +1028,11 @@ local function HandleCombatLog()
       return
     end
     -- Forever/world PvP often skips PARTY_KILL; credit a recent killing blow.
-    if IsPlayerFlags(destFlags, destGUID) then
-      local blow = ns._lastBlow
-      local now = GetTime and GetTime() or 0
-      if blow and blow.guid == destGUID and (now - (blow.at or 0)) <= 5 then
-        OnPlayerKill(fillVictim(destGUID, destName), destFlags)
-        ns._lastBlow = nil
-      end
+    local blow = ns._lastBlow
+    local now = GetTime and GetTime() or 0
+    if blow and blow.guid == destGUID and (now - (blow.at or 0)) <= 8 then
+      OnPlayerKill(fillVictim(destGUID, destName or blow.name), destFlags)
+      ns._lastBlow = nil
     end
     return
   end
@@ -1157,10 +1232,93 @@ local function OnEvent(_, event, ...)
         ns.Compendium.Init()
       end
     end
-  elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
-    HandleCombatLog()
+  elseif event == "COMBAT_LOG_EVENT_UNFILTERED" or event == "COMBAT_LOG_EVENT" then
+    HandleCombatLog(...)
+  elseif event == "CHAT_MSG_COMBAT_HOSTILE_DEATH" or event == "CHAT_MSG_COMBAT_XP_GAIN"
+    or event == "CHAT_MSG_SYSTEM" or event == "CHAT_MSG_COMBAT_HONOR_GAIN" then
+    local msg = ...
+    if type(msg) == "string" then
+      TryKillFromChat(msg)
+    end
+  elseif event == "PLAYER_TARGET_CHANGED" or event == "UNIT_HEALTH" or event == "UNIT_FLAGS" then
+    local unit = event == "PLAYER_TARGET_CHANGED" and "target" or ...
+    if unit == "target" then
+      WatchTargetDeath()
+    end
   elseif event == "CHAT_MSG_ADDON" then
     OnAddonMessage(...)
+  end
+end
+
+-- Chat / target fallbacks when Forever CLEU omits PARTY_KILL.
+local function StripChat(msg)
+  if type(msg) ~= "string" then
+    return ""
+  end
+  return (msg:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", ""):gsub("|A.-|a", ""))
+end
+
+function TryKillFromChat(msg)
+  msg = StripChat(msg)
+  local name =
+    msg:match("^Você matou (.+)!$")
+    or msg:match("^Você matou (.+)%.$")
+    or msg:match("^You have slain (.+)!$")
+    or msg:match("^You have slain (.+)%.$")
+    or msg:match("matou (.+)!$")
+    or msg:match("slain (.+)!")
+  if not name or name == "" then
+    return
+  end
+  name = name:match("^%s*(.-)%s*$") or name
+  Debug("chat-kill", name)
+  local guid = ns._lastBlow and ns._lastBlow.guid
+  local victim = {
+    name = name,
+    guid = guid,
+  }
+  if UnitExists("target") and UnitName("target") == name then
+    victim = (function()
+      local g = UnitGUID("target")
+      local v = InfoFromGUID(g) or { name = name, guid = g }
+      local _, class = UnitClass("target")
+      local _, race = UnitRace("target")
+      v.class = v.class or class
+      v.race = v.race or race
+      v.name = name
+      return v
+    end)()
+  end
+  OnPlayerKill(victim, nil)
+end
+
+local watchDead
+function WatchTargetDeath()
+  if not UnitExists("target") or not UnitIsPlayer("target") then
+    watchDead = nil
+    return
+  end
+  local guid = UnitGUID("target")
+  local dead = UnitIsDead("target") or UnitIsGhost("target")
+  if not dead then
+    watchDead = guid
+    return
+  end
+  if not watchDead or watchDead ~= guid then
+    return
+  end
+  local blow = ns._lastBlow
+  local now = GetTime and GetTime() or 0
+  if blow and blow.guid == guid and (now - (blow.at or 0)) <= 8 then
+    Debug("target-dead", UnitName("target") or "?")
+    watchDead = nil
+    local victim = InfoFromGUID(guid) or { name = UnitName("target"), guid = guid }
+    local _, class = UnitClass("target")
+    local _, race = UnitRace("target")
+    victim.class = victim.class or class
+    victim.race = victim.race or race
+    OnPlayerKill(victim, nil)
+    ns._lastBlow = nil
   end
 end
 
@@ -1169,7 +1327,18 @@ eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
 eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 eventFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+pcall(eventFrame.RegisterEvent, eventFrame, "COMBAT_LOG_EVENT")
 eventFrame:RegisterEvent("CHAT_MSG_ADDON")
+pcall(eventFrame.RegisterEvent, eventFrame, "CHAT_MSG_COMBAT_HOSTILE_DEATH")
+pcall(eventFrame.RegisterEvent, eventFrame, "CHAT_MSG_COMBAT_HONOR_GAIN")
+pcall(eventFrame.RegisterEvent, eventFrame, "CHAT_MSG_SYSTEM")
+eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+pcall(eventFrame.RegisterEvent, eventFrame, "UNIT_FLAGS")
+if eventFrame.RegisterUnitEvent then
+  eventFrame:RegisterUnitEvent("UNIT_HEALTH", "target")
+else
+  eventFrame:RegisterEvent("UNIT_HEALTH")
+end
 eventFrame:SetScript("OnEvent", OnEvent)
 
 local testStreak = 0
@@ -1417,6 +1586,10 @@ SlashCmdList.BANTERCOMBAT = function(msg)
       Options.Set("debug", not s.debug)
     end
     print("|cFFFFD100BanterCombat|r debug=" .. tostring(Options.Get().debug))
+    if Options.Get().debug then
+      print("|cFF66CCFFBanterCombat|r ao lutar, procure: cleu live / cleu PARTY_KILL|UNIT_DIED / chat-kill / target-dead / kill")
+      cleuSeen = 0
+    end
   elseif cmd == "history" then
     if #history == 0 then
       print("|cFFFFD100BanterCombat|r (empty)")

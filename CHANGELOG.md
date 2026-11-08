@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.5
+
+- Kill detection fallbacks for Forever: CLEU varargs, chat “Você matou/slain”, target-death watch.
+- Debug now prints CLEU kill-related lines (`cleu live`, `PARTY_KILL`, `UNIT_DIED`, `chat-kill`).
+
 ## 1.0.4
 
 - Real kills now play the announcer immediately (same path as `/banter announce`).
