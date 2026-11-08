@@ -18,6 +18,7 @@ local playerGUID
 local eventFrame
 local pruneCounter = 0
 local history = {}
+local sessionHK
 
 -- Hot-path locals. bit exists on 1.15 and on the Forever 1.60 beta; keep a fallback.
 local band = bit and bit.band
@@ -1357,7 +1358,6 @@ function WatchTargetDeath()
 end
 
 -- Forever: CLEU may be silent; honor HK + target death poll still catches killing blows.
-local sessionHK = nil
 local function ReadSessionHK()
   if GetPVPSessionStats then
     local hk = GetPVPSessionStats()
