@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.7
+
+- Fix killing-blow name showing as `?` on Forever (remember last hostile target/hit; skip whisper to `?`).
+
 ## 1.0.6
 
 - Killing blow always prints in local chat; optional `/say` via “Avisar killing blow no chat” (on by default).

@@ -19,6 +19,7 @@ local eventFrame
 local pruneCounter = 0
 local history = {}
 local sessionHK
+local lastHostilePlayer -- { name, guid, class, race, at }
 
 -- Hot-path locals. bit exists on 1.15 and on the Forever 1.60 beta; keep a fallback.
 local band = bit and bit.band
@@ -222,6 +223,43 @@ local function IsMineSource(guid)
     return true
   end
   return false
+end
+
+local function RememberHostile(info)
+  if type(info) ~= "table" then
+    return
+  end
+  local name = info.name
+  if type(name) ~= "string" or name == "" or name == "?" then
+    return
+  end
+  lastHostilePlayer = {
+    name = Ambiguate and Ambiguate(name, "none") or name,
+    guid = info.guid,
+    class = info.class,
+    race = info.race,
+    at = GetTime and GetTime() or 0,
+  }
+end
+
+local function RememberHostileFromUnit(unit)
+  if not unit or not UnitExists(unit) or not UnitIsPlayer(unit) then
+    return
+  end
+  if UnitIsUnit and UnitIsUnit(unit, "player") then
+    return
+  end
+  if UnitCanAttack and not UnitCanAttack("player", unit) then
+    return
+  end
+  local _, class = UnitClass(unit)
+  local _, race = UnitRace(unit)
+  RememberHostile({
+    name = UnitName(unit),
+    guid = UnitGUID(unit),
+    class = class,
+    race = race,
+  })
 end
 
 local function IsIgnored(name)
@@ -728,7 +766,38 @@ end
 -- Combat resolution
 ------------------------------------------------------------
 local function OnPlayerKill(victim, destFlags)
-  if not victim or not victim.name then
+  if not victim then
+    return
+  end
+  -- Forever honor poll often arrives without a name; recover from last hostile hit/target.
+  local function nameMissing()
+    return not victim.name or victim.name == "" or victim.name == "?"
+  end
+  if nameMissing() and lastHostilePlayer then
+    local now = GetTime and GetTime() or 0
+    if (now - (lastHostilePlayer.at or 0)) <= 20 then
+      victim.name = lastHostilePlayer.name
+      victim.guid = victim.guid or lastHostilePlayer.guid
+      victim.class = victim.class or lastHostilePlayer.class
+      victim.race = victim.race or lastHostilePlayer.race
+    end
+  end
+  if nameMissing() and UnitExists("target") and UnitIsPlayer("target") then
+    if not UnitIsUnit("target", "player") then
+      victim.name = UnitName("target")
+      victim.guid = victim.guid or UnitGUID("target")
+      local _, class = UnitClass("target")
+      local _, race = UnitRace("target")
+      victim.class = victim.class or class
+      victim.race = victim.race or race
+    end
+  end
+  if nameMissing() and ns._lastBlow and ns._lastBlow.name and ns._lastBlow.name ~= "?" then
+    victim.name = ns._lastBlow.name
+    victim.guid = victim.guid or ns._lastBlow.guid
+  end
+  if nameMissing() then
+    Debug("skip kill: unknown name")
     return
   end
   local s = Options.Get()
@@ -747,6 +816,7 @@ local function OnPlayerKill(victim, destFlags)
   if SeenRecently(dedupKey) then
     return
   end
+  RememberHostile(victim)
 
   local place = PlaceNow(destFlags)
   local isRevenge = Stats.IsRevenge(victim.name)
@@ -819,9 +889,11 @@ local function OnPlayerKill(victim, destFlags)
     end
   end
   -- chatOnly still gets the announcer (already fired above)
-  BroadcastPayload(EncodeMessage(
-    payload.speaker, payload.race, payload.class, payload.kind, payload.rarity, payload.badge, payload.text, payload.title
-  ), victim.name)
+  if victim.name and victim.name ~= "?" then
+    BroadcastPayload(EncodeMessage(
+      payload.speaker, payload.race, payload.class, payload.kind, payload.rarity, payload.badge, payload.text, payload.title
+    ), victim.name)
+  end
   if ns.Achievements and ns.Achievements.OnKill then
     ns.Achievements.OnKill(victim, isRevenge)
   end
@@ -984,7 +1056,14 @@ local function HandleCombatLog(...)
     if not hitPlayer and UnitExists("target") and UnitGUID("target") == destGUID and UnitIsPlayer("target") then
       hitPlayer = true
     end
-    if hitPlayer then
+    -- Forever may omit player flags; still remember named hostile dests we are hitting.
+    if not hitPlayer and type(destName) == "string" and destName ~= "" and IsHostileFlags(destFlags) then
+      if UnitExists("target") and UnitName("target") == destName and UnitIsPlayer("target") then
+        hitPlayer = true
+      end
+    end
+    if hitPlayer or (type(destName) == "string" and destName ~= "" and IsHostileFlags(destFlags)
+      and UnitExists("target") and UnitIsPlayer("target") and UnitGUID("target") == destGUID) then
       if subevent == "SWING_DAMAGE"
         or subevent == "RANGE_DAMAGE"
         or subevent == "SPELL_DAMAGE"
@@ -994,12 +1073,22 @@ local function HandleCombatLog(...)
         if type(spellName) ~= "string" then
           spellName = select(12, ...) -- varargs CLEU fallback
         end
+        local name = destName
+        if (not name or name == "") and UnitGUID("target") == destGUID then
+          name = UnitName("target")
+        end
         ns._lastBlow = {
           guid = destGUID,
-          name = destName,
+          name = name,
           spell = (type(spellName) == "string" and spellName ~= "") and spellName or nil,
           at = GetTime and GetTime() or 0,
         }
+        local _, class, race
+        if UnitGUID("target") == destGUID and UnitIsPlayer("target") then
+          _, class = UnitClass("target")
+          _, race = UnitRace("target")
+        end
+        RememberHostile({ name = name, guid = destGUID, class = class, race = race })
       end
     end
   end
@@ -1270,6 +1359,7 @@ local function OnEvent(_, event, ...)
   elseif event == "PLAYER_TARGET_CHANGED" or event == "UNIT_HEALTH" or event == "UNIT_FLAGS" then
     local unit = event == "PLAYER_TARGET_CHANGED" and "target" or ...
     if unit == "target" then
+      RememberHostileFromUnit("target")
       WatchTargetDeath()
     end
   elseif event == "CHAT_MSG_ADDON" then
@@ -1370,20 +1460,37 @@ end
 
 local function VictimFromContext()
   local blow = ns._lastBlow
-  if UnitExists("target") and UnitIsPlayer("target") and (UnitIsDead("target") or UnitIsGhost("target")) then
+  if UnitExists("target") and UnitIsPlayer("target") then
     local guid = UnitGUID("target")
     local victim = InfoFromGUID(guid) or { name = UnitName("target"), guid = guid }
     local _, class = UnitClass("target")
     local _, race = UnitRace("target")
     victim.class = victim.class or class
     victim.race = victim.race or race
-    return victim
+    if victim.name and victim.name ~= "" then
+      RememberHostile(victim)
+      return victim
+    end
   end
-  if blow and blow.name then
+  if blow and blow.name and blow.name ~= "" and blow.name ~= "?" then
     return { name = blow.name, guid = blow.guid }
   end
+  if lastHostilePlayer and lastHostilePlayer.name then
+    local now = GetTime and GetTime() or 0
+    if (now - (lastHostilePlayer.at or 0)) <= 20 then
+      return {
+        name = lastHostilePlayer.name,
+        guid = lastHostilePlayer.guid,
+        class = lastHostilePlayer.class,
+        race = lastHostilePlayer.race,
+      }
+    end
+  end
   if blow and blow.guid then
-    return InfoFromGUID(blow.guid) or { name = "?", guid = blow.guid }
+    local info = InfoFromGUID(blow.guid)
+    if info and info.name then
+      return info
+    end
   end
   return { name = "?" }
 end
