@@ -411,6 +411,25 @@ local function MaybeChatAnnounce(text)
   end
 end
 
+-- Always visible local chat line + optional /say so Forever kills are obvious.
+local function AnnounceKillBlow(victimName, announcer)
+  local s = Options.Get()
+  local cue = announcer or "?"
+  local name = victimName or "?"
+  local localLine = (L.CHAT_KILL_BLOW or "Killing blow! %s — %s"):format(cue, name)
+  print("|cFFFFD100BanterCombat|r " .. localLine)
+  if s.chatKillBlow == false then
+    return
+  end
+  local say = (L.CHAT_KILL_BLOW_SAY or "Killing blow on %s (%s)!"):format(name, cue)
+  if SendChatMessage then
+    local quietBg = s.quietBg and UnitInBattleground and UnitInBattleground("player")
+    if not quietBg then
+      pcall(SendChatMessage, Truncate(say, 255), "SAY")
+    end
+  end
+end
+
 ------------------------------------------------------------
 -- Speech
 ------------------------------------------------------------
@@ -760,6 +779,7 @@ local function OnPlayerKill(victim, destFlags)
       payload.soundPlayed = true
     end
   end
+  AnnounceKillBlow(victim.name, announcer)
   Debug("kill", victim.name, payload.kind, rarity, announcer or "nil")
 
   local zoneName = place.zone or ""
@@ -1220,6 +1240,7 @@ local function OnEvent(_, event, ...)
       if math.randomseed then
         math.randomseed(time() + (playerGUID and tonumber(playerGUID:sub(-6), 16) or 0))
       end
+      sessionHK = ReadSessionHK()
       if UI.ApplySavedPosition then
         UI.ApplySavedPosition()
       end
@@ -1263,14 +1284,22 @@ function TryKillFromChat(msg)
   local name =
     msg:match("^Você matou (.+)!$")
     or msg:match("^Você matou (.+)%.$")
+    or msg:match("^Você matou (.+)$")
     or msg:match("^You have slain (.+)!$")
     or msg:match("^You have slain (.+)%.$")
-    or msg:match("matou (.+)!$")
+    or msg:match("^You have slain (.+)$")
+    or msg:match("matou (.+)!")
     or msg:match("slain (.+)!")
+    or msg:match("^(.+) morre,.-[Mm]ortes [Hh]onor")
+    or msg:match("^(.+) dies,.-[Hh]onorable [Kk]ills")
   if not name or name == "" then
     return
   end
   name = name:match("^%s*(.-)%s*$") or name
+  -- Ignore combat log spam that isn't a player name.
+  if find(name, " ", 1, true) and #name > 40 then
+    return
+  end
   Debug("chat-kill", name)
   local guid = ns._lastBlow and ns._lastBlow.guid
   local victim = {
@@ -1321,6 +1350,69 @@ function WatchTargetDeath()
     ns._lastBlow = nil
   end
 end
+
+-- Forever: CLEU may be silent; honor HK + target death poll still catches killing blows.
+local sessionHK = nil
+local function ReadSessionHK()
+  if GetPVPSessionStats then
+    local hk = GetPVPSessionStats()
+    if type(hk) == "number" then
+      return hk
+    end
+  end
+  return nil
+end
+
+local function VictimFromContext()
+  local blow = ns._lastBlow
+  if UnitExists("target") and UnitIsPlayer("target") and (UnitIsDead("target") or UnitIsGhost("target")) then
+    local guid = UnitGUID("target")
+    local victim = InfoFromGUID(guid) or { name = UnitName("target"), guid = guid }
+    local _, class = UnitClass("target")
+    local _, race = UnitRace("target")
+    victim.class = victim.class or class
+    victim.race = victim.race or race
+    return victim
+  end
+  if blow and blow.name then
+    return { name = blow.name, guid = blow.guid }
+  end
+  if blow and blow.guid then
+    return InfoFromGUID(blow.guid) or { name = "?", guid = blow.guid }
+  end
+  return { name = "?" }
+end
+
+local function PollHonorKill()
+  local hk = ReadSessionHK()
+  if hk == nil then
+    return
+  end
+  if sessionHK == nil then
+    sessionHK = hk
+    return
+  end
+  if hk > sessionHK then
+    local gained = hk - sessionHK
+    sessionHK = hk
+    Debug("honor-hk", gained, "->", hk)
+    for _ = 1, math.min(gained, 3) do
+      OnPlayerKill(VictimFromContext(), nil)
+    end
+  end
+end
+
+local pollElapsed = 0
+local pollFrame = CreateFrame("Frame")
+pollFrame:SetScript("OnUpdate", function(_, elapsed)
+  pollElapsed = pollElapsed + (elapsed or 0)
+  if pollElapsed < 0.25 then
+    return
+  end
+  pollElapsed = 0
+  WatchTargetDeath()
+  PollHonorKill()
+end)
 
 eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")

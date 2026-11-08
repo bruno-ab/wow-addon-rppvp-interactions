@@ -17,6 +17,7 @@ local DEFAULTS = {
   pvpOnly = false,
   hostileOnly = true,
   chatAnnounce = false,
+  chatKillBlow = true,
   chatOnly = false,
   quietBg = true,
   rivalAlert = false,
@@ -205,10 +206,11 @@ function Options.TogglePanel()
     makeCheck(panel, L.OPT_PVP_ONLY, "pvpOnly", -208)
     makeCheck(panel, L.OPT_HOSTILE, "hostileOnly", -232)
     makeCheck(panel, L.OPT_CHAT, "chatAnnounce", -256)
-    makeCheck(panel, L.OPT_CHAT_ONLY, "chatOnly", -280)
-    makeCheck(panel, L.OPT_QUIET_BG, "quietBg", -304)
-    makeCheck(panel, L.OPT_RIVAL_ALERT, "rivalAlert", -328)
-    makeCheck(panel, L.OPT_DEBUG, "debug", -352)
+    makeCheck(panel, L.OPT_CHAT_KILL, "chatKillBlow", -280)
+    makeCheck(panel, L.OPT_CHAT_ONLY, "chatOnly", -304)
+    makeCheck(panel, L.OPT_QUIET_BG, "quietBg", -328)
+    makeCheck(panel, L.OPT_RIVAL_ALERT, "rivalAlert", -352)
+    makeCheck(panel, L.OPT_DEBUG, "debug", -376)
 
     local durLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     durLabel:SetPoint("TOPLEFT", 24, -386)
@@ -861,6 +863,7 @@ local MENU_TOGGLES = {
   { key = "pvpOnly", label = "OPT_PVP_ONLY" },
   { key = "hostileOnly", label = "OPT_HOSTILE" },
   { key = "chatAnnounce", label = "OPT_CHAT" },
+  { key = "chatKillBlow", label = "OPT_CHAT_KILL" },
   { key = "chatOnly", label = "OPT_CHAT_ONLY" },
   { key = "quietBg", label = "OPT_QUIET_BG" },
   { key = "rivalAlert", label = "OPT_RIVAL_ALERT" },

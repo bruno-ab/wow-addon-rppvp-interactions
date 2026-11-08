@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.6
+
+- Killing blow always prints in local chat; optional `/say` via “Avisar killing blow no chat” (on by default).
+- Extra Forever detection: honor session HK poll + target-death ticker every 0.25s.
+
 ## 1.0.5
 
 - Kill detection fallbacks for Forever: CLEU varargs, chat “Você matou/slain”, target-death watch.
