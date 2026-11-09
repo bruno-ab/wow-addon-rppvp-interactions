@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.8
+
+- Stop treating honor kills as killing blows (assists were opening the kill window).
+- Only CLEU PARTY_KILL / recent last-hit UNIT_DIED / “Você matou” chat count; tighten last-hit window to 1.5s.
+
 ## 1.0.7
 
 - Fix killing-blow name showing as `?` on Forever (remember last hostile target/hit; skip whisper to `?`).

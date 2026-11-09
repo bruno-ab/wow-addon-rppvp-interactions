@@ -461,7 +461,8 @@ local function AnnounceKillBlow(victimName, announcer)
     return
   end
   local say = (L.CHAT_KILL_BLOW_SAY or "Killing blow on %s (%s)!"):format(name, cue)
-  if SendChatMessage then
+  -- Avoid SAY in combat (Forever can raise ADDON_ACTION_BLOCKED).
+  if SendChatMessage and not (InCombatLockdown and InCombatLockdown()) then
     local quietBg = s.quietBg and UnitInBattleground and UnitInBattleground("player")
     if not quietBg then
       pcall(SendChatMessage, Truncate(say, 255), "SAY")
@@ -1138,9 +1139,10 @@ local function HandleCombatLog(...)
       return
     end
     -- Forever/world PvP often skips PARTY_KILL; credit a recent killing blow.
-    local blow = ns._lastBlow
-    local now = GetTime and GetTime() or 0
-    if blow and blow.guid == destGUID and (now - (blow.at or 0)) <= 8 then
+  -- Only credit if we hit them in the last 1.5s (closer to a real killing blow than an assist).
+  local blow = ns._lastBlow
+  local now = GetTime and GetTime() or 0
+  if blow and blow.guid == destGUID and (now - (blow.at or 0)) <= 1.5 then
       OnPlayerKill(fillVictim(destGUID, destName or blow.name), destFlags)
       ns._lastBlow = nil
     end
@@ -1386,8 +1388,7 @@ function TryKillFromChat(msg)
     or msg:match("^You have slain (.+)$")
     or msg:match("matou (.+)!")
     or msg:match("slain (.+)!")
-    or msg:match("^(.+) morre,.-[Mm]ortes [Hh]onor")
-    or msg:match("^(.+) dies,.-[Hh]onorable [Kk]ills")
+  -- Do NOT match honor lines ("X morre, Mortes Honoráveis") — those fire on assists too.
   if not name or name == "" then
     return
   end
@@ -1432,9 +1433,10 @@ function WatchTargetDeath()
   if not watchDead or watchDead ~= guid then
     return
   end
+  -- Require a very recent hit from us so assists (honor without KB) do not count.
   local blow = ns._lastBlow
   local now = GetTime and GetTime() or 0
-  if blow and blow.guid == guid and (now - (blow.at or 0)) <= 8 then
+  if blow and blow.guid == guid and (now - (blow.at or 0)) <= 1.5 then
     Debug("target-dead", UnitName("target") or "?")
     watchDead = nil
     local victim = InfoFromGUID(guid) or { name = UnitName("target"), guid = guid }
@@ -1447,7 +1449,7 @@ function WatchTargetDeath()
   end
 end
 
--- Forever: CLEU may be silent; honor HK + target death poll still catches killing blows.
+-- Honor HK fires on assists too — never treat it as a killing blow. Debug only.
 local function ReadSessionHK()
   if GetPVPSessionStats then
     local hk = GetPVPSessionStats()
@@ -1458,44 +1460,7 @@ local function ReadSessionHK()
   return nil
 end
 
-local function VictimFromContext()
-  local blow = ns._lastBlow
-  if UnitExists("target") and UnitIsPlayer("target") then
-    local guid = UnitGUID("target")
-    local victim = InfoFromGUID(guid) or { name = UnitName("target"), guid = guid }
-    local _, class = UnitClass("target")
-    local _, race = UnitRace("target")
-    victim.class = victim.class or class
-    victim.race = victim.race or race
-    if victim.name and victim.name ~= "" then
-      RememberHostile(victim)
-      return victim
-    end
-  end
-  if blow and blow.name and blow.name ~= "" and blow.name ~= "?" then
-    return { name = blow.name, guid = blow.guid }
-  end
-  if lastHostilePlayer and lastHostilePlayer.name then
-    local now = GetTime and GetTime() or 0
-    if (now - (lastHostilePlayer.at or 0)) <= 20 then
-      return {
-        name = lastHostilePlayer.name,
-        guid = lastHostilePlayer.guid,
-        class = lastHostilePlayer.class,
-        race = lastHostilePlayer.race,
-      }
-    end
-  end
-  if blow and blow.guid then
-    local info = InfoFromGUID(blow.guid)
-    if info and info.name then
-      return info
-    end
-  end
-  return { name = "?" }
-end
-
-local function PollHonorKill()
+local function PollHonorDebug()
   local hk = ReadSessionHK()
   if hk == nil then
     return
@@ -1505,12 +1470,8 @@ local function PollHonorKill()
     return
   end
   if hk > sessionHK then
-    local gained = hk - sessionHK
+    Debug("honor-hk (ignored, not KB)", hk - sessionHK, "->", hk)
     sessionHK = hk
-    Debug("honor-hk", gained, "->", hk)
-    for _ = 1, math.min(gained, 3) do
-      OnPlayerKill(VictimFromContext(), nil)
-    end
   end
 end
 
@@ -1523,7 +1484,7 @@ pollFrame:SetScript("OnUpdate", function(_, elapsed)
   end
   pollElapsed = 0
   WatchTargetDeath()
-  PollHonorKill()
+  PollHonorDebug()
 end)
 
 eventFrame = CreateFrame("Frame")
