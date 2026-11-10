@@ -293,8 +293,13 @@ local function playAnnouncer(id)
   end
   local settings = ns.Options and ns.Options.Get and ns.Options.Get()
   -- Light sting for ordinary kills (streak 1–2 after First Blood).
+  -- Forever often fails numeric PlaySound kits; fall back to a real .ogg.
   if id == "Kill" then
-    return playSoftKit(settings)
+    if playSoftKit(settings) then
+      return true
+    end
+    return playFile(ANNOUNCER_FILES.Dominating, settings)
+      or playFile(ANNOUNCER_FILES.DoubleKill, settings)
   end
   local builtin = ANNOUNCER_FILES[id]
   if not builtin then

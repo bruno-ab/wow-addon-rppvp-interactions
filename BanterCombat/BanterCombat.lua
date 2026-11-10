@@ -1139,10 +1139,10 @@ local function HandleCombatLog(...)
       return
     end
     -- Forever/world PvP often skips PARTY_KILL; credit a recent killing blow.
-  -- Only credit if we hit them in the last 1.5s (closer to a real killing blow than an assist).
+  -- Recent hit from us ≈ killing blow (assists without our damage stay out).
   local blow = ns._lastBlow
   local now = GetTime and GetTime() or 0
-  if blow and blow.guid == destGUID and (now - (blow.at or 0)) <= 1.5 then
+  if blow and blow.guid == destGUID and (now - (blow.at or 0)) <= 2.5 then
       OnPlayerKill(fillVictim(destGUID, destName or blow.name), destFlags)
       ns._lastBlow = nil
     end
@@ -1433,10 +1433,9 @@ function WatchTargetDeath()
   if not watchDead or watchDead ~= guid then
     return
   end
-  -- Require a very recent hit from us so assists (honor without KB) do not count.
   local blow = ns._lastBlow
   local now = GetTime and GetTime() or 0
-  if blow and blow.guid == guid and (now - (blow.at or 0)) <= 1.5 then
+  if blow and blow.guid == guid and (now - (blow.at or 0)) <= 2.5 then
     Debug("target-dead", UnitName("target") or "?")
     watchDead = nil
     local victim = InfoFromGUID(guid) or { name = UnitName("target"), guid = guid }
@@ -1449,7 +1448,8 @@ function WatchTargetDeath()
   end
 end
 
--- Honor HK fires on assists too — never treat it as a killing blow. Debug only.
+-- Forever CLEU is unreliable; honor HK + a fresh lastBlow (~KB) is the workable signal.
+-- Honor alone (assist, no recent hit from us) is ignored.
 local function ReadSessionHK()
   if GetPVPSessionStats then
     local hk = GetPVPSessionStats()
@@ -1460,7 +1460,40 @@ local function ReadSessionHK()
   return nil
 end
 
-local function PollHonorDebug()
+local function VictimFromContext()
+  local blow = ns._lastBlow
+  if blow and blow.name and blow.name ~= "" and blow.name ~= "?" then
+    local now = GetTime and GetTime() or 0
+    if (now - (blow.at or 0)) <= 3 then
+      return { name = blow.name, guid = blow.guid }
+    end
+  end
+  if UnitExists("target") and UnitIsPlayer("target") and not UnitIsUnit("target", "player") then
+    local guid = UnitGUID("target")
+    local victim = InfoFromGUID(guid) or { name = UnitName("target"), guid = guid }
+    local _, class = UnitClass("target")
+    local _, race = UnitRace("target")
+    victim.class = victim.class or class
+    victim.race = victim.race or race
+    if victim.name and victim.name ~= "" then
+      return victim
+    end
+  end
+  if lastHostilePlayer and lastHostilePlayer.name then
+    local now = GetTime and GetTime() or 0
+    if (now - (lastHostilePlayer.at or 0)) <= 3 then
+      return {
+        name = lastHostilePlayer.name,
+        guid = lastHostilePlayer.guid,
+        class = lastHostilePlayer.class,
+        race = lastHostilePlayer.race,
+      }
+    end
+  end
+  return { name = "?" }
+end
+
+local function PollHonorKill()
   local hk = ReadSessionHK()
   if hk == nil then
     return
@@ -1469,9 +1502,21 @@ local function PollHonorDebug()
     sessionHK = hk
     return
   end
-  if hk > sessionHK then
-    Debug("honor-hk (ignored, not KB)", hk - sessionHK, "->", hk)
-    sessionHK = hk
+  if hk <= sessionHK then
+    return
+  end
+  local gained = hk - sessionHK
+  sessionHK = hk
+  local blow = ns._lastBlow
+  local now = GetTime and GetTime() or 0
+  -- Must have hit a player in the last 2s — filters pure assists.
+  if not blow or not blow.at or (now - blow.at) > 2.0 then
+    Debug("honor-hk assist ignored", gained, "->", hk)
+    return
+  end
+  Debug("honor-kb", gained, "->", hk, blow.name or "?")
+  for _ = 1, math.min(gained, 2) do
+    OnPlayerKill(VictimFromContext(), nil)
   end
 end
 
@@ -1484,7 +1529,7 @@ pollFrame:SetScript("OnUpdate", function(_, elapsed)
   end
   pollElapsed = 0
   WatchTargetDeath()
-  PollHonorDebug()
+  PollHonorKill()
 end)
 
 eventFrame = CreateFrame("Frame")

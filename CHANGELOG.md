@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.9
+
+- Restore kill sound on Forever: honor HK counts only with a fresh last hit (≤2s), not pure assists.
+- Soft `Kill` cue falls back to Dominating/DoubleKill `.ogg` when PlaySound kits fail.
+
 ## 1.0.8
 
 - Stop treating honor kills as killing blows (assists were opening the kill window).
