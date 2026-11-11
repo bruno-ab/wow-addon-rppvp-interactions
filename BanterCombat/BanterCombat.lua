@@ -54,6 +54,8 @@ local len = string.len
 local COMBATLOG_OBJECT_TYPE_PLAYER = COMBATLOG_OBJECT_TYPE_PLAYER or 0x00000400
 local COMBATLOG_OBJECT_REACTION_FRIENDLY = COMBATLOG_OBJECT_REACTION_FRIENDLY or 0x00000010
 local COMBATLOG_OBJECT_REACTION_HOSTILE = COMBATLOG_OBJECT_REACTION_HOSTILE or 0x00000040
+local COMBATLOG_OBJECT_AFFILIATION_MINE = COMBATLOG_OBJECT_AFFILIATION_MINE or 0x00000001
+local COMBATLOG_OBJECT_CONTROL_PLAYER = COMBATLOG_OBJECT_CONTROL_PLAYER or 0x00000100
 
 local recentEvents = {} -- key -> GetTime()
 local DEDUP_WINDOW = 1.5
@@ -209,7 +211,8 @@ local function ShouldSkipFriendly(destFlags, destGUID)
   return false
 end
 
-local function IsMineSource(guid)
+-- Player, pet, traps, totems, guardians — anything the CLEU marks as ours.
+local function IsMineSource(guid, flags)
   if not guid then
     return false
   end
@@ -220,6 +223,10 @@ local function IsMineSource(guid)
     return true
   end
   if UnitGUID and UnitGUID("pet") == guid then
+    return true
+  end
+  -- Traps, totems, guardians: CLEU marks AFFILIATION_MINE on the source.
+  if flags and band(flags, COMBATLOG_OBJECT_AFFILIATION_MINE) > 0 then
     return true
   end
   return false
@@ -1037,13 +1044,13 @@ local function HandleCombatLog(...)
   -- With debug on, mirror kill-related CLEU so we can see what Forever sends.
   if s.debug then
     local interesting = subevent == "PARTY_KILL" or subevent == "UNIT_DIED"
-      or (IsMineSource(sourceGUID) and type(subevent) == "string" and find(subevent, "_DAMAGE", 1, true)
-        and IsPlayerGuid(destGUID))
+      or (IsMineSource(sourceGUID, sourceFlags) and type(subevent) == "string" and find(subevent, "_DAMAGE", 1, true)
+        and (IsPlayerGuid(destGUID) or IsPlayerFlags(destFlags, destGUID)))
     if interesting then
       Debug("cleu", subevent,
         tostring(sourceName or "?"),
         tostring(destName or "?"),
-        IsPlayerGuid(destGUID) and "Player" or tostring(destGUID and destGUID:sub(1, 8) or "?"))
+        IsMineSource(sourceGUID, sourceFlags) and "mine" or "other")
     end
   end
 
@@ -1052,7 +1059,7 @@ local function HandleCombatLog(...)
     ns.Achievements.OnLog(subevent, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellId, spellName)
   end
 
-  if IsMineSource(sourceGUID) and destGUID then
+  if IsMineSource(sourceGUID, sourceFlags) and destGUID then
     local hitPlayer = IsPlayerFlags(destFlags, destGUID)
     if not hitPlayer and UnitExists("target") and UnitGUID("target") == destGUID and UnitIsPlayer("target") then
       hitPlayer = true
@@ -1078,11 +1085,16 @@ local function HandleCombatLog(...)
         if (not name or name == "") and UnitGUID("target") == destGUID then
           name = UnitName("target")
         end
+        -- If dest flags omit the name but we have last hostile / target, keep credit for trap KB.
+        if (not name or name == "") and lastHostilePlayer then
+          name = lastHostilePlayer.name
+        end
         ns._lastBlow = {
           guid = destGUID,
           name = name,
           spell = (type(spellName) == "string" and spellName ~= "") and spellName or nil,
           at = GetTime and GetTime() or 0,
+          mine = true,
         }
         local _, class, race
         if UnitGUID("target") == destGUID and UnitIsPlayer("target") then
@@ -1090,6 +1102,9 @@ local function HandleCombatLog(...)
           _, race = UnitRace("target")
         end
         RememberHostile({ name = name, guid = destGUID, class = class, race = race })
+        if Options.Get().debug then
+          Debug("lastBlow", name or "?", spellName or subevent, sourceName or "src")
+        end
       end
     end
   end
@@ -1122,7 +1137,7 @@ local function HandleCombatLog(...)
   end
 
   if subevent == "PARTY_KILL" then
-    if IsMineSource(sourceGUID) and IsPlayerFlags(destFlags, destGUID) then
+    if IsMineSource(sourceGUID, sourceFlags) and IsPlayerFlags(destFlags, destGUID) then
       OnPlayerKill(fillVictim(destGUID, destName), destFlags)
     end
     return
@@ -1149,7 +1164,7 @@ local function HandleCombatLog(...)
     return
   end
 
-  if sourceGUID and not IsMineSource(sourceGUID) and destGUID == playerGUID and IsPlayerFlags(sourceFlags, sourceGUID) then
+  if sourceGUID and not IsMineSource(sourceGUID, sourceFlags) and destGUID == playerGUID and IsPlayerFlags(sourceFlags, sourceGUID) then
     if subevent == "SWING_DAMAGE" or subevent == "RANGE_DAMAGE"
       or subevent == "SPELL_DAMAGE" or subevent == "SPELL_PERIODIC_DAMAGE"
       or (type(subevent) == "string" and find(subevent, "_DAMAGE", 1, true)) then
@@ -1509,12 +1524,13 @@ local function PollHonorKill()
   sessionHK = hk
   local blow = ns._lastBlow
   local now = GetTime and GetTime() or 0
-  -- Must have hit a player in the last 2s — filters pure assists.
-  if not blow or not blow.at or (now - blow.at) > 2.0 then
-    Debug("honor-hk assist ignored", gained, "->", hk)
+  -- Fresh mine hit (player/pet/trap). Pure assists without our recent damage stay out.
+  -- Traps can lag a bit after the tick that kills, so allow 3s.
+  if not blow or not blow.at or not blow.mine or (now - blow.at) > 3.0 then
+    Debug("honor-hk assist ignored", gained, "->", hk, blow and blow.spell or "no-blow")
     return
   end
-  Debug("honor-kb", gained, "->", hk, blow.name or "?")
+  Debug("honor-kb", gained, "->", hk, blow.name or "?", blow.spell or "")
   for _ = 1, math.min(gained, 2) do
     OnPlayerKill(VictimFromContext(), nil)
   end

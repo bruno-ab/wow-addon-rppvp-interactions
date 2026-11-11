@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.10
+
+- Count hunter trap / pet / totem damage as yours (CLEU `AFFILIATION_MINE`) so fire-trap killing blows play sound.
+- Honor KB window 3s when lastBlow was ours; debug shows spell name on ignored assists.
+
 ## 1.0.9
 
 - Restore kill sound on Forever: honor HK counts only with a fresh last hit (≤2s), not pure assists.
