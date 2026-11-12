@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.11
+
+- Kill sting prefers Dominating/DoubleKill `.ogg` before soft kits (kits could “succeed” without audio on Forever).
+
 ## 1.0.10
 
 - Count hunter trap / pet / totem damage as yours (CLEU `AFFILIATION_MINE`) so fire-trap killing blows play sound.

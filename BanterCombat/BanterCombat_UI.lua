@@ -217,7 +217,7 @@ local function resolveChannel(settings)
   if type(channel) == "string" and SOUND_CHANNELS[channel] then
     return channel
   end
-  return "Dialog"
+  return "Master"
 end
 
 local function playFile(path, settings)
@@ -271,15 +271,17 @@ local function playSoftKit(settings)
   if volume ~= nil and volume <= 0 then
     return false
   end
-  -- Numeric kits are more reliable than string names on Forever.
+  -- Numeric kits; require a real success return (pcall alone is not enough).
   local kits = { 856, 888, 8959, 8960 }
   for i = 1, #kits do
     local kit = kits[i]
     if PlaySound then
-      if pcall(PlaySound, kit, "Master") then
+      local ok, played = pcall(PlaySound, kit, "Master")
+      if ok and played ~= false then
         return true
       end
-      if pcall(PlaySound, kit) then
+      ok, played = pcall(PlaySound, kit)
+      if ok and played ~= false then
         return true
       end
     end
@@ -293,13 +295,11 @@ local function playAnnouncer(id)
   end
   local settings = ns.Options and ns.Options.Get and ns.Options.Get()
   -- Light sting for ordinary kills (streak 1–2 after First Blood).
-  -- Forever often fails numeric PlaySound kits; fall back to a real .ogg.
+  -- Prefer real .ogg on Forever; soft kits often "succeed" silently.
   if id == "Kill" then
-    if playSoftKit(settings) then
-      return true
-    end
     return playFile(ANNOUNCER_FILES.Dominating, settings)
       or playFile(ANNOUNCER_FILES.DoubleKill, settings)
+      or playSoftKit(settings)
   end
   local builtin = ANNOUNCER_FILES[id]
   if not builtin then
