@@ -20,6 +20,8 @@ local pruneCounter = 0
 local history = {}
 local sessionHK
 local lastHostilePlayer -- { name, guid, class, race, at }
+local knownPlayers = {} -- guid -> { name, class, race, at }
+local BLOW_WINDOW = 8.0 -- Forever: trap/DoT/honor lag past the old 2.5–3s gate
 
 -- Hot-path locals. bit exists on 1.15 and on the Forever 1.60 beta; keep a fallback.
 local band = bit and bit.band
@@ -163,8 +165,26 @@ local function IsPlayerGuid(guid)
   if find(guid, "Player-", 1, true) == 1 then
     return true
   end
-  -- Some Forever builds still use legacy 0x… GUIDs; treat as possible player via flags/target.
+  -- Classic/Forever legacy: 0x… GUID type nibble 0 = player.
+  if find(guid, "0x", 1, true) == 1 and #guid >= 5 then
+    local nibble = tonumber(sub(guid, 5, 5), 16)
+    if nibble and (nibble % 8) == 0 then
+      return true
+    end
+  end
   return false
+end
+
+local function NoteKnownPlayer(guid, name, class, race)
+  if not guid or guid == "" then
+    return
+  end
+  knownPlayers[guid] = {
+    name = name,
+    class = class,
+    race = race,
+    at = GetTime and GetTime() or 0,
+  }
 end
 
 local function IsPlayerFlags(flags, guid)
@@ -172,6 +192,9 @@ local function IsPlayerFlags(flags, guid)
     return true
   end
   if IsPlayerGuid(guid) then
+    return true
+  end
+  if guid and knownPlayers[guid] then
     return true
   end
   if guid and UnitExists and UnitExists("target") and UnitGUID("target") == guid and UnitIsPlayer and UnitIsPlayer("target") then
@@ -247,6 +270,9 @@ local function RememberHostile(info)
     race = info.race,
     at = GetTime and GetTime() or 0,
   }
+  if info.guid then
+    NoteKnownPlayer(info.guid, lastHostilePlayer.name, info.class, info.race)
+  end
 end
 
 local function RememberHostileFromUnit(unit)
@@ -261,12 +287,47 @@ local function RememberHostileFromUnit(unit)
   end
   local _, class = UnitClass(unit)
   local _, race = UnitRace(unit)
+  local guid = UnitGUID(unit)
+  NoteKnownPlayer(guid, UnitName(unit), class, race)
   RememberHostile({
     name = UnitName(unit),
-    guid = UnitGUID(unit),
+    guid = guid,
     class = class,
     race = race,
   })
+end
+
+-- Forever marks many chat payloads as secret strings; never method-call them raw.
+local function SafeChatText(msg)
+  if msg == nil then
+    return nil
+  end
+  if issecretvalue and issecretvalue(msg) then
+    return nil
+  end
+  if type(msg) ~= "string" then
+    return nil
+  end
+  local ok, cleaned = pcall(function()
+    return (msg:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", ""):gsub("|A.-|a", ""))
+  end)
+  if not ok or type(cleaned) ~= "string" then
+    return nil
+  end
+  return cleaned
+end
+
+local function FreshMineBlow(maxAge)
+  maxAge = maxAge or BLOW_WINDOW
+  local blow = ns._lastBlow
+  if not blow or not blow.mine or not blow.at then
+    return nil
+  end
+  local now = GetTime and GetTime() or 0
+  if (now - blow.at) > maxAge then
+    return nil
+  end
+  return blow
 end
 
 local function IsIgnored(name)
@@ -775,11 +836,17 @@ end
 ------------------------------------------------------------
 local function OnPlayerKill(victim, destFlags)
   if not victim then
-    return
+    return false
   end
   -- Forever honor poll often arrives without a name; recover from last hostile hit/target.
   local function nameMissing()
     return not victim.name or victim.name == "" or victim.name == "?"
+  end
+  if nameMissing() and victim.guid and knownPlayers[victim.guid] then
+    local known = knownPlayers[victim.guid]
+    victim.name = known.name or victim.name
+    victim.class = victim.class or known.class
+    victim.race = victim.race or known.race
   end
   if nameMissing() and lastHostilePlayer then
     local now = GetTime and GetTime() or 0
@@ -806,23 +873,23 @@ local function OnPlayerKill(victim, destFlags)
   end
   if nameMissing() then
     Debug("skip kill: unknown name")
-    return
+    return false
   end
   local s = Options.Get()
   if not s.enabled then
-    return
+    return false
   end
   if IsIgnored(victim.name) then
     Debug("skip kill: ignored", victim.name)
-    return
+    return false
   end
   if ShouldSkipFriendly(destFlags, victim.guid) then
     Debug("skip kill: friendly", victim.name)
-    return
+    return false
   end
   local dedupKey = "kill:" .. (victim.guid or victim.name)
   if SeenRecently(dedupKey) then
-    return
+    return true -- already counted; treat as handled so callers can clear blow
   end
   RememberHostile(victim)
 
@@ -920,6 +987,7 @@ local function OnPlayerKill(victim, destFlags)
       }, "player")
     end
   end
+  return true
 end
 
 local function OnPlayerDeath(killer)
@@ -1063,15 +1131,18 @@ local function HandleCombatLog(...)
     local hitPlayer = IsPlayerFlags(destFlags, destGUID)
     if not hitPlayer and UnitExists("target") and UnitGUID("target") == destGUID and UnitIsPlayer("target") then
       hitPlayer = true
+      NoteKnownPlayer(destGUID, UnitName("target"), select(2, UnitClass("target")), select(2, UnitRace("target")))
     end
     -- Forever may omit player flags; still remember named hostile dests we are hitting.
     if not hitPlayer and type(destName) == "string" and destName ~= "" and IsHostileFlags(destFlags) then
       if UnitExists("target") and UnitName("target") == destName and UnitIsPlayer("target") then
         hitPlayer = true
+        NoteKnownPlayer(destGUID, destName, select(2, UnitClass("target")), select(2, UnitRace("target")))
+      elseif knownPlayers[destGUID] then
+        hitPlayer = true
       end
     end
-    if hitPlayer or (type(destName) == "string" and destName ~= "" and IsHostileFlags(destFlags)
-      and UnitExists("target") and UnitIsPlayer("target") and UnitGUID("target") == destGUID) then
+    if hitPlayer then
       if subevent == "SWING_DAMAGE"
         or subevent == "RANGE_DAMAGE"
         or subevent == "SPELL_DAMAGE"
@@ -1085,6 +1156,9 @@ local function HandleCombatLog(...)
         if (not name or name == "") and UnitGUID("target") == destGUID then
           name = UnitName("target")
         end
+        if (not name or name == "") and knownPlayers[destGUID] then
+          name = knownPlayers[destGUID].name
+        end
         -- If dest flags omit the name but we have last hostile / target, keep credit for trap KB.
         if (not name or name == "") and lastHostilePlayer then
           name = lastHostilePlayer.name
@@ -1096,7 +1170,11 @@ local function HandleCombatLog(...)
           at = GetTime and GetTime() or 0,
           mine = true,
         }
-        local _, class, race
+        local class, race
+        if knownPlayers[destGUID] then
+          class = knownPlayers[destGUID].class
+          race = knownPlayers[destGUID].race
+        end
         if UnitGUID("target") == destGUID and UnitIsPlayer("target") then
           _, class = UnitClass("target")
           _, race = UnitRace("target")
@@ -1154,12 +1232,12 @@ local function HandleCombatLog(...)
       return
     end
     -- Forever/world PvP often skips PARTY_KILL; credit a recent killing blow.
-  -- Recent hit from us ≈ killing blow (assists without our damage stay out).
-  local blow = ns._lastBlow
-  local now = GetTime and GetTime() or 0
-  if blow and blow.guid == destGUID and (now - (blow.at or 0)) <= 2.5 then
-      OnPlayerKill(fillVictim(destGUID, destName or blow.name), destFlags)
-      ns._lastBlow = nil
+    -- Recent hit from us ≈ killing blow (assists without our damage stay out).
+    local blow = FreshMineBlow(BLOW_WINDOW)
+    if blow and blow.guid == destGUID then
+      if OnPlayerKill(fillVictim(destGUID, destName or blow.name), destFlags) then
+        ns._lastBlow = nil
+      end
     end
     return
   end
@@ -1368,11 +1446,10 @@ local function OnEvent(_, event, ...)
   elseif event == "COMBAT_LOG_EVENT_UNFILTERED" or event == "COMBAT_LOG_EVENT" then
     HandleCombatLog(...)
   elseif event == "CHAT_MSG_COMBAT_HOSTILE_DEATH" or event == "CHAT_MSG_COMBAT_XP_GAIN"
-    or event == "CHAT_MSG_SYSTEM" or event == "CHAT_MSG_COMBAT_HONOR_GAIN" then
+    or event == "CHAT_MSG_SYSTEM" then
+    -- Never route HONOR_GAIN here: Forever fires it on assists too, and chat text is often a secret string.
     local msg = ...
-    if type(msg) == "string" then
-      TryKillFromChat(msg)
-    end
+    TryKillFromChat(msg, event == "CHAT_MSG_COMBAT_HOSTILE_DEATH")
   elseif event == "PLAYER_TARGET_CHANGED" or event == "UNIT_HEALTH" or event == "UNIT_FLAGS" then
     local unit = event == "PLAYER_TARGET_CHANGED" and "target" or ...
     if unit == "target" then
@@ -1385,31 +1462,47 @@ local function OnEvent(_, event, ...)
 end
 
 -- Chat / target fallbacks when Forever CLEU omits PARTY_KILL.
-local function StripChat(msg)
-  if type(msg) ~= "string" then
-    return ""
+-- allowBlowFallback: only for HOSTILE_DEATH (secret chat cannot be parsed on Forever).
+function TryKillFromChat(msg, allowBlowFallback)
+  local plain = SafeChatText(msg)
+  local name
+  if plain then
+    local ok, parsed = pcall(function()
+      return plain:match("^Você matou (.+)!$")
+        or plain:match("^Você matou (.+)%.$")
+        or plain:match("^Você matou (.+)$")
+        or plain:match("^You have slain (.+)!$")
+        or plain:match("^You have slain (.+)%.$")
+        or plain:match("^You have slain (.+)$")
+        or plain:match("matou (.+)!")
+        or plain:match("slain (.+)!")
+    end)
+    if ok then
+      name = parsed
+    end
   end
-  return (msg:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", ""):gsub("|A.-|a", ""))
-end
-
-function TryKillFromChat(msg)
-  msg = StripChat(msg)
-  local name =
-    msg:match("^Você matou (.+)!$")
-    or msg:match("^Você matou (.+)%.$")
-    or msg:match("^Você matou (.+)$")
-    or msg:match("^You have slain (.+)!$")
-    or msg:match("^You have slain (.+)%.$")
-    or msg:match("^You have slain (.+)$")
-    or msg:match("matou (.+)!")
-    or msg:match("slain (.+)!")
-  -- Do NOT match honor lines ("X morre, Mortes Honoráveis") — those fire on assists too.
-  if not name or name == "" then
+  -- Forever secret-string: cannot parse "Você matou". Credit only a very fresh mine hit
+  -- (≈ last blow); wider windows belong to honor/UNIT_DIED, not every hostile-death line.
+  if (not name or name == "") then
+    if not allowBlowFallback then
+      return
+    end
+    local blow = FreshMineBlow(2.5)
+    if not blow then
+      return
+    end
+    Debug("chat-kill (secret/fallback)", blow.name or "?")
+    if OnPlayerKill({ name = blow.name, guid = blow.guid }, nil) then
+      ns._lastBlow = nil
+    end
     return
   end
-  name = name:match("^%s*(.-)%s*$") or name
+  local okTrim, trimmed = pcall(function()
+    return name:match("^%s*(.-)%s*$") or name
+  end)
+  name = (okTrim and trimmed) or name
   -- Ignore combat log spam that isn't a player name.
-  if find(name, " ", 1, true) and #name > 40 then
+  if type(name) == "string" and find(name, " ", 1, true) and #name > 40 then
     return
   end
   Debug("chat-kill", name)
@@ -1430,7 +1523,9 @@ function TryKillFromChat(msg)
       return v
     end)()
   end
-  OnPlayerKill(victim, nil)
+  if OnPlayerKill(victim, nil) then
+    ns._lastBlow = nil
+  end
 end
 
 local watchDead
@@ -1440,6 +1535,7 @@ function WatchTargetDeath()
     return
   end
   local guid = UnitGUID("target")
+  NoteKnownPlayer(guid, UnitName("target"), select(2, UnitClass("target")), select(2, UnitRace("target")))
   local dead = UnitIsDead("target") or UnitIsGhost("target")
   if not dead then
     watchDead = guid
@@ -1448,9 +1544,8 @@ function WatchTargetDeath()
   if not watchDead or watchDead ~= guid then
     return
   end
-  local blow = ns._lastBlow
-  local now = GetTime and GetTime() or 0
-  if blow and blow.guid == guid and (now - (blow.at or 0)) <= 2.5 then
+  local blow = FreshMineBlow(BLOW_WINDOW)
+  if blow and blow.guid == guid then
     Debug("target-dead", UnitName("target") or "?")
     watchDead = nil
     local victim = InfoFromGUID(guid) or { name = UnitName("target"), guid = guid }
@@ -1458,8 +1553,9 @@ function WatchTargetDeath()
     local _, race = UnitRace("target")
     victim.class = victim.class or class
     victim.race = victim.race or race
-    OnPlayerKill(victim, nil)
-    ns._lastBlow = nil
+    if OnPlayerKill(victim, nil) then
+      ns._lastBlow = nil
+    end
   end
 end
 
@@ -1476,12 +1572,9 @@ local function ReadSessionHK()
 end
 
 local function VictimFromContext()
-  local blow = ns._lastBlow
+  local blow = FreshMineBlow(BLOW_WINDOW)
   if blow and blow.name and blow.name ~= "" and blow.name ~= "?" then
-    local now = GetTime and GetTime() or 0
-    if (now - (blow.at or 0)) <= 3 then
-      return { name = blow.name, guid = blow.guid }
-    end
+    return { name = blow.name, guid = blow.guid }
   end
   if UnitExists("target") and UnitIsPlayer("target") and not UnitIsUnit("target", "player") then
     local guid = UnitGUID("target")
@@ -1496,7 +1589,7 @@ local function VictimFromContext()
   end
   if lastHostilePlayer and lastHostilePlayer.name then
     local now = GetTime and GetTime() or 0
-    if (now - (lastHostilePlayer.at or 0)) <= 3 then
+    if (now - (lastHostilePlayer.at or 0)) <= BLOW_WINDOW then
       return {
         name = lastHostilePlayer.name,
         guid = lastHostilePlayer.guid,
@@ -1522,17 +1615,17 @@ local function PollHonorKill()
   end
   local gained = hk - sessionHK
   sessionHK = hk
-  local blow = ns._lastBlow
-  local now = GetTime and GetTime() or 0
+  local blow = FreshMineBlow(BLOW_WINDOW)
   -- Fresh mine hit (player/pet/trap). Pure assists without our recent damage stay out.
-  -- Traps can lag a bit after the tick that kills, so allow 3s.
-  if not blow or not blow.at or not blow.mine or (now - blow.at) > 3.0 then
-    Debug("honor-hk assist ignored", gained, "->", hk, blow and blow.spell or "no-blow")
+  if not blow then
+    Debug("honor-hk assist ignored", gained, "->", hk, ns._lastBlow and ns._lastBlow.spell or "no-blow")
     return
   end
   Debug("honor-kb", gained, "->", hk, blow.name or "?", blow.spell or "")
   for _ = 1, math.min(gained, 2) do
-    OnPlayerKill(VictimFromContext(), nil)
+    if OnPlayerKill(VictimFromContext(), nil) then
+      ns._lastBlow = nil
+    end
   end
 end
 
@@ -1556,7 +1649,7 @@ eventFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 pcall(eventFrame.RegisterEvent, eventFrame, "COMBAT_LOG_EVENT")
 eventFrame:RegisterEvent("CHAT_MSG_ADDON")
 pcall(eventFrame.RegisterEvent, eventFrame, "CHAT_MSG_COMBAT_HOSTILE_DEATH")
-pcall(eventFrame.RegisterEvent, eventFrame, "CHAT_MSG_COMBAT_HONOR_GAIN")
+-- HONOR_GAIN is polled via GetPVPSessionStats; do not parse its (often secret) chat text.
 pcall(eventFrame.RegisterEvent, eventFrame, "CHAT_MSG_SYSTEM")
 eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
 pcall(eventFrame.RegisterEvent, eventFrame, "UNIT_FLAGS")

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.12
+
+- Forever: chat kill path no longer errors on secret strings (was treating every KB as assist).
+- Honor HK window widened to 8s; `lastBlow` only cleared after a successful kill credit.
+- Cache known player GUIDs (trap/DoT KB without target); stop parsing HONOR_GAIN chat (assists).
+
 ## 1.0.11
 
 - Kill sting prefers Dominating/DoubleKill `.ogg` before soft kits (kits could “succeed” without audio on Forever).
