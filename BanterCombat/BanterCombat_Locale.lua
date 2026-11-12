@@ -1,4 +1,4 @@
-local addonName, ns = ...
+﻿local addonName, ns = ...
 ns = ns or {}
 ns.L = ns.L or {}
 
@@ -28,7 +28,7 @@ local function withNames(pack)
 end
 
 local ptBR = withNames({
-  LOADED = "BanterCombat carregado. /banter help",
+  LOADED = "BanterCombat v%s carregado. /banter help",
   HELP = "comandos: test, common, uncommon, epic, legendary, revenge, milestone, rival, streak, zone, lines, announce, stats, compendium, locale, config, queue, hide, debug, history, ignore, help",
   REVENGE = "VINGANÇA",
   MILESTONE = "CONQUISTA · %d %s",
@@ -168,7 +168,7 @@ local ptBR = withNames({
 })
 
 local enUS = withNames({
-  LOADED = "BanterCombat loaded. /banter help",
+  LOADED = "BanterCombat v%s loaded. /banter help",
   HELP = "commands: test, common, uncommon, epic, legendary, revenge, milestone, rival, streak, zone, lines, announce, stats, compendium, locale, config, queue, hide, debug, history, ignore, help",
   REVENGE = "REVENGE",
   MILESTONE = "ACHIEVEMENT · %d %s",
@@ -307,7 +307,7 @@ local enUS = withNames({
 })
 
 local deDE = withNames({
-  LOADED = "BanterCombat geladen. /banter help",
+  LOADED = "BanterCombat v%s geladen. /banter help",
   HELP = "Befehle: test, common, uncommon, epic, legendary, revenge, milestone, stats, compendium, locale, config, queue, hide, debug, history, ignore, help",
   REVENGE = "RACHE",
   MILESTONE = "ERFOLG · %d %s",
@@ -364,7 +364,7 @@ local deDE = withNames({
 })
 
 local esES = withNames({
-  LOADED = "BanterCombat cargado. /banter help",
+  LOADED = "BanterCombat v%s cargado. /banter help",
   HELP = "comandos: test, common, uncommon, epic, legendary, revenge, milestone, rival, streak, zone, lines, announce, stats, compendium, locale, config, queue, hide, debug, history, ignore, help",
   REVENGE = "VENGANZA",
   MILESTONE = "LOGRO · %d %s",
@@ -421,7 +421,7 @@ local esES = withNames({
 })
 
 local esMX = withNames({
-  LOADED = "BanterCombat cargado. /banter help",
+  LOADED = "BanterCombat v%s cargado. /banter help",
   HELP = enUS.HELP,
   REVENGE = "VENGANZA",
   MILESTONE = "LOGRO · %d %s",
@@ -478,7 +478,7 @@ local esMX = withNames({
 })
 
 local frFR = withNames({
-  LOADED = "BanterCombat chargé. /banter help",
+  LOADED = "BanterCombat v%s chargé. /banter help",
   HELP = "commandes : test, common, uncommon, epic, legendary, revenge, milestone, stats, compendium, locale, config, queue, hide, debug, history, ignore, help",
   REVENGE = "VENGEANCE",
   MILESTONE = "HAUT FAIT · %d %s",
@@ -535,7 +535,7 @@ local frFR = withNames({
 })
 
 local itIT = withNames({
-  LOADED = "BanterCombat caricato. /banter help",
+  LOADED = "BanterCombat v%s caricato. /banter help",
   HELP = "comandi: test, common, uncommon, epic, legendary, revenge, milestone, stats, compendium, locale, config, queue, hide, debug, history, ignore, help",
   REVENGE = "VENDETTA",
   MILESTONE = "IMPRESA · %d %s",
@@ -592,7 +592,7 @@ local itIT = withNames({
 })
 
 local ruRU = withNames({
-  LOADED = "BanterCombat загружен. /banter help",
+  LOADED = "BanterCombat v%s загружен. /banter help",
   HELP = "команды: test, common, uncommon, epic, legendary, revenge, milestone, stats, compendium, locale, config, queue, hide, debug, history, ignore, help",
   REVENGE = "МЕСТЬ",
   MILESTONE = "ДОСТИЖЕНИЕ · %d %s",
@@ -649,7 +649,7 @@ local ruRU = withNames({
 })
 
 local koKR = withNames({
-  LOADED = "BanterCombat 불러옴. /banter help",
+  LOADED = "BanterCombat v%s 불러옴. /banter help",
   HELP = "명령: test, common, uncommon, epic, legendary, revenge, milestone, stats, compendium, locale, config, queue, hide, debug, history, ignore, help",
   REVENGE = "복수",
   MILESTONE = "업적 · %d %s",
@@ -706,7 +706,7 @@ local koKR = withNames({
 })
 
 local zhCN = withNames({
-  LOADED = "BanterCombat 已加载。/banter help",
+  LOADED = "BanterCombat v%s 已加载。/banter help",
   HELP = "命令: test, common, uncommon, epic, legendary, revenge, milestone, stats, compendium, locale, config, queue, hide, debug, history, ignore, help",
   REVENGE = "复仇",
   MILESTONE = "成就 · %d %s",
@@ -763,7 +763,7 @@ local zhCN = withNames({
 })
 
 local zhTW = withNames({
-  LOADED = "BanterCombat 已載入。/banter help",
+  LOADED = "BanterCombat v%s 已載入。/banter help",
   HELP = "指令: test, common, uncommon, epic, legendary, revenge, milestone, stats, compendium, locale, config, queue, hide, debug, history, ignore, help",
   REVENGE = "復仇",
   MILESTONE = "成就 · %d %s",

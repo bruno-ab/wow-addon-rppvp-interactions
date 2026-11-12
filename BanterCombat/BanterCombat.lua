@@ -67,6 +67,30 @@ local ignoredNames = {} -- Ambiguate(name) -> true
 ------------------------------------------------------------
 -- Debug / history
 ------------------------------------------------------------
+local function AddonVersion()
+  local v
+  if C_AddOns and C_AddOns.GetAddOnMetadata then
+    v = C_AddOns.GetAddOnMetadata(addonName, "Version")
+  elseif GetAddOnMetadata then
+    v = GetAddOnMetadata(addonName, "Version")
+  end
+  if type(v) == "string" and v ~= "" then
+    return v
+  end
+  return "?"
+end
+
+local function PrintLoadedVersion()
+  local ver = AddonVersion()
+  local msg = L.LOADED
+  if type(msg) == "string" and msg:find("%%s", 1, true) then
+    msg = msg:format(ver)
+  else
+    msg = "v" .. ver .. " — " .. tostring(msg or "loaded")
+  end
+  print("|cFFFFD100BanterCombat|r " .. msg)
+end
+
 local function Debug(...)
   local s = Options.Get()
   if not s or not s.debug then
@@ -1558,7 +1582,7 @@ local function OnEvent(_, event, ...)
       if UI.ApplySavedPosition then
         UI.ApplySavedPosition()
       end
-      print("|cFFFFD100BanterCombat|r " .. L.LOADED)
+      PrintLoadedVersion()
       if ns.Achievements and ns.Achievements.PrimeFeats then
         ns.Achievements.PrimeFeats()
       end

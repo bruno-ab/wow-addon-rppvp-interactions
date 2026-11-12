@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.14
+
+- Show BanterCombat version in chat on login / reload.
+
 ## 1.0.13
 
 - Forever: stop Lua spam from secret `UnitGUID`/`UnitName` compares (`guid == ""`, target watch, CLEU).
