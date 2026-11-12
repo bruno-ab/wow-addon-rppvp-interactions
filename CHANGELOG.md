@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.13
+
+- Forever: stop Lua spam from secret `UnitGUID`/`UnitName` compares (`guid == ""`, target watch, CLEU).
+- All GUID/name ops go through secret-safe helpers (`SafeEqual`, `NameUsable`, `SafeString`).
+
 ## 1.0.12
 
 - Forever: chat kill path no longer errors on secret strings (was treating every KB as assist).

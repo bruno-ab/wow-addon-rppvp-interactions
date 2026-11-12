@@ -1,10 +1,10 @@
-## Interface: 11507, 16001
+﻿## Interface: 11507, 16001
 ## Title: BanterCombat
 ## Notes: PvP banter, Dota-style kill announcer, rivals, chronicle and feats (Classic Era / WoW Forever).
 ## Notes-enUS: PvP banter, Dota-style kill announcer, rivals, chronicle and feats (Classic Era / WoW Forever).
 ## Notes-ptBR: Provocações PvP, anunciador estilo Dota, rivais, crônica e feitos (Classic Era / WoW Forever).
 ## Author: Bruno Alves
-## Version: 1.0.12
+## Version: 1.0.13
 ## SavedVariablesPerCharacter: BanterCombatDB
 ## OptionalDeps: DialogueUI
 ## DefaultState: enabled
