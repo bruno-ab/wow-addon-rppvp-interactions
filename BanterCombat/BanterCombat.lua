@@ -21,7 +21,9 @@ local history = {}
 local sessionHK
 local lastHostilePlayer -- { name, guid, class, race, at }
 local knownPlayers = {} -- guid -> { name, class, race, at }
+local lastEngageAt = 0 -- any recent mine hit on a hostile (even if name/GUID secret)
 local BLOW_WINDOW = 8.0 -- Forever: trap/DoT/honor lag past the old 2.5–3s gate
+local ENGAGE_WINDOW = 12.0
 
 -- Hot-path locals. bit exists on 1.15 and on the Forever 1.60 beta; keep a fallback.
 local band = bit and bit.band
@@ -1218,6 +1220,34 @@ end
 
 local cleuSeen = 0
 
+local function IsDamageSubevent(subevent)
+  if type(subevent) ~= "string" then
+    return false
+  end
+  if find(subevent, "_MISSED", 1, true) then
+    return false
+  end
+  return subevent == "SWING_DAMAGE"
+    or subevent == "RANGE_DAMAGE"
+    or subevent == "SPELL_DAMAGE"
+    or subevent == "SPELL_PERIODIC_DAMAGE"
+    or find(subevent, "_DAMAGE", 1, true) ~= nil
+end
+
+local function MarkEngage(extra)
+  local now = GetTime and GetTime() or 0
+  lastEngageAt = now
+  local blow = ns._lastBlow or {}
+  blow.at = now
+  blow.mine = true
+  if extra then
+    for k, v in pairs(extra) do
+      blow[k] = v
+    end
+  end
+  ns._lastBlow = blow
+end
+
 local function HandleCombatLog(...)
   local s = Options.Get()
   if not s.enabled then
@@ -1231,12 +1261,20 @@ local function HandleCombatLog(...)
     sourceGUID, sourceName, sourceFlags, _,
     destGUID, destName, destFlags = ReadCombatLogArgs(...)
 
-  if type(subevent) ~= "string" then
+  -- Forever may mark CLEU subevent as secret; still continue with flags/honor paths.
+  local subPlain = SafeString(subevent)
+  if not subPlain then
+    if type(subevent) == "string" and not IsSecret(subevent) then
+      subPlain = subevent
+    end
+  end
+  if not subPlain then
     if s.debug then
       Debug("cleu empty (no subevent)")
     end
     return
   end
+  subevent = subPlain
 
   cleuSeen = cleuSeen + 1
   if s.debug and cleuSeen == 1 then
@@ -1247,31 +1285,21 @@ local function HandleCombatLog(...)
     playerGUID = UnitGUID("player")
   end
 
-  -- With debug on, mirror kill-related CLEU so we can see what Forever sends.
-  if s.debug then
-    local interesting = subevent == "PARTY_KILL" or subevent == "UNIT_DIED"
-      or (IsMineSource(sourceGUID, sourceFlags) and type(subevent) == "string" and find(subevent, "_DAMAGE", 1, true)
-        and (IsPlayerGuid(destGUID) or IsPlayerFlags(destFlags, destGUID)))
-    if interesting then
-      Debug("cleu", subevent,
-        tostring(sourceName or "?"),
-        tostring(destName or "?"),
-        IsMineSource(sourceGUID, sourceFlags) and "mine" or "other")
+  -- Record lastBlow BEFORE debug/achievements. Debug used to tostring() secret
+  -- CLEU names and abort this whole handler via the outer pcall — every KB became "assist".
+  local mineHit = IsMineSource(sourceGUID, sourceFlags)
+  -- Forever may strip AFFILIATION_MINE and secret-compare fails; still count while we fight our target.
+  if not mineHit and IsDamageSubevent(subevent) and TargetingHostilePlayer() then
+    if not ValueUsable(sourceGUID) or SafeEqual(sourceGUID, playerGUID) or SafeEqual(sourceGUID, UnitGUID and UnitGUID("pet")) then
+      mineHit = true
     end
   end
-
-  if ns.Achievements and ns.Achievements.OnLog then
-    local spellId, spellName = select(12, CombatLogGetCurrentEventInfo())
-    ns.Achievements.OnLog(subevent, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellId, spellName)
-  end
-
-  if IsMineSource(sourceGUID, sourceFlags) and destGUID then
+  if mineHit and destGUID and IsDamageSubevent(subevent) then
     local hitPlayer = IsPlayerFlags(destFlags, destGUID)
     if not hitPlayer and TargetingHostilePlayer() and SafeEqual(UnitGUID("target"), destGUID) then
       hitPlayer = true
       NoteKnownPlayer(destGUID, UnitName("target"), select(2, UnitClass("target")), select(2, UnitRace("target")))
     end
-    -- Forever may omit player flags; still remember named hostile dests we are hitting.
     local destPlain = NameUsable(destName)
     if not hitPlayer and destPlain and IsHostileFlags(destFlags) then
       if TargetingHostilePlayer() and SafeEqual(UnitName("target"), destPlain) then
@@ -1281,59 +1309,70 @@ local function HandleCombatLog(...)
         hitPlayer = true
       end
     end
-    -- Secret GUIDs break SafeEqual: if we are hitting a hostile player target, count mine damage.
     if not hitPlayer and not ValueUsable(destGUID) and TargetingHostilePlayer() and IsHostileFlags(destFlags) then
       hitPlayer = true
     end
+    -- Last resort Forever: mine damage while targeting a hostile player counts as engage.
+    if not hitPlayer and TargetingHostilePlayer() then
+      hitPlayer = true
+    end
     if hitPlayer then
-      if subevent == "SWING_DAMAGE"
-        or subevent == "RANGE_DAMAGE"
-        or subevent == "SPELL_DAMAGE"
-        or subevent == "SPELL_PERIODIC_DAMAGE"
-        or (type(subevent) == "string" and find(subevent, "_DAMAGE", 1, true) and not find(subevent, "_MISSED", 1, true)) then
-        local spellName = select(13, CombatLogGetCurrentEventInfo())
-        if type(spellName) ~= "string" or IsSecret(spellName) then
-          spellName = select(12, ...) -- varargs CLEU fallback
-        end
-        spellName = SafeString(spellName)
-        local name = destPlain
-        if not name and SafeEqual(UnitGUID("target"), destGUID) then
-          name = NameUsable(UnitName("target"))
-        end
-        if not name and not ValueUsable(destGUID) and TargetingHostilePlayer() then
-          name = NameUsable(UnitName("target"))
-        end
-        local known = KnownByGuid(destGUID)
-        if not name and known then
-          name = NameUsable(known.name)
-        end
-        -- If dest flags omit the name but we have last hostile / target, keep credit for trap KB.
-        if not name and lastHostilePlayer then
-          name = lastHostilePlayer.name
-        end
-        ns._lastBlow = {
-          guid = SafeString(destGUID) or destGUID,
-          name = name,
-          spell = (spellName and spellName ~= "") and spellName or nil,
-          at = GetTime and GetTime() or 0,
-          mine = true,
-          secret = not ValueUsable(destGUID),
-        }
-        local class, race
-        if known then
-          class = known.class
-          race = known.race
-        end
-        if TargetingHostilePlayer() and (SafeEqual(UnitGUID("target"), destGUID) or not ValueUsable(destGUID)) then
-          _, class = UnitClass("target")
-          _, race = UnitRace("target")
-        end
-        RememberHostile({ name = name, guid = SafeString(destGUID), class = class, race = race })
-        if Options.Get().debug then
-          Debug("lastBlow", name or "?", spellName or subevent, SafeString(sourceName) or "src")
-        end
+      local spellName = select(13, CombatLogGetCurrentEventInfo())
+      spellName = SafeString(spellName)
+      if not spellName then
+        spellName = SafeString(select(12, ...))
+      end
+      local name = destPlain
+      if not name and SafeEqual(UnitGUID("target"), destGUID) then
+        name = NameUsable(UnitName("target"))
+      end
+      if not name and TargetingHostilePlayer() then
+        name = NameUsable(UnitName("target"))
+      end
+      local known = KnownByGuid(destGUID)
+      if not name and known then
+        name = NameUsable(known.name)
+      end
+      if not name and lastHostilePlayer then
+        name = lastHostilePlayer.name
+      end
+      local class, race
+      if known then
+        class = known.class
+        race = known.race
+      end
+      if TargetingHostilePlayer() and (SafeEqual(UnitGUID("target"), destGUID) or not ValueUsable(destGUID)) then
+        _, class = UnitClass("target")
+        _, race = UnitRace("target")
+      end
+      MarkEngage({
+        guid = SafeString(destGUID) or destGUID,
+        name = name,
+        spell = (spellName and spellName ~= "") and spellName or nil,
+        secret = not ValueUsable(destGUID),
+      })
+      RememberHostile({ name = name, guid = SafeString(destGUID), class = class, race = race })
+      if s.debug then
+        Debug("lastBlow", NameUsable(name) or "?", spellName or subevent, SafeString(sourceName) or "src")
       end
     end
+  end
+
+  if s.debug then
+    local interesting = subevent == "PARTY_KILL" or subevent == "UNIT_DIED"
+      or (IsMineSource(sourceGUID, sourceFlags) and IsDamageSubevent(subevent)
+        and (IsPlayerGuid(destGUID) or IsPlayerFlags(destFlags, destGUID) or TargetingHostilePlayer()))
+    if interesting then
+      Debug("cleu", subevent,
+        SafeString(sourceName) or "?",
+        SafeString(destName) or "?",
+        IsMineSource(sourceGUID, sourceFlags) and "mine" or "other")
+    end
+  end
+
+  if ns.Achievements and ns.Achievements.OnLog then
+    local spellId, spellName = select(12, CombatLogGetCurrentEventInfo())
+    pcall(ns.Achievements.OnLog, subevent, sourceGUID, sourceName, sourceFlags, destGUID, destName, destFlags, spellId, SafeString(spellName))
   end
 
   local function fillVictim(guid, name)
@@ -1824,6 +1863,26 @@ local function VictimFromContext()
   return { name = "?" }
 end
 
+local function RecentlyEngaged()
+  local now = GetTime and GetTime() or 0
+  if FreshMineBlow(BLOW_WINDOW) then
+    return true
+  end
+  if lastEngageAt > 0 and (now - lastEngageAt) <= ENGAGE_WINDOW then
+    return true
+  end
+  if lastHostilePlayer and lastHostilePlayer.at and (now - lastHostilePlayer.at) <= ENGAGE_WINDOW then
+    return true
+  end
+  if TargetingHostilePlayer() then
+    local dead = UnitIsDead and (UnitIsDead("target") or (UnitIsGhost and UnitIsGhost("target")))
+    if dead then
+      return true
+    end
+  end
+  return false
+end
+
 local function PollHonorKill()
   local hk = ReadSessionHK()
   if hk == nil then
@@ -1838,13 +1897,14 @@ local function PollHonorKill()
   end
   local gained = hk - sessionHK
   sessionHK = hk
-  local blow = FreshMineBlow(BLOW_WINDOW)
-  -- Fresh mine hit (player/pet/trap). Pure assists without our recent damage stay out.
-  if not blow then
-    Debug("honor-hk assist ignored", gained, "->", hk, ns._lastBlow and ns._lastBlow.spell or "no-blow")
+  -- Forever CLEU/names are often secret; honor + recent engage is the reliable KB signal.
+  -- Pure AFK assists (no recent mine hit / hostile target) still stay out.
+  if not RecentlyEngaged() then
+    Debug("honor-hk assist ignored", gained, "->", hk, "no-engage")
     return
   end
-  Debug("honor-kb", gained, "->", hk, blow.name or "?", blow.spell or "")
+  local blow = FreshMineBlow(BLOW_WINDOW)
+  Debug("honor-kb", gained, "->", hk, (blow and NameUsable(blow.name)) or "?", (blow and blow.spell) or "engage")
   for _ = 1, math.min(gained, 2) do
     if OnPlayerKill(VictimFromContext(), nil) then
       ns._lastBlow = nil

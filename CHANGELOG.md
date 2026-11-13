@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.16
+
+- Fix: with debug on, `tostring` of secret CLEU names aborted the combat handler before `lastBlow` — every real KB looked like an assist.
+- Honor HK credits again when you recently engaged (mine hit / hostile target); CLEU lastBlow recorded before debug/achievements.
+
 ## 1.0.15
 
 - Options: button to test announcer (sound + pop-up).
