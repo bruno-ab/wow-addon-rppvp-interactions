@@ -181,7 +181,7 @@ function Options.TogglePanel()
   end
   if not panel then
     panel = CreateFrame("Frame", "BanterCombatOptions", UIParent)
-    panel:SetSize(380, 620)
+    panel:SetSize(380, 650)
     panel:SetPoint("CENTER")
     panel:SetFrameStrata("DIALOG")
     panel:EnableMouse(true)
@@ -262,6 +262,17 @@ function Options.TogglePanel()
       self:SetText(L.OPT_SOUND_CHANNEL:format(channel))
     end)
     panel._channelBtn = channelBtn
+
+    local testBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    testBtn:SetSize(340, 22)
+    testBtn:SetPoint("TOPLEFT", 20, -496)
+    testBtn:SetText(L.OPT_TEST or "Testar anunciador")
+    testBtn:SetScript("OnClick", function()
+      if ns.PreviewAnnouncer then
+        ns.PreviewAnnouncer()
+      end
+    end)
+    panel._testBtn = testBtn
 
     local linesBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     linesBtn:SetSize(200, 22)

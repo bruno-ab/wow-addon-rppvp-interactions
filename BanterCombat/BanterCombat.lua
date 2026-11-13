@@ -279,24 +279,6 @@ local function KnownByGuid(guid)
   return knownPlayers[g]
 end
 
-local function IsPlayerFlags(flags, guid)
-  if flags and band(flags, COMBATLOG_OBJECT_TYPE_PLAYER) > 0 then
-    return true
-  end
-  if IsPlayerGuid(guid) then
-    return true
-  end
-  if KnownByGuid(guid) then
-    return true
-  end
-  if guid and UnitExists and UnitExists("target") and UnitIsPlayer and UnitIsPlayer("target") then
-    if SafeEqual(UnitGUID("target"), guid) then
-      return true
-    end
-  end
-  return false
-end
-
 local function IsHostileFlags(flags)
   if not flags then
     return true
@@ -308,6 +290,42 @@ local function IsHostileFlags(flags)
     return false
   end
   return true
+end
+
+local function TargetingHostilePlayer()
+  if not UnitExists or not UnitExists("target") then
+    return false
+  end
+  if not UnitIsPlayer or not UnitIsPlayer("target") then
+    return false
+  end
+  if UnitIsUnit and UnitIsUnit("target", "player") then
+    return false
+  end
+  if UnitCanAttack and not UnitCanAttack("player", "target") then
+    return false
+  end
+  return true
+end
+
+local function IsPlayerFlags(flags, guid)
+  if flags and band(flags, COMBATLOG_OBJECT_TYPE_PLAYER) > 0 then
+    return true
+  end
+  -- Forever often omits TYPE_PLAYER but keeps CONTROL_PLAYER on enemy players.
+  if flags and band(flags, COMBATLOG_OBJECT_CONTROL_PLAYER) > 0 and IsHostileFlags(flags) then
+    return true
+  end
+  if IsPlayerGuid(guid) then
+    return true
+  end
+  if KnownByGuid(guid) then
+    return true
+  end
+  if guid and TargetingHostilePlayer() and SafeEqual(UnitGUID("target"), guid) then
+    return true
+  end
+  return false
 end
 
 -- Only skip when we are sure the victim is friendly (duel / same faction).
@@ -989,9 +1007,10 @@ local function OnPlayerKill(victim, destFlags)
   end
   victim.name = NameUsable(victim.name)
   victim.guid = SafeString(victim.guid) or victim.guid
+  -- Forever may keep UnitName/CLEU names secret; still credit the KB with a fallback label.
   if nameMissing() then
-    Debug("skip kill: unknown name")
-    return false
+    victim.name = (L and L.ENEMY_FALLBACK) or "Inimigo"
+    Debug("kill name fallback")
   end
   local s = Options.Get()
   if not s.enabled then
@@ -1248,19 +1267,23 @@ local function HandleCombatLog(...)
 
   if IsMineSource(sourceGUID, sourceFlags) and destGUID then
     local hitPlayer = IsPlayerFlags(destFlags, destGUID)
-    if not hitPlayer and UnitExists("target") and UnitIsPlayer("target") and SafeEqual(UnitGUID("target"), destGUID) then
+    if not hitPlayer and TargetingHostilePlayer() and SafeEqual(UnitGUID("target"), destGUID) then
       hitPlayer = true
       NoteKnownPlayer(destGUID, UnitName("target"), select(2, UnitClass("target")), select(2, UnitRace("target")))
     end
     -- Forever may omit player flags; still remember named hostile dests we are hitting.
     local destPlain = NameUsable(destName)
     if not hitPlayer and destPlain and IsHostileFlags(destFlags) then
-      if UnitExists("target") and UnitIsPlayer("target") and SafeEqual(UnitName("target"), destPlain) then
+      if TargetingHostilePlayer() and SafeEqual(UnitName("target"), destPlain) then
         hitPlayer = true
         NoteKnownPlayer(destGUID, destPlain, select(2, UnitClass("target")), select(2, UnitRace("target")))
       elseif KnownByGuid(destGUID) then
         hitPlayer = true
       end
+    end
+    -- Secret GUIDs break SafeEqual: if we are hitting a hostile player target, count mine damage.
+    if not hitPlayer and not ValueUsable(destGUID) and TargetingHostilePlayer() and IsHostileFlags(destFlags) then
+      hitPlayer = true
     end
     if hitPlayer then
       if subevent == "SWING_DAMAGE"
@@ -1277,6 +1300,9 @@ local function HandleCombatLog(...)
         if not name and SafeEqual(UnitGUID("target"), destGUID) then
           name = NameUsable(UnitName("target"))
         end
+        if not name and not ValueUsable(destGUID) and TargetingHostilePlayer() then
+          name = NameUsable(UnitName("target"))
+        end
         local known = KnownByGuid(destGUID)
         if not name and known then
           name = NameUsable(known.name)
@@ -1291,17 +1317,18 @@ local function HandleCombatLog(...)
           spell = (spellName and spellName ~= "") and spellName or nil,
           at = GetTime and GetTime() or 0,
           mine = true,
+          secret = not ValueUsable(destGUID),
         }
         local class, race
         if known then
           class = known.class
           race = known.race
         end
-        if UnitIsPlayer("target") and SafeEqual(UnitGUID("target"), destGUID) then
+        if TargetingHostilePlayer() and (SafeEqual(UnitGUID("target"), destGUID) or not ValueUsable(destGUID)) then
           _, class = UnitClass("target")
           _, race = UnitRace("target")
         end
-        RememberHostile({ name = name, guid = destGUID, class = class, race = race })
+        RememberHostile({ name = name, guid = SafeString(destGUID), class = class, race = race })
         if Options.Get().debug then
           Debug("lastBlow", name or "?", spellName or subevent, SafeString(sourceName) or "src")
         end
@@ -1356,17 +1383,26 @@ local function HandleCombatLog(...)
     -- Forever/world PvP often skips PARTY_KILL; credit a recent killing blow.
     -- Recent hit from us ≈ killing blow (assists without our damage stay out).
     local blow = FreshMineBlow(BLOW_WINDOW)
-    if blow and SafeEqual(blow.guid, destGUID) then
+    if not blow then
+      return
+    end
+    local matched = SafeEqual(blow.guid, destGUID)
+    if not matched then
+      local dname = NameUsable(destName)
+      if dname and blow.name and SafeEqual(blow.name, dname) then
+        matched = true
+      end
+    end
+    -- Secret GUIDs cannot be compared; a fresh mine hit + UNIT_DIED is the KB signal.
+    if not matched and (blow.secret or not ValueUsable(blow.guid) or not ValueUsable(destGUID)) then
+      local now = GetTime and GetTime() or 0
+      if (now - (blow.at or 0)) <= 3.0 then
+        matched = IsPlayerFlags(destFlags, destGUID) or blow.secret or not ValueUsable(destGUID)
+      end
+    end
+    if matched then
       if OnPlayerKill(fillVictim(destGUID, destName or blow.name), destFlags) then
         ns._lastBlow = nil
-      end
-    elseif blow and not SafeString(blow.guid) and not SafeString(destGUID) then
-      -- Both GUIDs secret: match by usable name if possible.
-      local dname = NameUsable(destName) or NameUsable(blow.name)
-      if dname and blow.name and SafeEqual(blow.name, dname) then
-        if OnPlayerKill(fillVictim(destGUID, dname), destFlags) then
-          ns._lastBlow = nil
-        end
       end
     end
     return
@@ -1504,13 +1540,25 @@ local function AppendRivalScore(tip)
     return
   end
   local okUnit, _, unit = pcall(tip.GetUnit, tip)
-  if not okUnit or not unit or not UnitIsPlayer or not UnitIsPlayer(unit) then
+  if not okUnit or not unit or IsSecret(unit) then
     return
   end
-  if UnitIsUnit and UnitIsUnit(unit, "player") then
+  local okPlayer, isPlayer = pcall(function()
+    return UnitIsPlayer and UnitIsPlayer(unit)
+  end)
+  if not okPlayer or not isPlayer then
     return
   end
-  local name = UnitName(unit)
+  local okSelf, isSelf = pcall(function()
+    return UnitIsUnit and UnitIsUnit(unit, "player")
+  end)
+  if okSelf and isSelf then
+    return
+  end
+  local name = NameUsable(UnitName(unit))
+  if not name then
+    return
+  end
   local rival = Stats.RivalByName and Stats.RivalByName(name)
   if not rival then
     return

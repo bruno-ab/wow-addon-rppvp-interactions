@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.15
+
+- Options: button to test announcer (sound + pop-up).
+- Forever secret GUIDs: restore KB credit (CONTROL_PLAYER, target fallback, name fallback “Inimigo”, UNIT_DIED without GUID compare).
+- Tooltip rival score no longer errors on secret unit tokens.
+
 ## 1.0.14
 
 - Show BanterCombat version in chat on login / reload.
