@@ -736,6 +736,7 @@ function Compendium.Init()
   icon:SetPoint("CENTER", 0, 1)
   icon:SetTexture("Interface\\Icons\\INV_Misc_Book_09")
   icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+  button.Icon = icon
 
   local border = button:CreateTexture(nil, "OVERLAY")
   border:SetSize(53, 53)

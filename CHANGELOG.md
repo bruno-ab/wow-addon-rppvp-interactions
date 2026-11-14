@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.17
+
+- Visual upgrade: punch/flash by announcer cue, streak number, rarity bar, kind band, combo label, slide-out fade.
+- Themes: Pergaminho / Dark PvP / Minimal; popup scale; toggles for streak + visual FX.
+- Minimap icon tints with streak; kill popup prefers target portrait + faction ring.
+
 ## 1.0.16
 
 - Fix: with debug on, `tostring` of secret CLEU names aborted the combat handler before `lastBlow` — every real KB looked like an assist.

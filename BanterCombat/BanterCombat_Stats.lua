@@ -260,6 +260,24 @@ local function ensureDB()
     volume = 100
   end
   db.settings.announcerVolume = volume
+  local theme = scrubPlain(db.settings.uiTheme, 16)
+  if theme ~= "dark" and theme ~= "minimal" then
+    theme = "parchment"
+  end
+  db.settings.uiTheme = theme
+  local scale = tonumber(db.settings.popupScale) or 1
+  if scale < 0.7 then
+    scale = 0.7
+  elseif scale > 1.4 then
+    scale = 1.4
+  end
+  db.settings.popupScale = scale
+  if db.settings.showStreak == nil then
+    db.settings.showStreak = true
+  end
+  if db.settings.visualFx == nil then
+    db.settings.visualFx = true
+  end
   db.rivals = scrubRivals(db.rivals)
   db.feats = scrubFeats(db.feats)
   db.chronicle = scrubChronicle(db.chronicle)
@@ -546,6 +564,9 @@ function Stats.BreakStreak()
   db.streak = 0
   db.titleStreak = nil
   Stats.ResetAnnouncer()
+  if ns.UI and ns.UI.RefreshMinimapStreak then
+    ns.UI.RefreshMinimapStreak(0)
+  end
   if prev >= 3 then
     return prev
   end

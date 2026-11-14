@@ -81,6 +81,60 @@ local function stopHide()
   end
 end
 
+local ANNOUNCER_FLASH = {
+  FirstBlood = { 1.00, 0.18, 0.12 },
+  DoubleKill = { 1.00, 0.55, 0.12 },
+  TripleKill = { 1.00, 0.72, 0.15 },
+  UltraKill = { 1.00, 0.35, 0.85 },
+  Rampage = { 0.95, 0.15, 0.55 },
+  KillingSpree = { 0.25, 0.85, 1.00 },
+  Dominating = { 0.85, 0.20, 1.00 },
+  MegaKill = { 1.00, 0.82, 0.15 },
+  Unstoppable = { 0.40, 1.00, 0.55 },
+  WickedSick = { 0.55, 1.00, 0.20 },
+  MonsterKill = { 1.00, 0.25, 0.35 },
+  Godlike = { 0.75, 0.35, 1.00 },
+  HolyShit = { 1.00, 0.95, 0.35 },
+  Ownage = { 1.00, 0.75, 0.10 },
+  Kill = { 0.75, 0.75, 0.80 },
+}
+
+local RARITY_BAR_WIDTH = {
+  common = 0.28,
+  rare = 0.48,
+  epic = 0.72,
+  legendary = 1.0,
+  revenge = 0.85,
+  milestone = 0.85,
+  death = 0.40,
+}
+
+local KIND_BAND = {
+  kill = { 0.75, 0.18, 0.14 },
+  death = { 0.35, 0.10, 0.12 },
+  revenge = { 1.00, 0.75, 0.12 },
+  rival = { 0.85, 0.35, 0.15 },
+  milestone = { 0.95, 0.80, 0.25 },
+  streak = { 0.55, 0.25, 0.95 },
+}
+
+local function settings()
+  return ns.Options and ns.Options.Get and ns.Options.Get() or {}
+end
+
+local function visualFxOn()
+  local s = settings()
+  return s.visualFx ~= false
+end
+
+local function themeName()
+  local t = settings().uiTheme
+  if t == "dark" or t == "minimal" or t == "parchment" then
+    return t
+  end
+  return "parchment"
+end
+
 local function ensureEnterAnim(frame)
   if enterGroup then
     return enterGroup
@@ -88,22 +142,273 @@ local function ensureEnterAnim(frame)
   enterGroup = frame:CreateAnimationGroup()
   local scale = enterGroup:CreateAnimation("Scale")
   if scale.SetScaleFrom then
-    scale:SetScaleFrom(0.92, 0.92)
+    scale:SetScaleFrom(0.88, 0.88)
     scale:SetScaleTo(1.0, 1.0)
   elseif scale.SetFromScale then
-    scale:SetFromScale(0.92, 0.92)
+    scale:SetFromScale(0.88, 0.88)
     scale:SetToScale(1.0, 1.0)
   else
-    -- Classic-style relative scale change toward 1
     scale:SetOrigin("CENTER", 0, 0)
     if scale.SetScale then
-      scale:SetScale(1.08, 1.08)
+      scale:SetScale(1.12, 1.12)
     end
   end
-  scale:SetDuration(0.22)
+  scale:SetDuration(0.18)
   scale:SetSmoothing("OUT")
   scale:SetOrder(1)
+
+  local punch = enterGroup:CreateAnimation("Scale")
+  if punch.SetScaleFrom then
+    punch:SetScaleFrom(1.0, 1.0)
+    punch:SetScaleTo(1.06, 1.06)
+  elseif punch.SetFromScale then
+    punch:SetFromScale(1.0, 1.0)
+    punch:SetToScale(1.06, 1.06)
+  elseif punch.SetScale then
+    punch:SetOrigin("CENTER", 0, 0)
+    punch:SetScale(1.06, 1.06)
+  end
+  punch:SetDuration(0.08)
+  punch:SetOrder(2)
+  punch:SetSmoothing("OUT")
+
+  local settle = enterGroup:CreateAnimation("Scale")
+  if settle.SetScaleFrom then
+    settle:SetScaleFrom(1.06, 1.06)
+    settle:SetScaleTo(1.0, 1.0)
+  elseif settle.SetFromScale then
+    settle:SetFromScale(1.06, 1.06)
+    settle:SetToScale(1.0, 1.0)
+  elseif settle.SetScale then
+    settle:SetOrigin("CENTER", 0, 0)
+    settle:SetScale(0.943, 0.943)
+  end
+  settle:SetDuration(0.12)
+  settle:SetOrder(3)
+  settle:SetSmoothing("IN")
   return enterGroup
+end
+
+local flashGroup
+local function playFlash(frame, announcer, kind)
+  if not visualFxOn() or not frame or not frame.Flash then
+    return
+  end
+  local rgb = ANNOUNCER_FLASH[announcer] or KIND_BAND[kind] or { 1, 1, 1 }
+  frame.Flash:SetVertexColor(rgb[1], rgb[2], rgb[3], 1)
+  frame.Flash:SetAlpha(0.55)
+  frame.Flash:Show()
+  if flashGroup then
+    flashGroup:Stop()
+  end
+  flashGroup = frame.Flash:CreateAnimationGroup()
+  local a = flashGroup:CreateAnimation("Alpha")
+  if a.SetFromAlpha then
+    a:SetFromAlpha(0.55)
+    a:SetToAlpha(0)
+  else
+    a:SetChange(-0.55)
+  end
+  a:SetDuration(0.35)
+  a:SetSmoothing("OUT")
+  flashGroup:SetScript("OnFinished", function()
+    if frame.Flash then
+      frame.Flash:Hide()
+      frame.Flash:SetAlpha(0)
+    end
+  end)
+  flashGroup:Play()
+end
+
+local function applyPopupScale(frame)
+  local scale = tonumber(settings().popupScale) or 1
+  if scale < 0.7 then
+    scale = 0.7
+  elseif scale > 1.4 then
+    scale = 1.4
+  end
+  if frame.SetScale then
+    frame:SetScale(scale)
+  end
+end
+
+local function applyThemeChrome(frame)
+  local theme = themeName()
+  frame._uiTheme = theme
+  if theme == "minimal" then
+    if frame.PaperTop then frame.PaperTop:Hide() end
+    if frame.PaperMid then frame.PaperMid:Hide() end
+    if frame.PaperBot then frame.PaperBot:Hide() end
+    if frame.SetBackdrop then
+      frame:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8X8",
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        tile = false, edgeSize = 1,
+        insets = { left = 1, right = 1, top = 1, bottom = 1 },
+      })
+      frame:SetBackdropColor(0.05, 0.05, 0.07, 0.82)
+      frame:SetBackdropBorderColor(0.55, 0.55, 0.60, 0.55)
+    end
+    frame._dialogueSkin = false
+    return
+  end
+  if theme == "dark" then
+    if frame.PaperTop then frame.PaperTop:Hide() end
+    if frame.PaperMid then frame.PaperMid:Hide() end
+    if frame.PaperBot then frame.PaperBot:Hide() end
+    if frame.SetBackdrop then
+      frame:SetBackdrop({
+        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 14,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 },
+      })
+      frame:SetBackdropColor(0.04, 0.04, 0.06, 0.94)
+      frame:SetBackdropBorderColor(0.55, 0.18, 0.16, 0.9)
+    end
+    frame._dialogueSkin = false
+    return
+  end
+  -- parchment: keep DialogueUI dress / Plate fallback
+end
+
+local function setKindBand(frame, kind)
+  if not frame.KindBand then
+    return
+  end
+  local rgb = KIND_BAND[kind] or KIND_BAND.kill
+  if themeName() == "minimal" and kind ~= "death" and kind ~= "revenge" then
+    frame.KindBand:Hide()
+    return
+  end
+  if frame.KindBand.SetColorTexture then
+    frame.KindBand:SetColorTexture(rgb[1], rgb[2], rgb[3], 0.92)
+  else
+    frame.KindBand:SetTexture("Interface\\Buttons\\WHITE8X8")
+    frame.KindBand:SetVertexColor(rgb[1], rgb[2], rgb[3], 0.92)
+  end
+  frame.KindBand:ClearAllPoints()
+  frame.KindBand:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+  frame.KindBand:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+  frame.KindBand:SetHeight(kind == "death" and 8 or 5)
+  frame.KindBand:Show()
+end
+
+local function setRarityBar(frame, kind, rarity)
+  if not frame.RarityBar or not frame.RarityBarBg then
+    return
+  end
+  if themeName() == "minimal" then
+    frame.RarityBar:Hide()
+    frame.RarityBarBg:Hide()
+    return
+  end
+  local frac = RARITY_BAR_WIDTH[rarity] or RARITY_BAR_WIDTH[kind] or 0.35
+  local hex = rarityHex(kind, rarity)
+  local r, g, b = hexToRGB(hex)
+  local full = 300
+  frame.RarityBarBg:ClearAllPoints()
+  frame.RarityBarBg:SetPoint("BOTTOM", frame, "BOTTOM", 0, 12)
+  frame.RarityBarBg:SetSize(full, 3)
+  if frame.RarityBarBg.SetColorTexture then
+    frame.RarityBarBg:SetColorTexture(0, 0, 0, 0.5)
+  end
+  frame.RarityBarBg:Show()
+  frame.RarityBar:ClearAllPoints()
+  frame.RarityBar:SetPoint("LEFT", frame.RarityBarBg, "LEFT", 0, 0)
+  frame.RarityBar:SetSize(math.max(12, full * frac), 3)
+  if frame.RarityBar.SetColorTexture then
+    frame.RarityBar:SetColorTexture(r, g, b, 0.95)
+  else
+    frame.RarityBar:SetVertexColor(r, g, b, 0.95)
+  end
+  frame.RarityBar:Show()
+end
+
+local function setStreakBig(frame, streak, announcer)
+  if not frame.StreakBig then
+    return
+  end
+  streak = tonumber(streak) or 0
+  local show = settings().showStreak ~= false and streak >= 2
+  if not show then
+    frame.StreakBig:Hide()
+    return
+  end
+  frame.StreakBig:SetText("x" .. tostring(streak))
+  local rgb = ANNOUNCER_FLASH[announcer] or { 1, 0.82, 0 }
+  frame.StreakBig:SetTextColor(rgb[1], rgb[2], rgb[3], themeName() == "minimal" and 0.35 or 0.22)
+  frame.StreakBig:Show()
+end
+
+local function setComboLabel(frame, announcer)
+  if not frame.Combo then
+    return
+  end
+  local labels = {
+    FirstBlood = "FIRST BLOOD",
+    DoubleKill = "DOUBLE KILL",
+    TripleKill = "TRIPLE KILL",
+    UltraKill = "ULTRA KILL",
+    Rampage = "RAMPAGE",
+    KillingSpree = "KILLING SPREE",
+    Dominating = "DOMINATING",
+    MegaKill = "MEGA KILL",
+    Unstoppable = "UNSTOPPABLE",
+    WickedSick = "WICKED SICK",
+    MonsterKill = "MONSTER KILL",
+    Godlike = "GODLIKE",
+    HolyShit = "HOLY SHIT",
+    Ownage = "OWNAGE",
+  }
+  local label = labels[announcer]
+  if not label or themeName() == "minimal" then
+    frame.Combo:Hide()
+    return
+  end
+  local rgb = ANNOUNCER_FLASH[announcer] or { 1, 0.82, 0 }
+  frame.Combo:SetText(label)
+  frame.Combo:SetTextColor(rgb[1], rgb[2], rgb[3], 1)
+  frame.Combo:Show()
+end
+
+local function setFactionRing(frame, unit)
+  if not frame.FactionRing then
+    return
+  end
+  frame.FactionRing:Hide()
+  if themeName() == "minimal" or not unit or not UnitExists(unit) then
+    return
+  end
+  local faction
+  if UnitFactionGroup then
+    faction = UnitFactionGroup(unit)
+  end
+  if faction == "Alliance" then
+    frame.FactionRing:SetVertexColor(0.25, 0.45, 0.95, 0.85)
+    frame.FactionRing:Show()
+  elseif faction == "Horde" then
+    frame.FactionRing:SetVertexColor(0.90, 0.20, 0.15, 0.85)
+    frame.FactionRing:Show()
+  end
+end
+
+function UI.RefreshMinimapStreak(streak)
+  local btn = _G.BanterCombatMinimapButton
+  local icon = btn and btn.Icon
+  if not icon then
+    return
+  end
+  streak = tonumber(streak) or 0
+  if streak >= 10 then
+    icon:SetVertexColor(1.0, 0.55, 0.1)
+  elseif streak >= 5 then
+    icon:SetVertexColor(0.75, 0.35, 1.0)
+  elseif streak >= 3 then
+    icon:SetVertexColor(0.25, 0.85, 1.0)
+  else
+    icon:SetVertexColor(1, 1, 1)
+  end
 end
 
 local function applyPortrait(frame, unitOrNil, classToken, useModel)
@@ -390,16 +695,32 @@ local function addonLoaded(name)
 end
 
 local function applyFallbackBackdrop(frame)
-  if not frame.SetBackdrop then
-    return
+  if frame.PaperTop then
+    local plate = "Interface\\AddOns\\BanterCombat\\Art\\Plate.tga"
+    frame.PaperTop:SetTexture(plate)
+    frame.PaperMid:SetTexture(plate)
+    frame.PaperBot:SetTexture(plate)
+    frame.PaperTop:SetTexCoord(0, 1, 0, 0.33)
+    frame.PaperMid:SetTexCoord(0, 1, 0.33, 0.66)
+    frame.PaperBot:SetTexCoord(0, 1, 0.66, 1)
+    local width = frame:GetWidth() or 460
+    local cap = 48
+    frame.PaperTop:ClearAllPoints()
+    frame.PaperBot:ClearAllPoints()
+    frame.PaperMid:ClearAllPoints()
+    frame.PaperTop:SetSize(width, cap)
+    frame.PaperBot:SetSize(width, cap)
+    frame.PaperTop:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+    frame.PaperBot:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
+    frame.PaperMid:SetPoint("TOPLEFT", frame.PaperTop, "BOTTOMLEFT", 0, 0)
+    frame.PaperMid:SetPoint("BOTTOMRIGHT", frame.PaperBot, "TOPRIGHT", 0, 0)
+    frame.PaperTop:Show()
+    frame.PaperMid:Show()
+    frame.PaperBot:Show()
   end
-  frame:SetBackdrop({
-    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
-    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-    tile = true, tileSize = 32, edgeSize = 32,
-    insets = { left = 11, right = 12, top = 12, bottom = 11 },
-  })
-  frame:SetBackdropColor(0.08, 0.08, 0.1, 0.95)
+  if frame.SetBackdrop then
+    pcall(frame.SetBackdrop, frame, nil)
+  end
   if frame.EdgeGlow then
     frame.EdgeGlow:Show()
   end
@@ -409,6 +730,20 @@ end
 function UI.DressDialogue(frame)
   frame = frame or BanterCombatPopup
   if not frame or not frame.PaperTop then
+    return
+  end
+  applyPopupScale(frame)
+  applyThemeChrome(frame)
+  local theme = themeName()
+  if theme == "dark" or theme == "minimal" then
+    if frame.SocketFrame then
+      frame.SocketFrame:Hide()
+    end
+    if frame.EdgeGlow and theme == "dark" then
+      frame.EdgeGlow:Show()
+    elseif frame.EdgeGlow then
+      frame.EdgeGlow:Hide()
+    end
     return
   end
   if not addonLoaded("DialogueUI") then
@@ -454,6 +789,7 @@ function UI.DressDialogue(frame)
     socket.Ring = ring
     frame.SocketFrame = socket
   end
+  socket:Show()
   socket.Ring:SetTexture(file)
   socket.Ring:SetTexCoord(0, 0.65625 * (46 / 358), 0.56640625, 0.61328125)
   socket:ClearAllPoints()
@@ -511,7 +847,7 @@ local function showNow(payload)
     showing = false
     return
   end
-  local s = ns.Options and ns.Options.Get and ns.Options.Get() or {}
+  local s = settings()
   local duration = tonumber(s.duration) or 4
   generation = generation + 1
   local myGen = generation
@@ -525,21 +861,34 @@ local function showNow(payload)
 
   local kind = payload.kind or "kill"
   local rarity = payload.rarity or "common"
+  local announcer = payload.announcer
+  local streak = tonumber(payload.streak) or 0
   local hex = rarityHex(kind, rarity)
   tintEdge(frame, kind, rarity)
+  setKindBand(frame, kind)
+  setRarityBar(frame, kind, rarity)
+  setStreakBig(frame, streak, announcer)
+  setComboLabel(frame, announcer)
+  if UI.RefreshMinimapStreak then
+    UI.RefreshMinimapStreak(streak)
+  end
 
   local titleR, titleG, titleB = 1, 0.82, 0
   local bodyR, bodyG, bodyB = 1, 1, 1
-  local accentR, accentG, accentB = 0.8, 0.2, 0.16
   if frame._dialogueSkin then
     if frame._dialogueDark then
       titleR, titleG, titleB = 0.9, 0.9, 0.9
       bodyR, bodyG, bodyB = 0.7, 0.7, 0.7
-      accentR, accentG, accentB = 0.796, 0.784, 0.584
     else
       titleR, titleG, titleB = 0.19, 0.17, 0.13
       bodyR, bodyG, bodyB = 0.19, 0.17, 0.13
-      accentR, accentG, accentB = 0.416, 0.18, 0.165
+    end
+  elseif themeName() == "dark" or themeName() == "minimal" then
+    titleR, titleG, titleB = 0.95, 0.92, 0.85
+    bodyR, bodyG, bodyB = 0.82, 0.82, 0.86
+    if kind == "death" then
+      titleR, titleG, titleB = 0.95, 0.45, 0.45
+      bodyR, bodyG, bodyB = 0.75, 0.55, 0.55
     end
   end
 
@@ -553,6 +902,8 @@ local function showNow(payload)
       frame.Badge:Show()
       if frame.Medal and not frame._dialogueSkin and (kind == "revenge" or kind == "milestone" or kind == "streak" or kind == "rival") then
         frame.Medal:Show()
+      elseif frame.Medal then
+        frame.Medal:Hide()
       end
     else
       frame.Badge:SetText("")
@@ -581,7 +932,7 @@ local function showNow(payload)
       frame.Speaker:SetJustifyV("MIDDLE")
     end
     frame.Speaker:SetText(nameText)
-    if frame._dialogueSkin then
+    if frame._dialogueSkin or themeName() ~= "parchment" then
       frame.Speaker:SetTextColor(titleR, titleG, titleB)
     end
   end
@@ -589,6 +940,9 @@ local function showNow(payload)
     if frame._dialogueSkin then
       frame.Text:SetText(payload.text or "")
       frame.Text:SetTextColor(bodyTintR, bodyTintG, bodyTintB)
+    elseif themeName() == "dark" or themeName() == "minimal" then
+      frame.Text:SetText(payload.text or "")
+      frame.Text:SetTextColor(bodyR, bodyG, bodyB)
     else
       frame.Text:SetText(colorize(payload.text or "", hex))
     end
@@ -596,8 +950,13 @@ local function showNow(payload)
 
   if frame._dialogueSkin and frame.SocketFrame then
     local hasBadge = frame.Badge and frame.Badge:IsShown()
+    local hasCombo = frame.Combo and frame.Combo:IsShown()
     frame.SocketFrame:ClearAllPoints()
-    frame.SocketFrame:SetPoint("TOP", frame, "TOP", 0, -22)
+    frame.SocketFrame:SetPoint("TOP", frame, "TOP", 0, hasCombo and -28 or -22)
+    if frame.Combo and hasCombo then
+      frame.Combo:ClearAllPoints()
+      frame.Combo:SetPoint("TOP", frame, "TOP", 0, -6)
+    end
     if frame.Badge then
       frame.Badge:ClearAllPoints()
       frame.Badge:SetPoint("TOP", frame.SocketFrame, "BOTTOM", 0, -2)
@@ -614,18 +973,56 @@ local function showNow(payload)
       frame.Text:ClearAllPoints()
       frame.Text:SetPoint("TOP", frame.Speaker, "BOTTOM", 0, -4)
     end
+  elseif not frame._dialogueSkin then
+    if frame.Combo and frame.Combo:IsShown() then
+      frame.Combo:ClearAllPoints()
+      frame.Combo:SetPoint("TOP", frame, "TOP", 0, -10)
+    end
+    if frame.Portrait then
+      frame.Portrait:ClearAllPoints()
+      frame.Portrait:SetPoint("TOPLEFT", frame, "TOPLEFT", 18, -28)
+    end
+    if frame.Model then
+      frame.Model:ClearAllPoints()
+      frame.Model:SetPoint("TOPLEFT", frame, "TOPLEFT", 18, -28)
+    end
+    if frame.Speaker then
+      frame.Speaker:ClearAllPoints()
+      frame.Speaker:SetPoint("TOPLEFT", frame, "TOPLEFT", 72, -30)
+      frame.Speaker:SetJustifyH("LEFT")
+    end
+    if frame.Badge then
+      frame.Badge:ClearAllPoints()
+      frame.Badge:SetPoint("TOPLEFT", frame, "TOPLEFT", 72, -14)
+      frame.Badge:SetJustifyH("LEFT")
+    end
+    if frame.Text then
+      frame.Text:ClearAllPoints()
+      frame.Text:SetPoint("TOPLEFT", frame, "TOPLEFT", 72, -58)
+      frame.Text:SetJustifyH("LEFT")
+      frame.Text:SetSize(340, 72)
+    end
   end
 
-  applyPortrait(frame, payload.unit, payload.class, s.useModel ~= false)
+  local portraitUnit = payload.unit
+  if payload.portraitUnit and UnitExists(payload.portraitUnit) then
+    portraitUnit = payload.portraitUnit
+  elseif kind ~= "death" and UnitExists("target") and UnitIsPlayer("target") and not UnitIsUnit("target", "player") then
+    -- Prefer the fallen foe when still targeted.
+    portraitUnit = "target"
+  end
+  applyPortrait(frame, portraitUnit, payload.class, s.useModel ~= false)
+  setFactionRing(frame, portraitUnit)
 
   frame:SetAlpha(0)
   frame:Show()
   local ag = ensureEnterAnim(frame)
   ag:Stop()
   ag:Play()
-  UIFrameFadeIn(frame, 0.22, 0, 1)
+  UIFrameFadeIn(frame, 0.18, 0, 1)
+  playFlash(frame, announcer, kind)
   if not payload.silent and not payload.soundPlayed then
-    playShowSound(kind, rarity, payload.announcer)
+    playShowSound(kind, rarity, announcer)
   end
 
   hideTicker = C_Timer.NewTimer(duration, function()
@@ -634,8 +1031,18 @@ local function showNow(payload)
       return
     end
     if frame:IsShown() then
-      UIFrameFadeOut(frame, 0.5, frame:GetAlpha(), 0)
-      C_Timer.After(0.55, function()
+      -- Slide up slightly while fading out.
+      local point, relTo, relPoint, x, y = frame:GetPoint(1)
+      if visualFxOn() and point and y then
+        local slide = frame:CreateAnimationGroup()
+        local tr = slide:CreateAnimation("Translation")
+        tr:SetOffset(0, 18)
+        tr:SetDuration(0.45)
+        tr:SetSmoothing("IN")
+        slide:Play()
+      end
+      UIFrameFadeOut(frame, 0.45, frame:GetAlpha(), 0)
+      C_Timer.After(0.5, function()
         if myGen ~= generation then
           return
         end

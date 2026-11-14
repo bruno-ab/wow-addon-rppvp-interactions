@@ -943,6 +943,11 @@ end
 
 local function Present(payload, unit)
   PushHistory(payload.kind, payload.text, payload.speaker)
+  local streak = payload.streak
+  if streak == nil and Stats.GetDB then
+    local db = Stats.GetDB()
+    streak = db and db.streak or 0
+  end
   UI.Enqueue({
     speaker = payload.speaker,
     text = payload.text,
@@ -955,6 +960,8 @@ local function Present(payload, unit)
     announcer = payload.announcer,
     silent = payload.silent,
     soundPlayed = payload.soundPlayed,
+    streak = streak,
+    portraitUnit = payload.portraitUnit,
     unit = unit,
   })
 end
@@ -1048,6 +1055,7 @@ local function OnPlayerKill(victim, destFlags)
   end
   local selfInfo = PlayerSelfInfo()
   local announcer = Stats.AnnouncerCue and Stats.AnnouncerCue({ revenge = isRevenge })
+  local streakNow = (Stats.GetDB and Stats.GetDB().streak) or 0
   local payload = {
     speaker = selfInfo.name,
     race = selfInfo.race,
@@ -1058,6 +1066,8 @@ local function OnPlayerKill(victim, destFlags)
     text = text,
     title = CurrentTitle(),
     announcer = announcer,
+    streak = streakNow,
+    portraitUnit = "target",
   }
   -- Same path as /banter announce: play cue immediately (UI queue can lag or skip sound).
   if s.sound ~= false and announcer and ns.UI and ns.UI.PlayPreviewSound then
@@ -2097,14 +2107,16 @@ function ns.PreviewAnnouncer()
       print("|cFFFFD100BanterCombat|r announce", row.id, played and "ok" or "FAIL")
     end
   end
+  local streak = (Stats.GetDB and Stats.GetDB().streak) or announcePreview
   Present({
     speaker = UnitName("player") or "?",
     text = row.label,
     badge = row.label,
     class = classToken,
     kind = "kill",
-    rarity = "common",
+    rarity = "epic",
     announcer = row.id,
+    streak = math.max(streak, announcePreview),
   }, "player")
 end
 

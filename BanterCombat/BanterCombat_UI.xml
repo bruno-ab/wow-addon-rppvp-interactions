@@ -12,6 +12,14 @@
         <Texture name="$parentEdgeGlow" parentKey="EdgeGlow" hidden="true" setAllPoints="true">
           <Color r="0.2" g="0.15" b="0.05" a="0.35"/>
         </Texture>
+        <Texture name="$parentKindBand" parentKey="KindBand" hidden="true">
+          <Size x="460" y="6"/>
+          <Anchors>
+            <Anchor point="TOPLEFT" x="0" y="0"/>
+            <Anchor point="TOPRIGHT" x="0" y="0"/>
+          </Anchors>
+          <Color r="0.8" g="0.2" b="0.15" a="0.9"/>
+        </Texture>
       </Layer>
       <Layer level="BORDER">
         <Texture name="$parentPortrait" parentKey="Portrait">
@@ -19,6 +27,26 @@
           <Anchors>
             <Anchor point="TOPLEFT" x="78" y="-28"/>
           </Anchors>
+        </Texture>
+        <Texture name="$parentFactionRing" parentKey="FactionRing" hidden="true">
+          <Size x="52" y="52"/>
+          <Anchors>
+            <Anchor point="CENTER" relativeTo="$parentPortrait" relativePoint="CENTER" x="0" y="0"/>
+          </Anchors>
+        </Texture>
+        <Texture name="$parentRarityBarBg" parentKey="RarityBarBg" hidden="true">
+          <Size x="300" y="4"/>
+          <Anchors>
+            <Anchor point="BOTTOM" x="0" y="14"/>
+          </Anchors>
+          <Color r="0" g="0" b="0" a="0.55"/>
+        </Texture>
+        <Texture name="$parentRarityBar" parentKey="RarityBar" hidden="true">
+          <Size x="60" y="4"/>
+          <Anchors>
+            <Anchor point="LEFT" relativeTo="$parentRarityBarBg" relativePoint="LEFT" x="0" y="0"/>
+          </Anchors>
+          <Color r="1" g="0.82" b="0" a="0.95"/>
         </Texture>
       </Layer>
       <Layer level="ARTWORK">
@@ -28,6 +56,13 @@
             <Anchor point="TOP" x="18" y="-14"/>
           </Anchors>
         </Texture>
+        <FontString name="$parentStreakBig" parentKey="StreakBig" inherits="GameFontNormalHuge" justifyH="CENTER" justifyV="MIDDLE" hidden="true">
+          <Size x="200" y="80"/>
+          <Anchors>
+            <Anchor point="RIGHT" x="-24" y="8"/>
+          </Anchors>
+          <Color r="1" g="0.82" b="0" a="0.22"/>
+        </FontString>
       </Layer>
       <Layer level="OVERLAY">
         <Texture name="$parentMedal" parentKey="Medal">
@@ -42,6 +77,13 @@
             <Anchor point="LEFT" relativeTo="$parentMedal" relativePoint="RIGHT" x="4" y="0"/>
           </Anchors>
         </FontString>
+        <FontString name="$parentCombo" parentKey="Combo" inherits="GameFontNormalLarge" justifyH="CENTER" hidden="true">
+          <Size x="280" y="20"/>
+          <Anchors>
+            <Anchor point="TOP" x="0" y="-8"/>
+          </Anchors>
+          <Color r="1" g="0.75" b="0.2" a="1"/>
+        </FontString>
         <FontString name="$parentSpeaker" parentKey="Speaker" inherits="GameFontHighlight" justifyH="LEFT">
           <Size x="250" y="18"/>
           <Anchors>
@@ -54,6 +96,9 @@
             <Anchor point="TOPLEFT" x="78" y="-78"/>
           </Anchors>
         </FontString>
+        <Texture name="$parentFlash" parentKey="Flash" hidden="true" setAllPoints="true" alphaMode="ADD">
+          <Color r="1" g="1" b="1" a="0"/>
+        </Texture>
       </Layer>
     </Layers>
     <Frames>
@@ -71,6 +116,10 @@
         if self.Medal then
           self.Medal:SetTexture("Interface\\FriendsFrame\\StatusIcon-Online")
           self.Medal:Hide()
+        end
+        if self.FactionRing then
+          self.FactionRing:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+          self.FactionRing:Hide()
         end
       </OnLoad>
       <OnDragStart>
