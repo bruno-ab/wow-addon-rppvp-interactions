@@ -24,7 +24,7 @@ local DEFAULTS = {
   soundFolder = "",
   soundChannel = "Master",
   announcerVolume = 100,
-  uiTheme = "parchment",
+  uiTheme = "dark",
   popupScale = 1.0,
   showStreak = true,
   visualFx = true,
@@ -133,10 +133,10 @@ function Options.CycleSoundChannel()
   return nextChannel
 end
 
-local UI_THEME_ORDER = { "parchment", "dark", "minimal" }
+local UI_THEME_ORDER = { "dark", "minimal", "parchment", "auto" }
 
 function Options.CycleUiTheme()
-  local current = Options.Get().uiTheme or "parchment"
+  local current = Options.Get().uiTheme or "dark"
   local index = 1
   for i = 1, #UI_THEME_ORDER do
     if UI_THEME_ORDER[i] == current then
@@ -153,7 +153,10 @@ function Options.CycleUiTheme()
 end
 
 function Options.ThemeLabel(theme)
-  theme = theme or Options.Get().uiTheme or "parchment"
+  theme = theme or Options.Get().uiTheme or "dark"
+  if theme == "auto" then
+    return (L.OPT_THEME_AUTO or "Auto (Dark em BG)")
+  end
   if theme == "dark" then
     return (L.OPT_THEME_DARK or "Dark PvP")
   end

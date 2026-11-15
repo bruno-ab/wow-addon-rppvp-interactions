@@ -999,6 +999,9 @@ local function Present(payload, unit)
     soundPlayed = payload.soundPlayed,
     streak = streak,
     portraitUnit = payload.portraitUnit,
+    victimName = payload.victimName,
+    victimClass = payload.victimClass,
+    victimRace = payload.victimRace,
     unit = unit,
   })
 end
@@ -1105,6 +1108,9 @@ local function OnPlayerKill(victim, destFlags)
     announcer = announcer,
     streak = streakNow,
     portraitUnit = "target",
+    victimName = victim.name,
+    victimClass = victim.class,
+    victimRace = victim.race,
   }
   -- Same path as /banter announce: play cue immediately (UI queue can lag or skip sound).
   if s.sound ~= false and announcer and ns.UI and ns.UI.PlayPreviewSound then

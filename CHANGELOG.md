@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.19
+
+- Killcam popup redesign: hero cue (FIRST BLOOD), larger victim portrait + faction ring, compact dark layout.
+- Banter in the middle, killer name/title as gold signature; cue wash/flash; streak watermark; default theme Dark PvP (+ Auto).
+
 ## 1.0.18
 
 - Options / Lines / Backup / Minimap menu / Compendium use default WoW dialog chrome (no Plate.tga).

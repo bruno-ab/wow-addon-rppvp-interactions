@@ -261,8 +261,8 @@ local function ensureDB()
   end
   db.settings.announcerVolume = volume
   local theme = scrubPlain(db.settings.uiTheme, 16)
-  if theme ~= "dark" and theme ~= "minimal" then
-    theme = "parchment"
+  if theme ~= "dark" and theme ~= "minimal" and theme ~= "parchment" and theme ~= "auto" then
+    theme = "dark"
   end
   db.settings.uiTheme = theme
   local scale = tonumber(db.settings.popupScale) or 1
