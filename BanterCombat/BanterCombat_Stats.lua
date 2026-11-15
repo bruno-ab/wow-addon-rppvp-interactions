@@ -179,7 +179,7 @@ local function scrubRivals(map)
           kills = kills,
           deaths = deaths,
           last = math.max(0, math.floor(tonumber(v.last) or 0)),
-          race = (type(v.race) == "string" and VALID_RACE[v.race]) and v.race or nil,
+          race = normalizeRace(v.race),
           class = (type(v.class) == "string" and VALID_CLASS[v.class]) and v.class or nil,
           worldKills = countOf(v.worldKills),
           bgKills = countOf(v.bgKills),
@@ -247,7 +247,7 @@ local function scrubChronicle(list)
       local sex = tonumber(row.sex)
       out[#out + 1] = {
         name = scrubPlain(row.name, 48) or "?",
-        race = (type(row.race) == "string" and VALID_RACE[row.race]) and row.race or nil,
+        race = normalizeRace(row.race),
         class = (type(row.class) == "string" and VALID_CLASS[row.class]) and row.class or nil,
         zone = scrubPlain(row.zone, 64),
         spell = scrubPlain(row.spell, 48),
@@ -399,7 +399,7 @@ function Stats.RememberChronicle(info)
   local sex = tonumber(info.sex)
   local row = {
     name = info.name,
-    race = (type(info.race) == "string" and VALID_RACE[info.race]) and info.race or nil,
+    race = normalizeRace(info.race),
     class = (type(info.class) == "string" and VALID_CLASS[info.class]) and info.class or nil,
     zone = info.zone,
     spell = info.spell,
