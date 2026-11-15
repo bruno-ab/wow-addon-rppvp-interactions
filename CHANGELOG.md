@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.18
+
+- Options / Lines / Backup / Minimap menu / Compendium use default WoW dialog chrome (no Plate.tga).
+- “Mostrar o banner também no chat” prints badge + speaker + line locally; “Só no chat” skips the popup.
+
 ## 1.0.17
 
 - Visual upgrade: punch/flash by announcer cue, streak number, rarity bar, kind band, combo label, slide-out fade.

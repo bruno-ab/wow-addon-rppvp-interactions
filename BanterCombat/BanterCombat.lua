@@ -636,12 +636,48 @@ local function FormatTemplate(text, ctx)
   return text
 end
 
+-- Mirror what the banner shows into the local chat (and optional /emote).
+local function MirrorBannerToChat(payload)
+  local s = Options.Get()
+  if not s.chatAnnounce or type(payload) ~= "table" then
+    return
+  end
+  local badge = payload.badge
+  local speaker = payload.speaker
+  local text = payload.text
+  if type(badge) ~= "string" then
+    badge = ""
+  end
+  if type(speaker) ~= "string" then
+    speaker = ""
+  end
+  if type(text) ~= "string" then
+    text = ""
+  end
+  if badge == "" and text == "" then
+    return
+  end
+  local parts = { "|cFFFFD100BanterCombat|r" }
+  if badge ~= "" then
+    parts[#parts + 1] = "|cFFFF8000" .. badge .. "|r"
+  end
+  if speaker ~= "" and text ~= "" then
+    parts[#parts + 1] = "|cFF66CCFF" .. speaker .. "|r: " .. text
+  elseif text ~= "" then
+    parts[#parts + 1] = text
+  elseif speaker ~= "" then
+    parts[#parts + 1] = speaker
+  end
+  print(table.concat(parts, " — "))
+end
+
 local function MaybeChatAnnounce(text)
   local s = Options.Get()
   if not s.chatAnnounce or not text or text == "" then
     return
   end
-  if SendChatMessage then
+  -- Emote is optional flavor; Forever often blocks SAY/EMOTE in combat.
+  if SendChatMessage and not (InCombatLockdown and InCombatLockdown()) then
     pcall(SendChatMessage, Truncate(text, 240), "EMOTE")
   end
 end
@@ -948,6 +984,7 @@ local function Present(payload, unit)
     local db = Stats.GetDB()
     streak = db and db.streak or 0
   end
+  MirrorBannerToChat(payload)
   UI.Enqueue({
     speaker = payload.speaker,
     text = payload.text,
@@ -1103,8 +1140,10 @@ local function OnPlayerKill(victim, destFlags)
   end
 
   local quietBg = Options.Get().quietBg and place.context == "bg"
-  if Options.Get().chatOnly and not quietBg then
-    if SendChatMessage and text and text ~= "" then
+  if Options.Get().chatOnly then
+    -- Só chat: espelha o banner localmente e, fora de BG quieto, manda SAY.
+    MirrorBannerToChat(payload)
+    if not quietBg and SendChatMessage and text and text ~= "" then
       pcall(SendChatMessage, Truncate(text, 255), "SAY")
     end
   else

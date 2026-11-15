@@ -16,7 +16,7 @@ local DEFAULTS = {
   duration = 4.0,
   pvpOnly = false,
   hostileOnly = true,
-  chatAnnounce = false,
+  chatAnnounce = true,
   chatKillBlow = true,
   chatOnly = false,
   quietBg = true,
@@ -183,6 +183,34 @@ end
 local panel
 local checks = {}
 
+-- Standard Blizzard dialog chrome (no custom Plate.tga).
+local function ApplyWowDialogBackdrop(frame)
+  if not frame then
+    return
+  end
+  if frame._banterPlate then
+    frame._banterPlate:Hide()
+    frame._banterPlate = nil
+  end
+  if not frame.SetBackdrop then
+    return
+  end
+  pcall(frame.SetBackdrop, frame, {
+    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+    tile = true,
+    tileSize = 32,
+    edgeSize = 32,
+    insets = { left = 11, right = 12, top = 12, bottom = 11 },
+  })
+  if frame.SetBackdropColor then
+    frame:SetBackdropColor(0, 0, 0, 1)
+  end
+  if frame.SetBackdropBorderColor then
+    frame:SetBackdropBorderColor(0.8, 0.8, 0.8, 1)
+  end
+end
+
 local function makeCheck(parent, label, key, y)
   local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
   cb:SetPoint("TOPLEFT", 16, y)
@@ -223,9 +251,7 @@ function Options.TogglePanel()
     panel:RegisterForDrag("LeftButton")
     panel:SetScript("OnDragStart", panel.StartMoving)
     panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
-    local plate = panel:CreateTexture(nil, "BACKGROUND")
-    plate:SetAllPoints()
-    plate:SetTexture("Interface\\AddOns\\BanterCombat\\Art\\Plate.tga")
+    ApplyWowDialogBackdrop(panel)
     local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOP", 0, -14)
     title:SetText(L.OPT_TITLE)
@@ -490,17 +516,7 @@ function Options.ToggleLines()
     linesFrame:RegisterForDrag("LeftButton")
     linesFrame:SetScript("OnDragStart", linesFrame.StartMoving)
     linesFrame:SetScript("OnDragStop", linesFrame.StopMovingOrSizing)
-    local linesPlate = linesFrame:CreateTexture(nil, "BACKGROUND")
-    linesPlate:SetAllPoints()
-    linesPlate:SetTexture("Interface\\AddOns\\BanterCombat\\Art\\Plate.tga")
-    if linesFrame.SetBackdrop then
-      linesFrame:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true, tileSize = 32, edgeSize = 32,
-        insets = { left = 8, right = 8, top = 8, bottom = 8 },
-      })
-    end
+    ApplyWowDialogBackdrop(linesFrame)
     linesFrame.Title = linesFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     linesFrame.Title:SetPoint("TOP", 0, -14)
     linesFrame.Hint = linesFrame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
@@ -847,9 +863,7 @@ local function showDataFrame(mode)
     dataFrame:RegisterForDrag("LeftButton")
     dataFrame:SetScript("OnDragStart", dataFrame.StartMoving)
     dataFrame:SetScript("OnDragStop", dataFrame.StopMovingOrSizing)
-    local plate = dataFrame:CreateTexture(nil, "BACKGROUND")
-    plate:SetAllPoints()
-    plate:SetTexture("Interface\\AddOns\\BanterCombat\\Art\\Plate.tga")
+    ApplyWowDialogBackdrop(dataFrame)
     dataFrame.Title = dataFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     dataFrame.Title:SetPoint("TOP", 0, -14)
     dataFrame.Hint = dataFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -1031,9 +1045,7 @@ function Options.ToggleMinimapMenu(anchor)
     menu:SetSize(280, 36 + (#MENU_TOGGLES + 5) * 20)
     menu:SetFrameStrata("DIALOG")
     menu:SetClampedToScreen(true)
-    local plate = menu:CreateTexture(nil, "BACKGROUND")
-    plate:SetAllPoints()
-    plate:SetTexture("Interface\\AddOns\\BanterCombat\\Art\\Plate.tga")
+    ApplyWowDialogBackdrop(menu)
     menu.Title = menu:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     menu.Title:SetPoint("TOP", 0, -10)
     menu.rows = {}

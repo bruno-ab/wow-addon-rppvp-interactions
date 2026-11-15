@@ -45,40 +45,24 @@ local function makeButton(parent, text, width)
   return button
 end
 
-local function paintSheet(parent)
-  local plate = parent:CreateTexture(nil, "BACKGROUND")
-  plate:SetAllPoints()
-  plate:SetTexture("Interface\\AddOns\\BanterCombat\\Art\\Plate.tga")
-
-  local dark = type(DialogueUI_DB) == "table" and DialogueUI_DB.Theme == 2
-  local folder = dark and "Theme_Dark" or "Theme_Brown"
-  local file = "Interface\\AddOns\\DialogueUI\\Art\\" .. folder .. "\\Parchment.png"
-  local frameWidth = parent:GetWidth()
-  if not frameWidth or frameWidth < 64 then
-    frameWidth = 780
+local function applyWowDialogBackdrop(parent)
+  if not parent or not parent.SetBackdrop then
+    return
   end
-  -- The sheet art has empty margins. Crop to the paper and place it on the
-  -- feat column so the roll does not sit on the category menu.
-  local sheetLeft, sheetRight = 176, 12
-  local texLeft, texRight = 156, 867
-  local sheetWidth = frameWidth - sheetLeft - sheetRight
-  local cap = math.floor(sheetWidth * (256 / (texRight - texLeft)))
-  local u0, u1 = texLeft / 1024, texRight / 1024
-  local top = parent:CreateTexture(nil, "BORDER")
-  local mid = parent:CreateTexture(nil, "BORDER")
-  local bot = parent:CreateTexture(nil, "BORDER")
-  top:SetTexture(file)
-  mid:SetTexture(file)
-  bot:SetTexture(file)
-  top:SetTexCoord(u0, u1, 0, 256 / 2048)
-  mid:SetTexCoord(u0, u1, 256 / 2048, 896 / 2048)
-  bot:SetTexCoord(u0, u1, 896 / 2048, 1152 / 2048)
-  top:SetSize(sheetWidth, cap)
-  bot:SetSize(sheetWidth, cap)
-  top:SetPoint("TOPLEFT", parent, "TOPLEFT", sheetLeft, 8)
-  bot:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", sheetLeft, -6)
-  mid:SetPoint("TOPLEFT", top, "BOTTOMLEFT", 0, 0)
-  mid:SetPoint("BOTTOMRIGHT", bot, "TOPRIGHT", 0, 0)
+  pcall(parent.SetBackdrop, parent, {
+    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
+    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+    tile = true,
+    tileSize = 32,
+    edgeSize = 32,
+    insets = { left = 11, right = 12, top = 12, bottom = 11 },
+  })
+  if parent.SetBackdropColor then
+    parent:SetBackdropColor(0, 0, 0, 1)
+  end
+  if parent.SetBackdropBorderColor then
+    parent:SetBackdropBorderColor(0.8, 0.8, 0.8, 1)
+  end
 end
 
 local function buildFrame()
@@ -99,25 +83,14 @@ local function buildFrame()
   frame:SetScript("OnDragStart", frame.StartMoving)
   frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
   frame:SetClampedToScreen(true)
-  paintSheet(frame)
-  if frame.SetBackdrop then
-    pcall(frame.SetBackdrop, frame, {
-      bgFile = "Interface\\AddOns\\BanterCombat\\Art\\Plate.tga",
-      edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-      tile = false, edgeSize = 32,
-      insets = { left = 8, right = 8, top = 8, bottom = 8 },
-    })
-    if frame.SetBackdropColor then
-      frame:SetBackdropColor(1, 1, 1, 1)
-    end
-  end
+  applyWowDialogBackdrop(frame)
 
   local side = frame:CreateTexture(nil, "BORDER")
   side:SetPoint("TOPLEFT", 14, -36)
   side:SetPoint("BOTTOMLEFT", 14, 12)
   side:SetWidth(162)
   side:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-  side:SetVertexColor(0.22, 0.14, 0.07, 0.92)
+  side:SetVertexColor(0.08, 0.08, 0.10, 0.92)
 
   local banner = frame:CreateTexture(nil, "ARTWORK")
   banner:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
