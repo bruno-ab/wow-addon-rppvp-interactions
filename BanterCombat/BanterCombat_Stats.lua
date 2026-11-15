@@ -11,10 +11,61 @@ local VALID_RACE = {
   Human = true, Dwarf = true, NightElf = true, Gnome = true,
   Orc = true, Scourge = true, Tauren = true, Troll = true,
 }
+-- Forever / some clients return Undead or race IDs instead of Classic file tokens.
+local RACE_ALIAS = {
+  Undead = "Scourge",
+  Scourge = "Scourge",
+  ["Morto-vivo"] = "Scourge",
+  ["Morto-Vivo"] = "Scourge",
+  Human = "Human",
+  Dwarf = "Dwarf",
+  NightElf = "NightElf",
+  Gnome = "Gnome",
+  Orc = "Orc",
+  Tauren = "Tauren",
+  Troll = "Troll",
+  ["1"] = "Human",
+  ["2"] = "Orc",
+  ["3"] = "Dwarf",
+  ["4"] = "NightElf",
+  ["5"] = "Scourge",
+  ["6"] = "Tauren",
+  ["7"] = "Gnome",
+  ["8"] = "Troll",
+}
+local RACE_ID = {
+  [1] = "Human",
+  [2] = "Orc",
+  [3] = "Dwarf",
+  [4] = "NightElf",
+  [5] = "Scourge",
+  [6] = "Tauren",
+  [7] = "Gnome",
+  [8] = "Troll",
+}
 local VALID_CLASS = {
   WARRIOR = true, PALADIN = true, HUNTER = true, ROGUE = true, PRIEST = true,
   SHAMAN = true, MAGE = true, WARLOCK = true, DRUID = true,
 }
+
+local function normalizeRace(race)
+  if type(race) == "number" then
+    race = RACE_ID[race]
+  elseif type(race) == "string" then
+    if VALID_RACE[race] then
+      return race
+    end
+    race = RACE_ALIAS[race] or RACE_ID[tonumber(race)]
+  else
+    return nil
+  end
+  if type(race) == "string" and VALID_RACE[race] then
+    return race
+  end
+  return nil
+end
+
+Stats.NormalizeRace = normalizeRace
 
 local function scrubCounterMap(map, valid)
   if type(map) ~= "table" then
@@ -22,8 +73,12 @@ local function scrubCounterMap(map, valid)
   end
   local out = {}
   for k, v in pairs(map) do
-    if type(k) == "string" and valid[k] and type(v) == "number" and v >= 0 then
-      out[k] = math.floor(v)
+    local key = k
+    if valid == VALID_RACE then
+      key = normalizeRace(k) or k
+    end
+    if type(key) == "string" and valid[key] and type(v) == "number" and v >= 0 then
+      out[key] = (out[key] or 0) + math.floor(v)
     end
   end
   return out
@@ -147,7 +202,14 @@ local function scrubFeats(map)
   local out = {}
   for k, v in pairs(map) do
     if type(k) == "string" and #k <= 40 and type(v) == "number" and v > 0 then
-      out[k] = math.floor(v)
+      local key = k
+      -- Migrate Forever "Undead" feat keys to Classic Scourge token.
+      if key == "race:Undead" then
+        key = "race:Scourge"
+      end
+      if not out[key] or v < out[key] then
+        out[key] = math.floor(v)
+      end
     end
   end
   return out
@@ -211,7 +273,7 @@ local function scrubLastKiller(lk)
   end
   return {
     name = tostring(lk.name),
-    race = (type(lk.race) == "string" and VALID_RACE[lk.race]) and lk.race or nil,
+    race = normalizeRace(lk.race),
     class = (type(lk.class) == "string" and VALID_CLASS[lk.class]) and lk.class or nil,
     guid = type(lk.guid) == "string" and lk.guid or nil,
     time = type(lk.time) == "number" and lk.time or time(),
@@ -364,7 +426,7 @@ function Stats.RememberChronicle(info)
 end
 
 function Stats.IsValidRace(race)
-  return type(race) == "string" and VALID_RACE[race] or false
+  return normalizeRace(race) ~= nil
 end
 
 function Stats.IsValidClass(class)
@@ -419,8 +481,9 @@ function Stats.TouchRival(person, side, info)
   while #row.meetings > 12 do
     table.remove(row.meetings, 1)
   end
-  if Stats.IsValidRace(person.race) then
-    row.race = person.race
+  local race = normalizeRace(person.race)
+  if race then
+    row.race = race
   end
   if Stats.IsValidClass(person.class) then
     row.class = person.class
@@ -596,7 +659,10 @@ function Stats.RecordDeathBy(killer, info)
   local db = ensureDB()
   sessionDeaths = sessionDeaths + 1
   db.totalDeaths = db.totalDeaths + 1
-  if killer and Stats.IsValidRace(killer.race) then
+  if killer then
+    killer.race = normalizeRace(killer.race)
+  end
+  if killer and killer.race then
     db.deaths.Race[killer.race] = (db.deaths.Race[killer.race] or 0) + 1
   end
   if killer and Stats.IsValidClass(killer.class) then
@@ -617,8 +683,11 @@ function Stats.RecordKill(victim, info)
   if type(info.zone) == "string" and info.zone ~= "" then
     db.zones[info.zone] = (db.zones[info.zone] or 0) + 1
   end
+  if victim then
+    victim.race = normalizeRace(victim.race)
+  end
   local raceCount, classCount = 0, 0
-  if victim and Stats.IsValidRace(victim.race) then
+  if victim and victim.race then
     db.kills.Race[victim.race] = (db.kills.Race[victim.race] or 0) + 1
     raceCount = db.kills.Race[victim.race]
   end

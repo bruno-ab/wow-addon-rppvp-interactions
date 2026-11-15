@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.21
+
+- Fix: feat toast kept repeating "Primeiro Orc" — dated feats now persist in `book.when` so FreshTitle only fires once.
+- Normalize race tokens (`Undead` → `Scourge`, race ids) so undead/other race feats and counters count correctly.
+
 ## 1.0.20
 
 - Killcam polish: cinematic toast (shade + left accent + soft cue wash), no spaced-caps / DialogueUI stack on the banner.

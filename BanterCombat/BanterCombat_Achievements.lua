@@ -273,7 +273,14 @@ local function myRace()
   if not UnitRace then
     return nil
   end
-  return select(2, UnitRace("player"))
+  local race = select(2, UnitRace("player"))
+  if ns.Stats and ns.Stats.NormalizeRace then
+    return ns.Stats.NormalizeRace(race)
+  end
+  if race == "Undead" then
+    return "Scourge"
+  end
+  return race
 end
 
 local function myClass()
@@ -2022,12 +2029,12 @@ local function viewOf(def)
       if def.kind == "dated" and def.feat and ns.Stats and ns.Stats.FeatTime then
         when = ns.Stats.FeatTime(def.feat)
       end
-      if not when then
-        if not book.when[def.id] then
-          book.when[def.id] = time()
-        end
-        when = book.when[def.id]
+      -- Always persist completion so FreshTitle does not re-announce dated feats
+      -- (e.g. "Primeiro Orc") on every kill after the first unlock.
+      if not book.when[def.id] then
+        book.when[def.id] = when or time()
       end
+      when = when or book.when[def.id]
     else
       book.when[def.id] = nil
     end
@@ -2112,19 +2119,22 @@ function Achievements.FreshTitle()
     return nil
   end
   if not book.featSeeded then
+    -- Seed book.when for already-completed feats so we do not spam history as "new".
     Achievements.PrimeFeats()
     return nil
   end
   local known = {}
-  for id, when in pairs(book.when) do
-    if when then
+  for id, stamp in pairs(book.when) do
+    if stamp then
       known[id] = true
     end
   end
   local first
   for i = 1, #DEFS do
-    local row = viewOf(DEFS[i])
-    if row.done and not row.blocked and not known[row.id] then
+    local def = DEFS[i]
+    local wasKnown = known[def.id]
+    local row = viewOf(def)
+    if row.done and not row.blocked and not wasKnown then
       if not first then
         first = row.title
       end

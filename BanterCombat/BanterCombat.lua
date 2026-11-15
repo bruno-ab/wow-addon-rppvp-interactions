@@ -212,6 +212,36 @@ local function NameUsable(name)
   return n
 end
 
+-- Classic file token (Scourge, Orc, …). Forever may return Undead / race id / secrets.
+local function NormalizeRaceValue(race)
+  if IsSecret(race) then
+    return nil
+  end
+  if Stats and Stats.NormalizeRace then
+    return Stats.NormalizeRace(race)
+  end
+  if race == "Undead" then
+    return "Scourge"
+  end
+  if type(race) == "string" and race ~= "" then
+    return race
+  end
+  return nil
+end
+
+local function RaceFromUnit(unit)
+  if not unit or not UnitExists or not UnitExists(unit) or not UnitRace then
+    return nil
+  end
+  local ok, fileOrId = pcall(function()
+    return select(2, UnitRace(unit))
+  end)
+  if not ok or fileOrId == nil or IsSecret(fileOrId) then
+    return nil
+  end
+  return NormalizeRaceValue(fileOrId)
+end
+
 local function BroadcastPayload(encoded, whisperTarget)
   local s = Options.Get()
   local whisper = NameUsable(whisperTarget)
@@ -405,7 +435,7 @@ local function RememberHostileFromUnit(unit)
     return
   end
   local _, class = UnitClass(unit)
-  local _, race = UnitRace(unit)
+  local race = RaceFromUnit(unit)
   local guid = UnitGUID(unit)
   local name = UnitName(unit)
   NoteKnownPlayer(guid, name, class, race)
@@ -549,7 +579,7 @@ local function InfoFromGUID(guid)
   return {
     name = name,
     class = englishClass,
-    race = englishRace,
+    race = NormalizeRaceValue(englishRace) or NormalizeRaceValue(localizedRace),
     guid = g,
     localizedClass = localizedClass,
     localizedRace = localizedRace,
@@ -559,11 +589,10 @@ end
 
 local function PlayerSelfInfo()
   local _, class = UnitClass("player")
-  local _, race = UnitRace("player")
   return {
     name = UnitName("player"),
     class = class,
-    race = race,
+    race = RaceFromUnit("player"),
     guid = UnitGUID("player"),
   }
 end
@@ -793,7 +822,7 @@ local function SelectKillSpeech(victim, isRevenge, milestoneKind, milestoneValue
   if rarity == "legendary" then
     local candidates = {}
     local _, myClass = UnitClass("player")
-    local _, myRace = UnitRace("player")
+    local myRace = RaceFromUnit("player")
     for _, row in ipairs(speech.legendary) do
       local ok = true
       if row.class and row.class ~= myClass then ok = false end
@@ -1013,6 +1042,7 @@ local function OnPlayerKill(victim, destFlags)
   if not victim then
     return false
   end
+  victim.race = NormalizeRaceValue(victim.race)
   -- Forever honor poll often arrives without a name; recover from last hostile hit/target.
   local function nameMissing()
     return NameUsable(victim.name) == nil
@@ -1022,7 +1052,7 @@ local function OnPlayerKill(victim, destFlags)
     if known and NameUsable(known.name) then
       victim.name = known.name
       victim.class = victim.class or known.class
-      victim.race = victim.race or known.race
+      victim.race = victim.race or NormalizeRaceValue(known.race)
     end
   end
   if nameMissing() and lastHostilePlayer then
@@ -1031,7 +1061,7 @@ local function OnPlayerKill(victim, destFlags)
       victim.name = lastHostilePlayer.name
       victim.guid = victim.guid or lastHostilePlayer.guid
       victim.class = victim.class or lastHostilePlayer.class
-      victim.race = victim.race or lastHostilePlayer.race
+      victim.race = victim.race or NormalizeRaceValue(lastHostilePlayer.race)
     end
   end
   if nameMissing() and UnitExists("target") and UnitIsPlayer("target") then
@@ -1045,9 +1075,8 @@ local function OnPlayerKill(victim, destFlags)
         victim.guid = victim.guid or tguid
       end
       local _, class = UnitClass("target")
-      local _, race = UnitRace("target")
       victim.class = victim.class or class
-      victim.race = victim.race or race
+      victim.race = victim.race or RaceFromUnit("target")
     end
   end
   if nameMissing() and ns._lastBlow and NameUsable(ns._lastBlow.name) then
@@ -1353,13 +1382,13 @@ local function HandleCombatLog(...)
     local hitPlayer = IsPlayerFlags(destFlags, destGUID)
     if not hitPlayer and TargetingHostilePlayer() and SafeEqual(UnitGUID("target"), destGUID) then
       hitPlayer = true
-      NoteKnownPlayer(destGUID, UnitName("target"), select(2, UnitClass("target")), select(2, UnitRace("target")))
+      NoteKnownPlayer(destGUID, UnitName("target"), select(2, UnitClass("target")), RaceFromUnit("target"))
     end
     local destPlain = NameUsable(destName)
     if not hitPlayer and destPlain and IsHostileFlags(destFlags) then
       if TargetingHostilePlayer() and SafeEqual(UnitName("target"), destPlain) then
         hitPlayer = true
-        NoteKnownPlayer(destGUID, destPlain, select(2, UnitClass("target")), select(2, UnitRace("target")))
+        NoteKnownPlayer(destGUID, destPlain, select(2, UnitClass("target")), RaceFromUnit("target"))
       elseif KnownByGuid(destGUID) then
         hitPlayer = true
       end
@@ -1398,8 +1427,9 @@ local function HandleCombatLog(...)
       end
       if TargetingHostilePlayer() and (SafeEqual(UnitGUID("target"), destGUID) or not ValueUsable(destGUID)) then
         _, class = UnitClass("target")
-        _, race = UnitRace("target")
+        race = RaceFromUnit("target") or race
       end
+      race = NormalizeRaceValue(race) or race
       MarkEngage({
         guid = SafeString(destGUID) or destGUID,
         name = name,
@@ -1440,9 +1470,8 @@ local function HandleCombatLog(...)
     end
     if UnitExists("target") and SafeEqual(UnitGUID("target"), guid) then
       local _, class = UnitClass("target")
-      local _, race = UnitRace("target")
       victim.class = victim.class or class
-      victim.race = victim.race or race
+      victim.race = victim.race or RaceFromUnit("target")
       victim.name = NameUsable(victim.name) or NameUsable(UnitName("target")) or victim.name
       if UnitSex then
         victim.sex = victim.sex or UnitSex("target")
@@ -1812,9 +1841,8 @@ function TryKillFromChat(msg, allowBlowFallback)
       local g = SafeString(UnitGUID("target"))
       local v = InfoFromGUID(g) or { name = name, guid = g }
       local _, class = UnitClass("target")
-      local _, race = UnitRace("target")
       v.class = v.class or class
-      v.race = v.race or race
+      v.race = v.race or RaceFromUnit("target")
       v.name = name
       return v
     end)()
@@ -1867,9 +1895,8 @@ function WatchTargetDeath()
   local guid = SafeString(UnitGUID("target"))
   local victim = InfoFromGUID(guid) or { name = tname or blow.name, guid = guid or blow.guid }
   local _, class = UnitClass("target")
-  local _, race = UnitRace("target")
   victim.class = victim.class or class
-  victim.race = victim.race or race
+  victim.race = victim.race or RaceFromUnit("target")
   if OnPlayerKill(victim, nil) then
     ns._lastBlow = nil
   end
@@ -1897,9 +1924,8 @@ local function VictimFromContext()
     local tname = NameUsable(UnitName("target"))
     local victim = InfoFromGUID(guid) or { name = tname, guid = guid }
     local _, class = UnitClass("target")
-    local _, race = UnitRace("target")
     victim.class = victim.class or class
-    victim.race = victim.race or race
+    victim.race = victim.race or RaceFromUnit("target")
     if NameUsable(victim.name) then
       return victim
     end
