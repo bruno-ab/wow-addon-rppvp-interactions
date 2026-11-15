@@ -141,26 +141,6 @@ local function themeName()
   return "dark"
 end
 
-local function spacedCaps(text)
-  if type(text) ~= "string" or text == "" then
-    return ""
-  end
-  local upper = string.upper(text)
-  local out = {}
-  for i = 1, #upper do
-    local ch = upper:sub(i, i)
-    if ch == " " then
-      out[#out + 1] = "  "
-    else
-      out[#out + 1] = ch
-      if i < #upper then
-        out[#out + 1] = " "
-      end
-    end
-  end
-  return table.concat(out)
-end
-
 local function setFontSafe(fontString, path, size, flags)
   if not fontString or not fontString.SetFont then
     return
@@ -168,6 +148,18 @@ local function setFontSafe(fontString, path, size, flags)
   local ok = pcall(fontString.SetFont, fontString, path, size, flags)
   if not ok then
     pcall(fontString.SetFont, fontString, "Fonts\\FRIZQT__.TTF", size, flags)
+  end
+end
+
+local function paintSolid(tex, r, g, b, a)
+  if not tex then
+    return
+  end
+  if tex.SetColorTexture then
+    tex:SetColorTexture(r, g, b, a)
+  else
+    tex:SetTexture("Interface\\Buttons\\WHITE8X8")
+    tex:SetVertexColor(r, g, b, a)
   end
 end
 
@@ -187,13 +179,14 @@ local function setCueWash(frame, announcer, kind)
     frame.CueWash:Hide()
     return
   end
-  local a = (announcer == "FirstBlood" or announcer == "Ownage" or announcer == "HolyShit") and 0.28 or 0.14
-  if frame.CueWash.SetColorTexture then
-    frame.CueWash:SetColorTexture(rgb[1], rgb[2], rgb[3], a)
-  else
-    frame.CueWash:SetTexture("Interface\\Buttons\\WHITE8X8")
-    frame.CueWash:SetVertexColor(rgb[1], rgb[2], rgb[3], a)
-  end
+  local a = (announcer == "FirstBlood" or announcer == "Ownage" or announcer == "HolyShit" or announcer == "Godlike") and 0.35 or 0.20
+  frame.CueWash:ClearAllPoints()
+  frame.CueWash:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+  frame.CueWash:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
+  frame.CueWash:SetWidth(148)
+  -- ADD blend: white base + vertex tint reads cleaner than solid ColorTexture.
+  frame.CueWash:SetTexture("Interface\\Buttons\\WHITE8X8")
+  frame.CueWash:SetVertexColor(rgb[1], rgb[2], rgb[3], a)
   frame.CueWash:Show()
 end
 
@@ -257,8 +250,10 @@ local function playFlash(frame, announcer, kind)
     return
   end
   local rgb = ANNOUNCER_FLASH[announcer] or KIND_BAND[kind] or { 1, 1, 1 }
+  local peak = (announcer == "FirstBlood" or announcer == "HolyShit" or announcer == "Ownage" or announcer == "Godlike") and 0.42 or 0.28
+  frame.Flash:SetTexture("Interface\\Buttons\\WHITE8X8")
   frame.Flash:SetVertexColor(rgb[1], rgb[2], rgb[3], 1)
-  frame.Flash:SetAlpha(0.55)
+  frame.Flash:SetAlpha(peak)
   frame.Flash:Show()
   if flashGroup then
     flashGroup:Stop()
@@ -266,12 +261,12 @@ local function playFlash(frame, announcer, kind)
   flashGroup = frame.Flash:CreateAnimationGroup()
   local a = flashGroup:CreateAnimation("Alpha")
   if a.SetFromAlpha then
-    a:SetFromAlpha(0.55)
+    a:SetFromAlpha(peak)
     a:SetToAlpha(0)
   else
-    a:SetChange(-0.55)
+    a:SetChange(-peak)
   end
-  a:SetDuration(0.35)
+  a:SetDuration(0.42)
   a:SetSmoothing("OUT")
   flashGroup:SetScript("OnFinished", function()
     if frame.Flash then
@@ -294,13 +289,16 @@ local function applyPopupScale(frame)
   end
 end
 
-local function applyThemeChrome(frame)
+local function applyThemeChrome(frame, announcer)
   local theme = themeName()
   frame._uiTheme = theme
+  if frame.PaperTop then frame.PaperTop:Hide() end
+  if frame.PaperMid then frame.PaperMid:Hide() end
+  if frame.PaperBot then frame.PaperBot:Hide() end
+  if frame.SocketFrame then frame.SocketFrame:Hide() end
+
+  local border = ANNOUNCER_FLASH[announcer] or { 0.72, 0.58, 0.28 }
   if theme == "minimal" then
-    if frame.PaperTop then frame.PaperTop:Hide() end
-    if frame.PaperMid then frame.PaperMid:Hide() end
-    if frame.PaperBot then frame.PaperBot:Hide() end
     if frame.SetBackdrop then
       frame:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8X8",
@@ -308,51 +306,50 @@ local function applyThemeChrome(frame)
         tile = false, edgeSize = 1,
         insets = { left = 1, right = 1, top = 1, bottom = 1 },
       })
-      frame:SetBackdropColor(0.05, 0.05, 0.07, 0.82)
-      frame:SetBackdropBorderColor(0.55, 0.55, 0.60, 0.55)
+      frame:SetBackdropColor(0.04, 0.04, 0.05, 0.88)
+      frame:SetBackdropBorderColor(border[1], border[2], border[3], 0.45)
+    end
+    if frame.Shade then
+      paintSolid(frame.Shade, 0.03, 0.03, 0.04, 0.55)
+      frame.Shade:Show()
     end
     frame._dialogueSkin = false
     return
   end
-  if theme == "dark" then
-    if frame.PaperTop then frame.PaperTop:Hide() end
-    if frame.PaperMid then frame.PaperMid:Hide() end
-    if frame.PaperBot then frame.PaperBot:Hide() end
-    if frame.SetBackdrop then
-      frame:SetBackdrop({
-        bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        tile = true, tileSize = 16, edgeSize = 14,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 },
-      })
-      frame:SetBackdropColor(0.04, 0.04, 0.06, 0.94)
-      frame:SetBackdropBorderColor(0.55, 0.18, 0.16, 0.9)
+
+  -- Dark / parchment both use a cinematic toast chrome (readable over world/BG).
+  if frame.SetBackdrop then
+    frame:SetBackdrop({
+      bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 12,
+      insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    if theme == "parchment" then
+      frame:SetBackdropColor(0.12, 0.09, 0.06, 0.94)
+      frame:SetBackdropBorderColor(0.72, 0.58, 0.28, 0.85)
+    else
+      frame:SetBackdropColor(0.03, 0.03, 0.04, 0.94)
+      frame:SetBackdropBorderColor(border[1] * 0.85, border[2] * 0.85, border[3] * 0.85, 0.8)
     end
-    frame._dialogueSkin = false
-    return
   end
-  -- parchment: keep DialogueUI dress / Plate fallback
+  if frame.Shade then
+    paintSolid(frame.Shade, 0.01, 0.01, 0.015, 0.35)
+    frame.Shade:Show()
+  end
+  frame._dialogueSkin = false
 end
 
-local function setKindBand(frame, kind)
+local function setKindBand(frame, kind, announcer)
   if not frame.KindBand then
     return
   end
-  local rgb = KIND_BAND[kind] or KIND_BAND.kill
-  if themeName() == "minimal" and kind ~= "death" and kind ~= "revenge" then
-    frame.KindBand:Hide()
-    return
-  end
-  if frame.KindBand.SetColorTexture then
-    frame.KindBand:SetColorTexture(rgb[1], rgb[2], rgb[3], 0.92)
-  else
-    frame.KindBand:SetTexture("Interface\\Buttons\\WHITE8X8")
-    frame.KindBand:SetVertexColor(rgb[1], rgb[2], rgb[3], 0.92)
-  end
+  local rgb = ANNOUNCER_FLASH[announcer] or KIND_BAND[kind] or KIND_BAND.kill
+  paintSolid(frame.KindBand, rgb[1], rgb[2], rgb[3], 1)
   frame.KindBand:ClearAllPoints()
   frame.KindBand:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
-  frame.KindBand:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
-  frame.KindBand:SetHeight(kind == "death" and 8 or 5)
+  frame.KindBand:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
+  frame.KindBand:SetWidth(3)
   frame.KindBand:Show()
 end
 
@@ -360,30 +357,19 @@ local function setRarityBar(frame, kind, rarity)
   if not frame.RarityBar or not frame.RarityBarBg then
     return
   end
-  if themeName() == "minimal" then
-    frame.RarityBar:Hide()
-    frame.RarityBarBg:Hide()
-    return
-  end
   local frac = RARITY_BAR_WIDTH[rarity] or RARITY_BAR_WIDTH[kind] or 0.35
   local hex = rarityHex(kind, rarity)
   local r, g, b = hexToRGB(hex)
   local full = 300
   frame.RarityBarBg:ClearAllPoints()
-  frame.RarityBarBg:SetPoint("BOTTOM", frame, "BOTTOM", 0, 12)
-  frame.RarityBarBg:SetSize(full, 3)
-  if frame.RarityBarBg.SetColorTexture then
-    frame.RarityBarBg:SetColorTexture(0, 0, 0, 0.5)
-  end
+  frame.RarityBarBg:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 96, 11)
+  frame.RarityBarBg:SetSize(full, 2)
+  paintSolid(frame.RarityBarBg, 1, 1, 1, 0.08)
   frame.RarityBarBg:Show()
   frame.RarityBar:ClearAllPoints()
   frame.RarityBar:SetPoint("LEFT", frame.RarityBarBg, "LEFT", 0, 0)
-  frame.RarityBar:SetSize(math.max(12, full * frac), 3)
-  if frame.RarityBar.SetColorTexture then
-    frame.RarityBar:SetColorTexture(r, g, b, 0.95)
-  else
-    frame.RarityBar:SetVertexColor(r, g, b, 0.95)
-  end
+  frame.RarityBar:SetSize(math.max(18, full * frac), 2)
+  paintSolid(frame.RarityBar, r, g, b, 0.95)
   frame.RarityBar:Show()
 end
 
@@ -410,28 +396,16 @@ local function setStreakBig(frame, streak, announcer)
     return
   end
   streak = tonumber(streak) or 0
-  local showStreak = settings().showStreak ~= false
-  local label = CUE_LABELS[announcer]
-  local text
-  if showStreak and streak >= 1 then
-    text = "x" .. tostring(streak)
-  elseif label then
-    text = label
-  end
-  if not text then
+  if settings().showStreak == false or streak < 2 then
     frame.StreakBig:Hide()
     return
   end
-  frame.StreakBig:SetText(text)
-  local rgb = ANNOUNCER_FLASH[announcer] or { 1, 0.82, 0 }
-  local alpha = themeName() == "minimal" and 0.28 or 0.16
-  if announcer == "FirstBlood" then
-    alpha = 0.22
-  end
-  frame.StreakBig:SetTextColor(rgb[1], rgb[2], rgb[3], alpha)
-  setFontSafe(frame.StreakBig, "Fonts\\FRIZQT__.TTF", 42, "OUTLINE")
+  frame.StreakBig:SetText("x" .. tostring(streak))
+  local rgb = ANNOUNCER_FLASH[announcer] or { 1, 0.75, 0.3 }
+  frame.StreakBig:SetTextColor(rgb[1], rgb[2], rgb[3], 0.11)
+  setFontSafe(frame.StreakBig, "Fonts\\FRIZQT__.TTF", 36, "OUTLINE")
   frame.StreakBig:ClearAllPoints()
-  frame.StreakBig:SetPoint("RIGHT", frame, "RIGHT", -8, 2)
+  frame.StreakBig:SetPoint("RIGHT", frame, "RIGHT", -16, 0)
   frame.StreakBig:Show()
 end
 
@@ -439,18 +413,36 @@ local function setHeroCue(frame, announcer, badge)
   if not frame.Combo then
     return
   end
-  local label = CUE_LABELS[announcer] or badge
+  -- Ordinary "Kill" cue stays quiet — hero title only for multi/streak/special.
+  local label
+  if announcer and announcer ~= "Kill" and CUE_LABELS[announcer] then
+    label = CUE_LABELS[announcer]
+  elseif type(badge) == "string" and badge ~= "" and string.upper(badge) ~= "KILL" then
+    label = badge
+  end
   if type(label) ~= "string" or label == "" then
     frame.Combo:Hide()
     if frame.Badge then
       frame.Badge:Hide()
     end
+    if frame.Divider then
+      frame.Divider:Hide()
+    end
+    if frame.Medal then
+      frame.Medal:Hide()
+    end
+    -- Banter text moves up when there is no hero cue.
+    if frame.Text then
+      frame.Text:ClearAllPoints()
+      frame.Text:SetPoint("TOPLEFT", frame, "TOPLEFT", 96, -22)
+      frame.Text:SetSize(300, 42)
+    end
     return
   end
-  local rgb = ANNOUNCER_FLASH[announcer] or { 1, 0.82, 0.2 }
-  frame.Combo:SetText(spacedCaps(label))
+  local rgb = ANNOUNCER_FLASH[announcer] or { 1, 0.78, 0.28 }
+  frame.Combo:SetText(string.upper(label))
   frame.Combo:SetTextColor(rgb[1], rgb[2], rgb[3], 1)
-  setFontSafe(frame.Combo, "Fonts\\FRIZQT__.TTF", 18, "OUTLINE")
+  setFontSafe(frame.Combo, "Fonts\\FRIZQT__.TTF", 17, "OUTLINE")
   frame.Combo:Show()
   if frame.Badge then
     frame.Badge:Hide()
@@ -458,32 +450,50 @@ local function setHeroCue(frame, announcer, badge)
   if frame.Medal then
     frame.Medal:Hide()
   end
+  if frame.Text then
+    frame.Text:ClearAllPoints()
+    frame.Text:SetPoint("TOPLEFT", frame, "TOPLEFT", 96, -40)
+    frame.Text:SetSize(300, 34)
+  end
+  if frame.Divider then
+    paintSolid(frame.Divider, rgb[1], rgb[2], rgb[3], 0.28)
+    frame.Divider:ClearAllPoints()
+    frame.Divider:SetPoint("TOPLEFT", frame, "TOPLEFT", 96, -34)
+    frame.Divider:SetSize(220, 1)
+    frame.Divider:Show()
+  end
 end
 
-local function setFactionRing(frame, unit, classToken)
+local function setFactionRing(frame, unit, classToken, announcer)
   if not frame.FactionRing then
     return
   end
-  frame.FactionRing:Hide()
+  frame.FactionRing:Show()
   frame.FactionRing:ClearAllPoints()
-  if frame.Portrait then
-    frame.FactionRing:SetPoint("CENTER", frame.Portrait, "CENTER", 0, 0)
-  end
+  frame.FactionRing:SetPoint("CENTER", frame.Portrait, "CENTER", 0, 0)
   frame.FactionRing:SetSize(78, 78)
-  local faction
-  if unit and UnitExists(unit) and UnitFactionGroup then
-    faction = UnitFactionGroup(unit)
-  end
-  if faction == "Alliance" then
-    frame.FactionRing:SetVertexColor(0.25, 0.45, 0.95, 0.9)
-    frame.FactionRing:Show()
+  frame.FactionRing:SetTexture("Interface\\Buttons\\UI-Quickslot2")
+  frame.FactionRing:SetTexCoord(0.15, 0.85, 0.15, 0.85)
+  local rgb = ANNOUNCER_FLASH[announcer]
+  local faction = unit and UnitExists(unit) and UnitFactionGroup and UnitFactionGroup(unit)
+  if rgb then
+    frame.FactionRing:SetVertexColor(rgb[1], rgb[2], rgb[3], 1)
+  elseif faction == "Alliance" then
+    frame.FactionRing:SetVertexColor(0.35, 0.55, 1.0, 1)
   elseif faction == "Horde" then
-    frame.FactionRing:SetVertexColor(0.90, 0.20, 0.15, 0.9)
-    frame.FactionRing:Show()
+    frame.FactionRing:SetVertexColor(0.95, 0.25, 0.18, 1)
   elseif classToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
     local c = RAID_CLASS_COLORS[classToken]
-    frame.FactionRing:SetVertexColor(c.r or 1, c.g or 1, c.b or 1, 0.75)
-    frame.FactionRing:Show()
+    frame.FactionRing:SetVertexColor(c.r or 1, c.g or 1, c.b or 1, 1)
+  else
+    frame.FactionRing:SetVertexColor(0.85, 0.7, 0.35, 1)
+  end
+  if frame.PortraitShadow then
+    paintSolid(frame.PortraitShadow, 0, 0, 0, 0.55)
+    frame.PortraitShadow:ClearAllPoints()
+    frame.PortraitShadow:SetPoint("CENTER", frame.Portrait, "CENTER", 2, -2)
+    frame.PortraitShadow:SetSize(62, 62)
+    frame.PortraitShadow:Show()
   end
 end
 
@@ -493,40 +503,39 @@ local function layoutKillcam(frame)
   end
   if frame.Portrait then
     frame.Portrait:ClearAllPoints()
-    frame.Portrait:SetSize(64, 64)
-    frame.Portrait:SetPoint("LEFT", frame, "LEFT", 14, 2)
+    frame.Portrait:SetSize(60, 60)
+    frame.Portrait:SetPoint("LEFT", frame, "LEFT", 18, 0)
     frame.Portrait:Show()
   end
   if frame.Model then
     frame.Model:ClearAllPoints()
-    frame.Model:SetSize(64, 64)
-    frame.Model:SetPoint("LEFT", frame, "LEFT", 14, 2)
+    frame.Model:SetSize(60, 60)
+    frame.Model:SetPoint("LEFT", frame, "LEFT", 18, 0)
+    frame.Model:SetFrameLevel((frame:GetFrameLevel() or 1) + 3)
+  end
+  if frame.FactionRing then
+    frame.FactionRing:SetFrameLevel((frame:GetFrameLevel() or 1) + 5)
   end
   if frame.Combo then
     frame.Combo:ClearAllPoints()
-    frame.Combo:SetPoint("TOPLEFT", frame, "TOPLEFT", 92, -10)
-    frame.Combo:SetWidth(300)
+    frame.Combo:SetPoint("TOPLEFT", frame, "TOPLEFT", 96, -11)
+    frame.Combo:SetWidth(290)
     frame.Combo:SetJustifyH("LEFT")
   end
   if frame.Text then
     frame.Text:ClearAllPoints()
-    frame.Text:SetPoint("TOPLEFT", frame, "TOPLEFT", 92, -34)
-    frame.Text:SetSize(300, 48)
+    frame.Text:SetPoint("TOPLEFT", frame, "TOPLEFT", 96, -40)
+    frame.Text:SetSize(300, 34)
     frame.Text:SetJustifyH("LEFT")
     frame.Text:SetJustifyV("TOP")
-    setFontSafe(frame.Text, "Fonts\\FRIZQT__.TTF", 14, "")
+    setFontSafe(frame.Text, "Fonts\\FRIZQT__.TTF", 13, "")
   end
   if frame.Speaker then
     frame.Speaker:ClearAllPoints()
-    frame.Speaker:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 92, 14)
+    frame.Speaker:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 96, 15)
     frame.Speaker:SetWidth(300)
     frame.Speaker:SetJustifyH("LEFT")
     setFontSafe(frame.Speaker, "Fonts\\FRIZQT__.TTF", 11, "")
-  end
-  if frame.RarityBarBg then
-    frame.RarityBarBg:ClearAllPoints()
-    frame.RarityBarBg:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 92, 8)
-    frame.RarityBarBg:SetSize(280, 3)
   end
 end
 
@@ -565,9 +574,13 @@ local function applyPortrait(frame, unitOrNil, classToken, useModel)
       if frame.Model.SetPortraitZoom then
         frame.Model:SetPortraitZoom(1)
       end
+      if frame.Model.SetCamDistanceScale then
+        frame.Model:SetCamDistanceScale(1)
+      end
       if frame.Model.SetRotation then
         frame.Model:SetRotation(0)
       end
+      frame.Model:SetFrameLevel((frame:GetFrameLevel() or 1) + 3)
       frame.Model:Show()
       if frame.Portrait then
         frame.Portrait:Hide()
@@ -582,9 +595,11 @@ local function applyPortrait(frame, unitOrNil, classToken, useModel)
   if not texture then
     return
   end
+  texture:Show()
   if unitOrNil and UnitExists(unitOrNil) then
     SetPortraitTexture(texture, unitOrNil)
-    texture:SetTexCoord(0, 1, 0, 1)
+    -- Slight crop so the face fills the ring better.
+    texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     return
   end
   local coords = CLASS_ICON_TCOORDS and classToken and CLASS_ICON_TCOORDS[classToken]
@@ -805,7 +820,7 @@ function UI.PlayPreviewSound(entry)
   return false
 end
 
-local function tintEdge(frame, kind, rarity)
+local function tintEdge(frame, kind, rarity, announcer)
   if not frame.EdgeGlow then
     return
   end
@@ -813,16 +828,18 @@ local function tintEdge(frame, kind, rarity)
     frame.EdgeGlow:Hide()
     return
   end
-  local hex = rarityHex(kind, rarity)
-  local r = (tonumber(hex:sub(3, 4), 16) or 180) / 255
-  local g = (tonumber(hex:sub(5, 6), 16) or 180) / 255
-  local b = (tonumber(hex:sub(7, 8), 16) or 180) / 255
-  if frame.EdgeGlow.SetColorTexture then
-    frame.EdgeGlow:SetColorTexture(r, g, b, 0.22)
+  local rgb = ANNOUNCER_FLASH[announcer]
+  local r, g, b, a
+  if rgb then
+    r, g, b, a = rgb[1], rgb[2], rgb[3], 0.10
   else
-    frame.EdgeGlow:SetTexture("Interface\\Buttons\\WHITE8X8")
-    frame.EdgeGlow:SetVertexColor(r, g, b, 0.22)
+    local hex = rarityHex(kind, rarity)
+    r = (tonumber(hex:sub(3, 4), 16) or 180) / 255
+    g = (tonumber(hex:sub(5, 6), 16) or 180) / 255
+    b = (tonumber(hex:sub(7, 8), 16) or 180) / 255
+    a = 0.08
   end
+  paintSolid(frame.EdgeGlow, r, g, b, a)
   frame.EdgeGlow:Show()
 end
 
@@ -999,21 +1016,18 @@ local function showNow(payload)
     UIFrameFadeRemoveFrame(frame)
   end
   UI.ApplySavedPosition()
-  -- Theme chrome only; killcam layout owns positions (no DialogueUI clone stack).
-  applyPopupScale(frame)
-  applyThemeChrome(frame)
-  if themeName() == "parchment" then
-    UI.DressDialogue(frame)
-  end
-  layoutKillcam(frame)
 
   local kind = payload.kind or "kill"
   local rarity = payload.rarity or "common"
   local announcer = payload.announcer
   local streak = tonumber(payload.streak) or 0
-  local hex = rarityHex(kind, rarity)
-  tintEdge(frame, kind, rarity)
-  setKindBand(frame, kind)
+
+  -- Cinematic killcam chrome for every theme (no DialogueUI parchment stack).
+  applyPopupScale(frame)
+  applyThemeChrome(frame, announcer)
+  layoutKillcam(frame)
+  tintEdge(frame, kind, rarity, announcer)
+  setKindBand(frame, kind, announcer)
   setRarityBar(frame, kind, rarity)
   setHeroCue(frame, announcer, payload.badge)
   setStreakBig(frame, streak, announcer)
@@ -1022,27 +1036,27 @@ local function showNow(payload)
     UI.RefreshMinimapStreak(streak)
   end
 
-  local bodyR, bodyG, bodyB = 0.92, 0.90, 0.86
-  if themeName() == "parchment" and frame._dialogueSkin and not frame._dialogueDark then
-    bodyR, bodyG, bodyB = 0.22, 0.18, 0.14
+  local bodyR, bodyG, bodyB = 0.90, 0.88, 0.84
+  if themeName() == "parchment" then
+    bodyR, bodyG, bodyB = 0.93, 0.88, 0.78
   elseif kind == "death" then
-    bodyR, bodyG, bodyB = 0.90, 0.55, 0.55
+    bodyR, bodyG, bodyB = 0.88, 0.58, 0.58
   end
 
-  -- Signature: killer name + title (small, gold).
+  -- Signature: killer name + title (small, muted gold).
   local speaker = payload.speaker or UnitName("player") or "?"
   local icon = classIconMarkup(payload.class)
   local title = payload.title
   if frame.Speaker then
-    local nameText = icon .. "|cffFFD100" .. speaker .. "|r"
+    local nameText = icon .. "|cffE8C56A" .. speaker .. "|r"
     if title and title ~= "" then
-      nameText = nameText .. "  |cffC9A227· " .. title .. "|r"
+      nameText = nameText .. "  |cff8A7A5A· " .. title .. "|r"
       frame.Speaker:SetHeight(16)
     else
       frame.Speaker:SetHeight(14)
     end
     frame.Speaker:SetText(nameText)
-    frame.Speaker:SetTextColor(1, 0.82, 0.2)
+    frame.Speaker:SetTextColor(0.91, 0.77, 0.42)
     frame.Speaker:Show()
   end
 
@@ -1068,7 +1082,7 @@ local function showNow(payload)
     end
   end
   applyPortrait(frame, portraitUnit, portraitClass, s.useModel ~= false)
-  setFactionRing(frame, portraitUnit, portraitClass)
+  setFactionRing(frame, portraitUnit, portraitClass, announcer)
 
   frame:SetAlpha(0)
   frame:Show()

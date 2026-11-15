@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.20
+
+- Killcam polish: cinematic toast (shade + left accent + soft cue wash), no spaced-caps / DialogueUI stack on the banner.
+- Clean title only on special cues; banter rises when there is no hero line; portrait crop + ring tinted by announcer; quieter flash/signature.
+
 ## 1.0.19
 
 - Killcam popup redesign: hero cue (FIRST BLOOD), larger victim portrait + faction ring, compact dark layout.

@@ -1,95 +1,116 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/ ..\FrameXML\UI.xsd">
   <Frame name="BanterCombatPopup" parent="UIParent" frameStrata="DIALOG" enableMouse="true" movable="true" hidden="true">
-    <Size x="420" y="132"/>
+    <Size x="448" y="108"/>
     <Anchors>
-      <Anchor point="CENTER" relativePoint="CENTER" x="0" y="20"/>
+      <Anchor point="CENTER" relativePoint="CENTER" x="0" y="36"/>
     </Anchors>
     <Layers>
       <Layer level="BACKGROUND">
         <Texture name="$parentPaperTop" parentKey="PaperTop" hidden="true"/>
         <Texture name="$parentPaperMid" parentKey="PaperMid" hidden="true"/>
         <Texture name="$parentPaperBot" parentKey="PaperBot" hidden="true"/>
-        <Texture name="$parentCueWash" parentKey="CueWash" setAllPoints="true" hidden="true" alphaMode="ADD">
-          <Color r="0.85" g="0.08" b="0.05" a="0.22"/>
+        <Texture name="$parentShade" parentKey="Shade" setAllPoints="true" hidden="true">
+          <Color r="0.02" g="0.02" b="0.03" a="0.92"/>
+        </Texture>
+        <Texture name="$parentCueWash" parentKey="CueWash" hidden="true" alphaMode="ADD">
+          <Size x="160" y="108"/>
+          <Anchors>
+            <Anchor point="LEFT" x="0" y="0"/>
+          </Anchors>
+          <Color r="0.85" g="0.08" b="0.05" a="0.18"/>
         </Texture>
         <Texture name="$parentEdgeGlow" parentKey="EdgeGlow" hidden="true" setAllPoints="true">
-          <Color r="0.2" g="0.15" b="0.05" a="0.35"/>
+          <Color r="0.55" g="0.14" b="0.12" a="0.2"/>
         </Texture>
         <Texture name="$parentKindBand" parentKey="KindBand" hidden="true">
-          <Size x="420" y="4"/>
+          <Size x="3" y="108"/>
           <Anchors>
             <Anchor point="TOPLEFT" x="0" y="0"/>
-            <Anchor point="TOPRIGHT" x="0" y="0"/>
+            <Anchor point="BOTTOMLEFT" x="0" y="0"/>
           </Anchors>
-          <Color r="0.8" g="0.2" b="0.15" a="0.95"/>
+          <Color r="0.9" g="0.22" b="0.14" a="1"/>
         </Texture>
       </Layer>
       <Layer level="BORDER">
-        <Texture name="$parentPortrait" parentKey="Portrait">
-          <Size x="64" y="64"/>
+        <Texture name="$parentPortraitShadow" parentKey="PortraitShadow" hidden="true">
+          <Size x="72" y="72"/>
           <Anchors>
-            <Anchor point="LEFT" x="16" y="2"/>
+            <Anchor point="LEFT" x="14" y="0"/>
+          </Anchors>
+          <Color r="0" g="0" b="0" a="0.55"/>
+        </Texture>
+        <Texture name="$parentPortrait" parentKey="Portrait">
+          <Size x="60" y="60"/>
+          <Anchors>
+            <Anchor point="LEFT" x="20" y="0"/>
           </Anchors>
         </Texture>
         <Texture name="$parentFactionRing" parentKey="FactionRing" hidden="true">
-          <Size x="76" y="76"/>
+          <Size x="74" y="74"/>
           <Anchors>
             <Anchor point="CENTER" relativeTo="$parentPortrait" relativePoint="CENTER" x="0" y="0"/>
           </Anchors>
         </Texture>
         <Texture name="$parentRarityBarBg" parentKey="RarityBarBg" hidden="true">
-          <Size x="300" y="3"/>
+          <Size x="320" y="2"/>
           <Anchors>
-            <Anchor point="BOTTOMLEFT" x="96" y="10"/>
+            <Anchor point="BOTTOMLEFT" x="96" y="12"/>
           </Anchors>
-          <Color r="0" g="0" b="0" a="0.55"/>
+          <Color r="1" g="1" b="1" a="0.08"/>
         </Texture>
         <Texture name="$parentRarityBar" parentKey="RarityBar" hidden="true">
-          <Size x="60" y="3"/>
+          <Size x="80" y="2"/>
           <Anchors>
             <Anchor point="LEFT" relativeTo="$parentRarityBarBg" relativePoint="LEFT" x="0" y="0"/>
           </Anchors>
-          <Color r="1" g="0.82" b="0" a="0.95"/>
+          <Color r="1" g="0.75" b="0.25" a="0.95"/>
+        </Texture>
+        <Texture name="$parentDivider" parentKey="Divider" hidden="true">
+          <Size x="300" y="1"/>
+          <Anchors>
+            <Anchor point="TOPLEFT" x="96" y="-34"/>
+          </Anchors>
+          <Color r="1" g="1" b="1" a="0.12"/>
         </Texture>
       </Layer>
       <Layer level="ARTWORK">
         <Texture name="$parentHeader" parentKey="Header" hidden="true"/>
         <FontString name="$parentStreakBig" parentKey="StreakBig" inherits="GameFontNormalHuge" justifyH="RIGHT" justifyV="MIDDLE" hidden="true">
-          <Size x="220" y="90"/>
+          <Size x="150" y="70"/>
           <Anchors>
-            <Anchor point="RIGHT" x="-10" y="4"/>
+            <Anchor point="RIGHT" x="-14" y="2"/>
           </Anchors>
-          <Color r="1" g="0.25" b="0.15" a="0.18"/>
+          <Color r="1" g="0.35" b="0.2" a="0.12"/>
         </FontString>
       </Layer>
       <Layer level="OVERLAY">
         <Texture name="$parentMedal" parentKey="Medal" hidden="true">
-          <Size x="14" y="14"/>
+          <Size x="12" y="12"/>
           <Anchors>
             <Anchor point="TOPLEFT" x="96" y="-10"/>
           </Anchors>
         </Texture>
         <FontString name="$parentCombo" parentKey="Combo" inherits="GameFontNormalLarge" justifyH="LEFT" hidden="true">
-          <Size x="300" y="22"/>
+          <Size x="300" y="20"/>
           <Anchors>
-            <Anchor point="TOPLEFT" x="96" y="-10"/>
+            <Anchor point="TOPLEFT" x="96" y="-12"/>
           </Anchors>
-          <Color r="1" g="0.28" b="0.16" a="1"/>
+          <Color r="1" g="0.32" b="0.18" a="1"/>
         </FontString>
         <FontString name="$parentBadge" parentKey="Badge" inherits="GameFontNormal" justifyH="LEFT" hidden="true">
-          <Size x="300" y="16"/>
+          <Size x="280" y="14"/>
           <Anchors>
             <Anchor point="TOPLEFT" x="96" y="-12"/>
           </Anchors>
         </FontString>
-        <FontString name="$parentText" parentKey="Text" inherits="GameFontHighlight" justifyH="LEFT" justifyV="TOP">
-          <Size x="300" y="44"/>
+        <FontString name="$parentText" parentKey="Text" inherits="GameFontHighlight" justifyH="LEFT" justifyV="MIDDLE">
+          <Size x="300" y="36"/>
           <Anchors>
-            <Anchor point="TOPLEFT" x="96" y="-36"/>
+            <Anchor point="TOPLEFT" x="96" y="-38"/>
           </Anchors>
         </FontString>
         <FontString name="$parentSpeaker" parentKey="Speaker" inherits="GameFontNormalSmall" justifyH="LEFT">
-          <Size x="300" y="28"/>
+          <Size x="300" y="14"/>
           <Anchors>
             <Anchor point="BOTTOMLEFT" x="96" y="16"/>
           </Anchors>
@@ -101,9 +122,9 @@
     </Layers>
     <Frames>
       <PlayerModel name="$parentModel" parentKey="Model" hidden="true">
-        <Size x="64" y="64"/>
+        <Size x="60" y="60"/>
         <Anchors>
-          <Anchor point="LEFT" x="16" y="2"/>
+          <Anchor point="LEFT" x="20" y="0"/>
         </Anchors>
       </PlayerModel>
     </Frames>
@@ -116,8 +137,18 @@
           self.Medal:Hide()
         end
         if self.FactionRing then
-          self.FactionRing:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+          self.FactionRing:SetTexture("Interface\\Buttons\\UI-Quickslot2")
+          self.FactionRing:SetTexCoord(0.2, 0.8, 0.2, 0.8)
           self.FactionRing:Hide()
+        end
+        if self.PortraitShadow then
+          self.PortraitShadow:SetTexture("Interface\\Buttons\\WHITE8X8")
+        end
+        if self.Divider then
+          self.Divider:SetTexture("Interface\\Buttons\\WHITE8X8")
+        end
+        if self.Shade then
+          self.Shade:SetTexture("Interface\\Buttons\\WHITE8X8")
         end
       </OnLoad>
       <OnDragStart>
