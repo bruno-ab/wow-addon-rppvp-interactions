@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.22
+
+- Fix: menus opaque again on Forever (solid WHITE8X8 fill; BackdropTemplate when available).
+- Fix: kill popup invisible — no longer stuck at alpha 0 when fade/scale anim fails; Shade is the real opaque toast fill.
+
 ## 1.0.21
 
 - Fix: feat toast kept repeating "Primeiro Orc" — dated feats now persist in `book.when` so FreshTitle only fires once.

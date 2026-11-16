@@ -186,7 +186,17 @@ end
 local panel
 local checks = {}
 
--- Standard Blizzard dialog chrome (no custom Plate.tga).
+-- Forever often has no working SetBackdrop unless BackdropTemplate is mixed in.
+-- Always paint an opaque solid fill so menus stay readable over the world.
+local function CreateDialogFrame(name, parent)
+  parent = parent or UIParent
+  local ok, frame = pcall(CreateFrame, "Frame", name, parent, "BackdropTemplate")
+  if ok and frame then
+    return frame
+  end
+  return CreateFrame("Frame", name, parent)
+end
+
 local function ApplyWowDialogBackdrop(frame)
   if not frame then
     return
@@ -195,24 +205,35 @@ local function ApplyWowDialogBackdrop(frame)
     frame._banterPlate:Hide()
     frame._banterPlate = nil
   end
-  if not frame.SetBackdrop then
-    return
+  if not frame._banterSolidBg then
+    local bg = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
+    bg:SetAllPoints(frame)
+    frame._banterSolidBg = bg
   end
-  pcall(frame.SetBackdrop, frame, {
-    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
-    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-    tile = true,
-    tileSize = 32,
-    edgeSize = 32,
-    insets = { left = 11, right = 12, top = 12, bottom = 11 },
-  })
-  if frame.SetBackdropColor then
-    frame:SetBackdropColor(0, 0, 0, 1)
-  end
-  if frame.SetBackdropBorderColor then
-    frame:SetBackdropBorderColor(0.8, 0.8, 0.8, 1)
+  frame._banterSolidBg:SetTexture("Interface\\Buttons\\WHITE8X8")
+  frame._banterSolidBg:SetVertexColor(0.05, 0.05, 0.06, 0.98)
+  frame._banterSolidBg:Show()
+
+  if frame.SetBackdrop then
+    pcall(frame.SetBackdrop, frame, {
+      bgFile = "Interface\\Buttons\\WHITE8X8",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = false,
+      edgeSize = 14,
+      insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    if frame.SetBackdropColor then
+      frame:SetBackdropColor(0.05, 0.05, 0.06, 0.98)
+    end
+    if frame.SetBackdropBorderColor then
+      frame:SetBackdropBorderColor(0.55, 0.48, 0.28, 0.95)
+    end
   end
 end
+
+-- Expose for Compendium / other panels.
+Options.ApplyWowDialogBackdrop = ApplyWowDialogBackdrop
+Options.CreateDialogFrame = CreateDialogFrame
 
 local function makeCheck(parent, label, key, y)
   local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
@@ -244,8 +265,11 @@ function Options.TogglePanel()
     panel:Hide()
     return
   end
+  if panel then
+    ApplyWowDialogBackdrop(panel)
+  end
   if not panel then
-    panel = CreateFrame("Frame", "BanterCombatOptions", UIParent)
+    panel = CreateDialogFrame("BanterCombatOptions", UIParent)
     panel:SetSize(380, 780)
     panel:SetPoint("CENTER")
     panel:SetFrameStrata("DIALOG")
@@ -509,8 +533,11 @@ function Options.ToggleLines()
     linesFrame:Hide()
     return
   end
+  if linesFrame then
+    ApplyWowDialogBackdrop(linesFrame)
+  end
   if not linesFrame then
-    linesFrame = CreateFrame("Frame", "BanterCombatLines", UIParent)
+    linesFrame = CreateDialogFrame("BanterCombatLines", UIParent)
     linesFrame:SetSize(440, 500)
     linesFrame:SetPoint("CENTER", 40, 0)
     linesFrame:SetFrameStrata("DIALOG")
@@ -857,7 +884,7 @@ local dataFrame
 
 local function showDataFrame(mode)
   if not dataFrame then
-    dataFrame = CreateFrame("Frame", "BanterCombatData", UIParent)
+    dataFrame = CreateDialogFrame("BanterCombatData", UIParent)
     dataFrame:SetSize(480, 320)
     dataFrame:SetPoint("CENTER")
     dataFrame:SetFrameStrata("FULLSCREEN_DIALOG")
@@ -1044,7 +1071,7 @@ function Options.ToggleMinimapMenu(anchor)
       Options.HideMinimapMenu()
     end)
 
-    menu = CreateFrame("Frame", "BanterCombatMinimapMenu", menuCatcher)
+    menu = CreateDialogFrame("BanterCombatMinimapMenu", menuCatcher)
     menu:SetSize(280, 36 + (#MENU_TOGGLES + 5) * 20)
     menu:SetFrameStrata("DIALOG")
     menu:SetClampedToScreen(true)

@@ -46,32 +46,49 @@ local function makeButton(parent, text, width)
 end
 
 local function applyWowDialogBackdrop(parent)
-  if not parent or not parent.SetBackdrop then
+  if ns.Options and ns.Options.ApplyWowDialogBackdrop then
+    ns.Options.ApplyWowDialogBackdrop(parent)
     return
   end
-  pcall(parent.SetBackdrop, parent, {
-    bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
-    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-    tile = true,
-    tileSize = 32,
-    edgeSize = 32,
-    insets = { left = 11, right = 12, top = 12, bottom = 11 },
-  })
-  if parent.SetBackdropColor then
-    parent:SetBackdropColor(0, 0, 0, 1)
+  if not parent then
+    return
   end
-  if parent.SetBackdropBorderColor then
-    parent:SetBackdropBorderColor(0.8, 0.8, 0.8, 1)
+  if not parent._banterSolidBg then
+    local bg = parent:CreateTexture(nil, "BACKGROUND", nil, -8)
+    bg:SetAllPoints(parent)
+    parent._banterSolidBg = bg
+  end
+  parent._banterSolidBg:SetTexture("Interface\\Buttons\\WHITE8X8")
+  parent._banterSolidBg:SetVertexColor(0.05, 0.05, 0.06, 0.98)
+  parent._banterSolidBg:Show()
+  if parent.SetBackdrop then
+    pcall(parent.SetBackdrop, parent, {
+      bgFile = "Interface\\Buttons\\WHITE8X8",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = false,
+      edgeSize = 14,
+      insets = { left = 3, right = 3, top = 3, bottom = 3 },
+    })
+    if parent.SetBackdropColor then
+      parent:SetBackdropColor(0.05, 0.05, 0.06, 0.98)
+    end
+    if parent.SetBackdropBorderColor then
+      parent:SetBackdropBorderColor(0.55, 0.48, 0.28, 0.95)
+    end
   end
 end
 
 local function buildFrame()
   local made
-  local ok, created = pcall(CreateFrame, "Frame", "BanterCombatCompendium", UIParent, "BackdropTemplate")
-  if ok and created then
-    made = created
+  if ns.Options and ns.Options.CreateDialogFrame then
+    made = ns.Options.CreateDialogFrame("BanterCombatCompendium", UIParent)
   else
-    made = CreateFrame("Frame", "BanterCombatCompendium", UIParent)
+    local ok, created = pcall(CreateFrame, "Frame", "BanterCombatCompendium", UIParent, "BackdropTemplate")
+    if ok and created then
+      made = created
+    else
+      made = CreateFrame("Frame", "BanterCombatCompendium", UIParent)
+    end
   end
   frame = made
   frame:SetSize(780, 512)
@@ -89,8 +106,8 @@ local function buildFrame()
   side:SetPoint("TOPLEFT", 14, -36)
   side:SetPoint("BOTTOMLEFT", 14, 12)
   side:SetWidth(162)
-  side:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-  side:SetVertexColor(0.08, 0.08, 0.10, 0.92)
+  side:SetTexture("Interface\\Buttons\\WHITE8X8")
+  side:SetVertexColor(0.08, 0.08, 0.10, 0.95)
 
   local banner = frame:CreateTexture(nil, "ARTWORK")
   banner:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")

@@ -298,44 +298,32 @@ local function applyThemeChrome(frame, announcer)
   if frame.SocketFrame then frame.SocketFrame:Hide() end
 
   local border = ANNOUNCER_FLASH[announcer] or { 0.72, 0.58, 0.28 }
-  if theme == "minimal" then
-    if frame.SetBackdrop then
-      frame:SetBackdrop({
-        bgFile = "Interface\\Buttons\\WHITE8X8",
-        edgeFile = "Interface\\Buttons\\WHITE8X8",
-        tile = false, edgeSize = 1,
-        insets = { left = 1, right = 1, top = 1, bottom = 1 },
-      })
-      frame:SetBackdropColor(0.04, 0.04, 0.05, 0.88)
-      frame:SetBackdropBorderColor(border[1], border[2], border[3], 0.45)
-    end
-    if frame.Shade then
-      paintSolid(frame.Shade, 0.03, 0.03, 0.04, 0.55)
-      frame.Shade:Show()
-    end
-    frame._dialogueSkin = false
-    return
-  end
-
-  -- Dark / parchment both use a cinematic toast chrome (readable over world/BG).
-  if frame.SetBackdrop then
-    frame:SetBackdrop({
-      bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
-      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-      tile = true, tileSize = 16, edgeSize = 12,
-      insets = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-    if theme == "parchment" then
-      frame:SetBackdropColor(0.12, 0.09, 0.06, 0.94)
-      frame:SetBackdropBorderColor(0.72, 0.58, 0.28, 0.85)
-    else
-      frame:SetBackdropColor(0.03, 0.03, 0.04, 0.94)
-      frame:SetBackdropBorderColor(border[1] * 0.85, border[2] * 0.85, border[3] * 0.85, 0.8)
-    end
+  -- Forever: SetBackdrop often no-ops without BackdropTemplate. Shade is the real fill.
+  local shadeR, shadeG, shadeB, shadeA = 0.03, 0.03, 0.04, 0.94
+  if theme == "parchment" then
+    shadeR, shadeG, shadeB, shadeA = 0.12, 0.09, 0.06, 0.94
+  elseif theme == "minimal" then
+    shadeR, shadeG, shadeB, shadeA = 0.04, 0.04, 0.05, 0.90
   end
   if frame.Shade then
-    paintSolid(frame.Shade, 0.01, 0.01, 0.015, 0.35)
+    frame.Shade:SetTexture("Interface\\Buttons\\WHITE8X8")
+    paintSolid(frame.Shade, shadeR, shadeG, shadeB, shadeA)
     frame.Shade:Show()
+  end
+  if frame.SetBackdrop then
+    pcall(frame.SetBackdrop, frame, {
+      bgFile = "Interface\\Buttons\\WHITE8X8",
+      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = false, edgeSize = theme == "minimal" and 1 or 12,
+      insets = { left = 2, right = 2, top = 2, bottom = 2 },
+    })
+    if frame.SetBackdropColor then
+      frame:SetBackdropColor(shadeR, shadeG, shadeB, shadeA)
+    end
+    if frame.SetBackdropBorderColor then
+      local ba = theme == "minimal" and 0.45 or 0.85
+      frame:SetBackdropBorderColor(border[1] * 0.9, border[2] * 0.9, border[3] * 0.9, ba)
+    end
   end
   frame._dialogueSkin = false
 end
@@ -1084,13 +1072,32 @@ local function showNow(payload)
   applyPortrait(frame, portraitUnit, portraitClass, s.useModel ~= false)
   setFactionRing(frame, portraitUnit, portraitClass, announcer)
 
-  frame:SetAlpha(0)
+  -- Forever: Scale anim / UIFrameFadeIn can fail and leave alpha at 0 (invisible toast).
   frame:Show()
-  local ag = ensureEnterAnim(frame)
-  ag:Stop()
-  ag:Play()
-  UIFrameFadeIn(frame, 0.18, 0, 1)
-  -- First Blood / big cues always flash when FX on.
+  frame:SetAlpha(1)
+  if visualFxOn() then
+    local okAnim, ag = pcall(ensureEnterAnim, frame)
+    if okAnim and ag then
+      pcall(function()
+        ag:Stop()
+        ag:Play()
+      end)
+    end
+    if UIFrameFadeIn then
+      pcall(UIFrameFadeIn, frame, 0.15, 0.35, 1)
+    end
+  end
+  -- Safety net if fade/anim left the frame too dim.
+  if C_Timer and C_Timer.After then
+    C_Timer.After(0.3, function()
+      if myGen ~= generation or not frame:IsShown() then
+        return
+      end
+      if (frame:GetAlpha() or 0) < 0.7 then
+        frame:SetAlpha(1)
+      end
+    end)
+  end
   playFlash(frame, announcer or (kind == "death" and nil) or "Kill", kind)
   if not payload.silent and not payload.soundPlayed then
     playShowSound(kind, rarity, announcer)
@@ -1103,15 +1110,21 @@ local function showNow(payload)
     end
     if frame:IsShown() then
       if visualFxOn() then
-        local slide = frame:CreateAnimationGroup()
-        local tr = slide:CreateAnimation("Translation")
-        tr:SetOffset(0, 16)
-        tr:SetDuration(0.4)
-        tr:SetSmoothing("IN")
-        slide:Play()
+        pcall(function()
+          local slide = frame:CreateAnimationGroup()
+          local tr = slide:CreateAnimation("Translation")
+          tr:SetOffset(0, 16)
+          tr:SetDuration(0.35)
+          tr:SetSmoothing("IN")
+          slide:Play()
+        end)
       end
-      UIFrameFadeOut(frame, 0.4, frame:GetAlpha(), 0)
-      C_Timer.After(0.45, function()
+      if UIFrameFadeOut then
+        pcall(UIFrameFadeOut, frame, 0.35, frame:GetAlpha(), 0)
+      else
+        frame:SetAlpha(0)
+      end
+      C_Timer.After(0.4, function()
         if myGen ~= generation then
           return
         end

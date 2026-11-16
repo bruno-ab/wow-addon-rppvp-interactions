@@ -9,8 +9,8 @@
         <Texture name="$parentPaperTop" parentKey="PaperTop" hidden="true"/>
         <Texture name="$parentPaperMid" parentKey="PaperMid" hidden="true"/>
         <Texture name="$parentPaperBot" parentKey="PaperBot" hidden="true"/>
-        <Texture name="$parentShade" parentKey="Shade" setAllPoints="true" hidden="true">
-          <Color r="0.02" g="0.02" b="0.03" a="0.92"/>
+        <Texture name="$parentShade" parentKey="Shade" setAllPoints="true" file="Interface\Buttons\WHITE8X8">
+          <Color r="0.03" g="0.03" b="0.04" a="0.94"/>
         </Texture>
         <Texture name="$parentCueWash" parentKey="CueWash" hidden="true" alphaMode="ADD">
           <Size x="160" y="108"/>
@@ -149,6 +149,8 @@
         end
         if self.Shade then
           self.Shade:SetTexture("Interface\\Buttons\\WHITE8X8")
+          self.Shade:SetVertexColor(0.03, 0.03, 0.04, 0.94)
+          self.Shade:Show()
         end
       </OnLoad>
       <OnDragStart>
