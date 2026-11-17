@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.23
+
+- Compendium redesigned like Ink & Embers Legacy: Overview, Challenges (sub-tabs), Counts, Rivals, Chronicle, PvP Diary.
+- Rich PvP log (`pvpLog`) + duel W–L; kills/deaths/duels store level, zone, map, context, self/pet.
+- Hide race/class-gated achievements that do not apply to the current character.
+
 ## 1.0.22
 
 - Fix: menus opaque again on Forever (solid WHITE8X8 fill; BackdropTemplate when available).

@@ -530,11 +530,45 @@ local function PlaceNow(flags)
   if GetSubZoneText then
     subzone = GetSubZoneText() or ""
   end
+  local mapID
+  if C_Map and C_Map.GetBestMapForUnit then
+    local ok, id = pcall(C_Map.GetBestMapForUnit, "player")
+    if ok then
+      mapID = tonumber(id)
+    end
+  end
   return {
     context = FightContext(flags),
     zone = zone,
     subzone = subzone,
+    mapID = mapID,
   }
+end
+
+local function BlowBy()
+  local blow = ns._lastBlow
+  if not blow then
+    return "self"
+  end
+  if blow.by == "pet" or blow.by == "group" then
+    return blow.by
+  end
+  if blow.guid and UnitGUID and SafeEqual(blow.guid, UnitGUID("pet")) then
+    return "pet"
+  end
+  return "self"
+end
+
+local function EnrichPlace(place, person)
+  place = place or PlaceNow()
+  place.by = place.by or BlowBy()
+  if person and not person.level and UnitLevel and UnitExists("target") then
+    local level = UnitLevel("target")
+    if type(level) == "number" and level > 0 then
+      person.level = level
+    end
+  end
+  return place
 end
 
 local function OwnLine(key)
@@ -1109,7 +1143,7 @@ local function OnPlayerKill(victim, destFlags)
   end
   RememberHostile(victim)
 
-  local place = PlaceNow(destFlags)
+  local place = EnrichPlace(PlaceNow(destFlags), victim)
   local isRevenge = Stats.IsRevenge(victim.name)
   local _, _, mKind, mValue, mKey, rival, streakHit, _, personalHit = Stats.RecordKill(victim, place)
   if isRevenge then
@@ -1222,7 +1256,7 @@ local function OnPlayerDeath(killer)
   if not s.enabled then
     return
   end
-  local place = PlaceNow()
+  local place = EnrichPlace(PlaceNow(), killer)
   if s.showDeaths == false then
     Stats.RecordDeathBy(killer, place)
     return
@@ -1430,11 +1464,16 @@ local function HandleCombatLog(...)
         race = RaceFromUnit("target") or race
       end
       race = NormalizeRaceValue(race) or race
+      local by = "self"
+      if UnitGUID and SafeEqual(sourceGUID, UnitGUID("pet")) then
+        by = "pet"
+      end
       MarkEngage({
         guid = SafeString(destGUID) or destGUID,
         name = name,
         spell = (spellName and spellName ~= "") and spellName or nil,
         secret = not ValueUsable(destGUID),
+        by = by,
       })
       RememberHostile({ name = name, guid = SafeString(destGUID), class = class, race = race })
       if s.debug then
@@ -1775,6 +1814,28 @@ local function OnEvent(_, event, ...)
     if not ok then
       Debug("chat-kill err", err)
     end
+  elseif event == "DUEL_FINISHED" then
+    local won = not (UnitIsDeadOrGhost and UnitIsDeadOrGhost("player"))
+    local opponent = {}
+    if UnitExists("target") and UnitIsPlayer("target") and not UnitIsUnit("target", "player") then
+      opponent.name = NameUsable(UnitName("target"))
+      opponent.class = select(2, UnitClass("target"))
+      opponent.race = RaceFromUnit("target")
+      if UnitLevel then
+        local level = UnitLevel("target")
+        if type(level) == "number" and level > 0 then
+          opponent.level = level
+        end
+      end
+    elseif lastHostilePlayer and (GetTime() - (lastHostilePlayer.at or 0)) <= 60 then
+      opponent.name = lastHostilePlayer.name
+      opponent.class = lastHostilePlayer.class
+      opponent.race = lastHostilePlayer.race
+    end
+    if Stats.RecordDuel then
+      Stats.RecordDuel(won, opponent, EnrichPlace(PlaceNow(), opponent))
+    end
+    Debug("duel", won and "win" or "loss", opponent.name or "?")
   elseif event == "PLAYER_TARGET_CHANGED" or event == "UNIT_HEALTH" or event == "UNIT_FLAGS" then
     local unit = event == "PLAYER_TARGET_CHANGED" and "target" or ...
     if unit == "target" then
@@ -2017,6 +2078,7 @@ pcall(eventFrame.RegisterEvent, eventFrame, "CHAT_MSG_COMBAT_HOSTILE_DEATH")
 pcall(eventFrame.RegisterEvent, eventFrame, "CHAT_MSG_SYSTEM")
 eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
 pcall(eventFrame.RegisterEvent, eventFrame, "UNIT_FLAGS")
+pcall(eventFrame.RegisterEvent, eventFrame, "DUEL_FINISHED")
 if eventFrame.RegisterUnitEvent then
   eventFrame:RegisterUnitEvent("UNIT_HEALTH", "target")
 else

@@ -7,8 +7,18 @@ local L = ns.L
 local Data = ns.Data
 
 local RACES = { "Human", "Dwarf", "NightElf", "Gnome", "Orc", "Scourge", "Tauren", "Troll" }
+local CHALLENGE_ROWS = 9
 local frame
 local minimapButton
+
+local NAV = {
+  { id = "overview", labelKey = "COMP_OVERVIEW" },
+  { id = "challenges", labelKey = "COMP_CHALLENGES" },
+  { id = "counts", labelKey = "COMP_COUNTS" },
+  { id = "rivals", labelKey = "COMP_RIVALS" },
+  { id = "story", labelKey = "COMP_STORY" },
+  { id = "diary", labelKey = "COMP_DIARY" },
+}
 
 local function countOf(map, key)
   if type(map) ~= "table" then
@@ -28,6 +38,21 @@ local function featMark(n)
     return "|cFF1EFF00*|r "
   end
   return ""
+end
+
+local function formatWhen(ts)
+  ts = tonumber(ts) or 0
+  if ts <= 0 or not date then
+    return L.COMP_LOCKED or "—"
+  end
+  return date("%d.%m.%Y", ts)
+end
+
+local function solidTex(parent, layer, r, g, b, a)
+  local tex = parent:CreateTexture(nil, layer or "BACKGROUND")
+  tex:SetTexture("Interface\\Buttons\\WHITE8X8")
+  tex:SetVertexColor(r or 0.05, g or 0.05, b or 0.06, a or 0.98)
+  return tex
 end
 
 local function makeButton(parent, text, width)
@@ -54,26 +79,50 @@ local function applyWowDialogBackdrop(parent)
     return
   end
   if not parent._banterSolidBg then
-    local bg = parent:CreateTexture(nil, "BACKGROUND", nil, -8)
+    local bg = solidTex(parent, "BACKGROUND", 0.05, 0.05, 0.06, 0.98)
     bg:SetAllPoints(parent)
     parent._banterSolidBg = bg
   end
-  parent._banterSolidBg:SetTexture("Interface\\Buttons\\WHITE8X8")
-  parent._banterSolidBg:SetVertexColor(0.05, 0.05, 0.06, 0.98)
   parent._banterSolidBg:Show()
-  if parent.SetBackdrop then
-    pcall(parent.SetBackdrop, parent, {
-      bgFile = "Interface\\Buttons\\WHITE8X8",
-      edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-      tile = false,
-      edgeSize = 14,
-      insets = { left = 3, right = 3, top = 3, bottom = 3 },
-    })
-    if parent.SetBackdropColor then
-      parent:SetBackdropColor(0.05, 0.05, 0.06, 0.98)
+end
+
+local function ink(fs, r, g, b)
+  if fs and fs.SetTextColor then
+    fs:SetTextColor(r or 0.92, g or 0.86, b or 0.70)
+  end
+end
+
+local function hideAllContent()
+  if not frame then
+    return
+  end
+  if frame.heroBox then
+    frame.heroBox:Hide()
+  end
+  if frame.sideBox then
+    frame.sideBox:Hide()
+  end
+  if frame.Story then
+    frame.Story:Hide()
+  end
+  if frame.challengeRows then
+    for i = 1, #frame.challengeRows do
+      frame.challengeRows[i]:Hide()
     end
-    if parent.SetBackdropBorderColor then
-      parent:SetBackdropBorderColor(0.55, 0.48, 0.28, 0.95)
+  end
+  if frame.subTabs then
+    for i = 1, #frame.subTabs do
+      frame.subTabs[i]:Hide()
+    end
+  end
+  if frame.listRows then
+    for i = 1, #frame.listRows do
+      frame.listRows[i]:Hide()
+    end
+  end
+  if frame.countRows then
+    for i = 1, #frame.countRows do
+      frame.countRows[i]:Hide()
     end
   end
 end
@@ -84,14 +133,10 @@ local function buildFrame()
     made = ns.Options.CreateDialogFrame("BanterCombatCompendium", UIParent)
   else
     local ok, created = pcall(CreateFrame, "Frame", "BanterCombatCompendium", UIParent, "BackdropTemplate")
-    if ok and created then
-      made = created
-    else
-      made = CreateFrame("Frame", "BanterCombatCompendium", UIParent)
-    end
+    made = (ok and created) or CreateFrame("Frame", "BanterCombatCompendium", UIParent)
   end
   frame = made
-  frame:SetSize(780, 512)
+  frame:SetSize(780, 520)
   frame:SetPoint("CENTER")
   frame:SetFrameStrata("DIALOG")
   frame:EnableMouse(true)
@@ -102,123 +147,220 @@ local function buildFrame()
   frame:SetClampedToScreen(true)
   applyWowDialogBackdrop(frame)
 
-  local side = frame:CreateTexture(nil, "BORDER")
-  side:SetPoint("TOPLEFT", 14, -36)
-  side:SetPoint("BOTTOMLEFT", 14, 12)
-  side:SetWidth(162)
-  side:SetTexture("Interface\\Buttons\\WHITE8X8")
-  side:SetVertexColor(0.08, 0.08, 0.10, 0.95)
+  local side = solidTex(frame, "BORDER", 0.08, 0.08, 0.10, 0.95)
+  side:SetPoint("TOPLEFT", 14, -48)
+  side:SetPoint("BOTTOMLEFT", 14, 14)
+  side:SetWidth(150)
 
   local banner = frame:CreateTexture(nil, "ARTWORK")
   banner:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
-  banner:SetSize(320, 64)
+  banner:SetSize(360, 64)
   banner:SetPoint("TOP", 0, 12)
 
   frame.Title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   frame.Title:SetPoint("TOP", banner, "TOP", 0, -14)
+  ink(frame.Title, 1, 0.82, 0)
 
-  frame.Totals = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  frame.Totals:SetPoint("TOPRIGHT", -40, -36)
+  frame.ProgressLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  frame.ProgressLabel:SetPoint("TOPRIGHT", -40, -42)
+  ink(frame.ProgressLabel, 0.85, 0.78, 0.55)
+
+  frame.ProgressBar = CreateFrame("StatusBar", nil, frame)
+  frame.ProgressBar:SetSize(180, 6)
+  frame.ProgressBar:SetPoint("TOPRIGHT", -40, -58)
+  frame.ProgressBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+  frame.ProgressBar:SetStatusBarColor(0.78, 0.58, 0.18, 1)
+  local pbg = frame.ProgressBar:CreateTexture(nil, "BACKGROUND")
+  pbg:SetAllPoints()
+  pbg:SetTexture("Interface\\Buttons\\WHITE8X8")
+  pbg:SetVertexColor(0.15, 0.12, 0.08, 0.9)
 
   frame.Hint = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-  frame.Hint:SetPoint("BOTTOM", 80, 40)
+  frame.Hint:SetPoint("BOTTOM", 80, 12)
   frame.Hint:SetWidth(520)
-  frame.Hint:SetHeight(40)
+  frame.Hint:SetHeight(28)
   frame.Hint:SetJustifyH("CENTER")
   frame.Hint:SetJustifyV("TOP")
   if frame.Hint.SetWordWrap then
     frame.Hint:SetWordWrap(true)
   end
 
-  local function header(parent, x)
-    local race = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    race:SetPoint("TOPLEFT", x, -80)
-    local kills = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    kills:SetPoint("TOPLEFT", x + 132, -80)
-    local deaths = parent:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    deaths:SetPoint("TOPLEFT", x + 184, -80)
-    return race, kills, deaths
-  end
-
-  frame.RaceHeader, frame.RaceKillsHeader, frame.RaceDeathsHeader = header(frame, 210)
-  frame.ClassHeader, frame.ClassKillsHeader, frame.ClassDeathsHeader = header(frame, 470)
-
-  frame.rows = {}
-  for i = 1, 9 do
-    local y = -98 - (i - 1) * 16
-    local row = {}
-    row.race = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.race:SetPoint("TOPLEFT", 210, y)
-    row.race:SetWidth(128)
-    row.race:SetJustifyH("LEFT")
-    row.raceKills = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.raceKills:SetPoint("TOPLEFT", 342, y)
-    row.raceKills:SetWidth(28)
-    row.raceKills:SetJustifyH("RIGHT")
-    row.raceDeaths = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.raceDeaths:SetPoint("TOPLEFT", 394, y)
-    row.raceDeaths:SetWidth(28)
-    row.raceDeaths:SetJustifyH("RIGHT")
-
-    row.class = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.class:SetPoint("TOPLEFT", 470, y)
-    row.class:SetWidth(140)
-    row.class:SetJustifyH("LEFT")
-    row.classKills = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.classKills:SetPoint("TOPLEFT", 602, y)
-    row.classKills:SetWidth(28)
-    row.classKills:SetJustifyH("RIGHT")
-    row.classDeaths = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.classDeaths:SetPoint("TOPLEFT", 654, y)
-    row.classDeaths:SetWidth(28)
-    row.classDeaths:SetJustifyH("RIGHT")
-    frame.rows[i] = row
-  end
-
-  local close = makeButton(frame, "", 90)
-  close:SetPoint("BOTTOM", 80, 12)
+  local close = makeButton(frame, L.COMP_CLOSE or "Fechar", 80)
+  close:SetPoint("TOPRIGHT", -18, -14)
   close:SetScript("OnClick", function()
     frame:Hide()
   end)
   frame.Close = close
 
+  -- Left nav
   frame.nav = {}
-  local categories = ns.Achievements and ns.Achievements.Categories and ns.Achievements.Categories() or {}
-  for i = 1, #categories do
-    local page = categories[i].id
+  for i = 1, #NAV do
+    local info = NAV[i]
     local button = CreateFrame("Button", nil, frame)
-    button:SetSize(148, 20)
-    button:SetPoint("TOPLEFT", 22, -54 - (i - 1) * 22)
-    local hi = button:CreateTexture(nil, "BACKGROUND")
+    button:SetSize(138, 22)
+    button:SetPoint("TOPLEFT", 20, -56 - (i - 1) * 26)
+    local hi = solidTex(button, "BACKGROUND", 0.72, 0.55, 0.18, 0.45)
     hi:SetAllPoints()
-    hi:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-    hi:SetVertexColor(0.72, 0.55, 0.18, 0.55)
     hi:Hide()
     button.hi = hi
     local label = button:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     label:SetPoint("LEFT", 8, 0)
+    label:SetWidth(122)
     label:SetJustifyH("LEFT")
-    label:SetWidth(132)
-    label:SetText(categories[i].label)
     button.label = label
-    button.page = page
+    button.page = info.id
+    button.labelKey = info.labelKey
     button:SetScript("OnClick", function()
-      frame.page = page
+      frame.page = info.id
       frame.listPage = 1
-      Compendium.Refresh()
-    end)
-    button:SetScript("OnEnter", function()
-      if frame.page ~= page then
-        label:SetTextColor(1, 0.95, 0.7)
+      if info.id ~= "challenges" then
+        frame.challengeCat = nil
       end
-    end)
-    button:SetScript("OnLeave", function()
       Compendium.Refresh()
     end)
     frame.nav[i] = button
   end
-  frame.page = "summary"
-  frame.listPage = 1
+
+  -- Challenge sub-tabs (two rows under header)
+  frame.subTabs = {}
+  for i = 1, 12 do
+    local tab = CreateFrame("Button", nil, frame)
+    tab:SetSize(92, 16)
+    local col = (i - 1) % 6
+    local rowN = math.floor((i - 1) / 6)
+    tab:SetPoint("TOPLEFT", 180 + col * 94, -52 - rowN * 16)
+    local label = tab:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    label:SetAllPoints()
+    label:SetJustifyH("LEFT")
+    tab.label = label
+    tab:Hide()
+    frame.subTabs[i] = tab
+  end
+
+  -- Challenge dense rows (Legado style)
+  frame.challengeRows = {}
+  for i = 1, CHALLENGE_ROWS do
+    local row = CreateFrame("Frame", nil, frame)
+    row:SetSize(560, 34)
+    row:SetPoint("TOPLEFT", 180, -92 - (i - 1) * 36)
+    local bg = solidTex(row, "BACKGROUND", 0.12, 0.10, 0.07, 0.55)
+    bg:SetAllPoints()
+    row.icon = row:CreateTexture(nil, "ARTWORK")
+    row.icon:SetSize(28, 28)
+    row.icon:SetPoint("LEFT", 6, 0)
+    row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    row.title = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    row.title:SetPoint("LEFT", 40, 6)
+    row.title:SetWidth(300)
+    row.title:SetJustifyH("LEFT")
+    row.state = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.state:SetPoint("RIGHT", -8, 6)
+    row.state:SetWidth(160)
+    row.state:SetJustifyH("RIGHT")
+    row.bar = CreateFrame("StatusBar", nil, row)
+    row.bar:SetSize(500, 4)
+    row.bar:SetPoint("BOTTOMLEFT", 40, 4)
+    row.bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+    local bbg = row.bar:CreateTexture(nil, "BACKGROUND")
+    bbg:SetAllPoints()
+    bbg:SetTexture("Interface\\Buttons\\WHITE8X8")
+    bbg:SetVertexColor(0.18, 0.16, 0.12, 0.9)
+    row:Hide()
+    frame.challengeRows[i] = row
+  end
+
+  -- Overview book panels
+  frame.heroBox = CreateFrame("Frame", nil, frame)
+  frame.heroBox:SetSize(260, 340)
+  frame.heroBox:SetPoint("TOPLEFT", 180, -72)
+  local hb = solidTex(frame.heroBox, "BACKGROUND", 0.10, 0.09, 0.07, 0.7)
+  hb:SetAllPoints()
+  frame.heroKills = frame.heroBox:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+  frame.heroKills:SetPoint("TOP", 0, -24)
+  ink(frame.heroKills, 1, 0.82, 0)
+  frame.heroKillsLabel = frame.heroBox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  frame.heroKillsLabel:SetPoint("TOP", frame.heroKills, "BOTTOM", 0, -4)
+  frame.heroStats = frame.heroBox:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  frame.heroStats:SetPoint("TOPLEFT", 16, -100)
+  frame.heroStats:SetWidth(228)
+  frame.heroStats:SetJustifyH("LEFT")
+  frame.heroStats:SetJustifyV("TOP")
+  if frame.heroStats.SetWordWrap then
+    frame.heroStats:SetWordWrap(true)
+  end
+  frame.heroBox:Hide()
+
+  frame.sideBox = CreateFrame("Frame", nil, frame)
+  frame.sideBox:SetSize(290, 340)
+  frame.sideBox:SetPoint("TOPLEFT", 456, -72)
+  local sb = solidTex(frame.sideBox, "BACKGROUND", 0.10, 0.09, 0.07, 0.7)
+  sb:SetAllPoints()
+  frame.sideTitle = frame.sideBox:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  frame.sideTitle:SetPoint("TOPLEFT", 12, -12)
+  ink(frame.sideTitle, 1, 0.82, 0)
+  frame.sideBody = frame.sideBox:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  frame.sideBody:SetPoint("TOPLEFT", 12, -34)
+  frame.sideBody:SetWidth(266)
+  frame.sideBody:SetHeight(290)
+  frame.sideBody:SetJustifyH("LEFT")
+  frame.sideBody:SetJustifyV("TOP")
+  if frame.sideBody.SetWordWrap then
+    frame.sideBody:SetWordWrap(true)
+  end
+  frame.sideBox:Hide()
+
+  -- Generic list rows (rivals / diary)
+  frame.listRows = {}
+  for i = 1, 12 do
+    local row = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row:SetPoint("TOPLEFT", 180, -72 - (i - 1) * 28)
+    row:SetWidth(560)
+    row:SetJustifyH("LEFT")
+    row:Hide()
+    frame.listRows[i] = row
+  end
+
+  -- Counts dual column
+  frame.countRows = {}
+  for i = 1, 9 do
+    local row = {}
+    row.race = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.race:SetPoint("TOPLEFT", 180, -90 - (i - 1) * 28)
+    row.race:SetWidth(200)
+    row.race:SetJustifyH("LEFT")
+    row.raceStats = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.raceStats:SetPoint("TOPLEFT", 390, -90 - (i - 1) * 28)
+    row.raceStats:SetWidth(80)
+    row.class = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.class:SetPoint("TOPLEFT", 480, -90 - (i - 1) * 28)
+    row.class:SetWidth(160)
+    row.class:SetJustifyH("LEFT")
+    row.classStats = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.classStats:SetPoint("TOPLEFT", 650, -90 - (i - 1) * 28)
+    row.classStats:SetWidth(80)
+    row.race:Hide()
+    row.raceStats:Hide()
+    row.class:Hide()
+    row.classStats:Hide()
+    frame.countRows[i] = row
+  end
+  frame.countHeaderL = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  frame.countHeaderL:SetPoint("TOPLEFT", 180, -70)
+  frame.countHeaderR = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  frame.countHeaderR:SetPoint("TOPLEFT", 480, -70)
+  frame.countHeaderL:Hide()
+  frame.countHeaderR:Hide()
+
+  frame.Story = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  frame.Story:SetPoint("TOPLEFT", 180, -72)
+  frame.Story:SetWidth(560)
+  frame.Story:SetHeight(360)
+  frame.Story:SetJustifyH("LEFT")
+  frame.Story:SetJustifyV("TOP")
+  if frame.Story.SetWordWrap then
+    frame.Story:SetWordWrap(true)
+  end
+  frame.Story:Hide()
 
   local function arrowButton(direction)
     local button = CreateFrame("Button", nil, frame)
@@ -230,87 +372,365 @@ local function buildFrame()
     button:SetPushedTexture(prefix .. "Down")
     button:SetDisabledTexture(prefix .. "Disabled")
     button:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
-    button:SetScript("OnEnter", function(self)
-      if not GameTooltip then
-        return
-      end
-      GameTooltip:SetOwner(self, "ANCHOR_TOP")
-      GameTooltip:SetText(direction == "prev" and L.COMP_BACK or L.COMP_MORE, 1, 0.82, 0)
-      GameTooltip:Show()
-    end)
-    button:SetScript("OnLeave", function()
-      if GameTooltip then
-        GameTooltip:Hide()
-      end
-    end)
     return button
   end
   frame.Back = arrowButton("prev")
-  frame.Back:SetPoint("BOTTOMLEFT", 188, 8)
+  frame.Back:SetPoint("BOTTOMLEFT", 180, 36)
   frame.Back:SetScript("OnClick", function()
     frame.listPage = math.max(1, (frame.listPage or 1) - 1)
     Compendium.Refresh()
   end)
   frame.More = arrowButton("next")
-  frame.More:SetPoint("BOTTOMRIGHT", -24, 8)
+  frame.More:SetPoint("BOTTOMRIGHT", -24, 36)
   frame.More:SetScript("OnClick", function()
     frame.listPage = (frame.listPage or 1) + 1
     Compendium.Refresh()
   end)
 
-  frame.achRows = {}
-  for i = 1, 6 do
-    local row = CreateFrame("Frame", nil, frame)
-    row:SetSize(520, 56)
-    row:SetPoint("TOPLEFT", 206, -58 - (i - 1) * 60)
-    local bg = row:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-    bg:SetVertexColor(0.16, 0.11, 0.05, 0.55)
-    row.icon = row:CreateTexture(nil, "ARTWORK")
-    row.icon:SetSize(40, 40)
-    row.icon:SetPoint("LEFT", 8, 0)
-    row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    row.title = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    row.title:SetPoint("TOPLEFT", 56, -6)
-    row.title:SetWidth(300)
-    row.title:SetJustifyH("LEFT")
-    row.desc = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.desc:SetPoint("TOPLEFT", 56, -24)
-    row.desc:SetWidth(300)
-    row.desc:SetHeight(30)
-    row.desc:SetJustifyH("LEFT")
-    row.desc:SetJustifyV("TOP")
-    if row.desc.SetWordWrap then
-      row.desc:SetWordWrap(true)
+  frame.page = "overview"
+  frame.listPage = 1
+  frame.challengeCat = nil
+  frame:Hide()
+end
+
+local function setPager(canBack, canMore)
+  if not canBack and not canMore then
+    frame.Back:Hide()
+    frame.More:Hide()
+    return
+  end
+  frame.Back:Show()
+  frame.More:Show()
+  if frame.Back.SetEnabled then
+    frame.Back:SetEnabled(canBack and true or false)
+  end
+  if frame.More.SetEnabled then
+    frame.More:SetEnabled(canMore and true or false)
+  end
+end
+
+local function refreshNav()
+  local page = frame.page or "overview"
+  for i = 1, #frame.nav do
+    local button = frame.nav[i]
+    local key = button.labelKey
+    button.label:SetText((key and L[key]) or button.page)
+    if button.page == page then
+      button.label:SetTextColor(1, 0.82, 0)
+      button.hi:Show()
+    else
+      button.label:SetTextColor(0.85, 0.75, 0.55)
+      button.hi:Hide()
     end
-    row.bar = CreateFrame("StatusBar", nil, row)
-    row.bar:SetSize(140, 14)
-    row.bar:SetPoint("BOTTOMRIGHT", -10, 8)
-    row.bar:SetStatusBarTexture("Interface\\TargetingFrame\\UI-StatusBar")
-    row.bar:SetMinMaxValues(0, 1)
-    row.bar:SetValue(0)
-    local barBg = row.bar:CreateTexture(nil, "BACKGROUND")
-    barBg:SetAllPoints()
-    barBg:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-    barBg:SetVertexColor(0, 0, 0, 0.65)
-    row.barText = row.bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.barText:SetPoint("CENTER", row.bar, "CENTER", 0, 0)
-    row:Hide()
-    frame.achRows[i] = row
+  end
+end
+
+local function paintOverview(db)
+  frame.heroBox:Show()
+  frame.sideBox:Show()
+  local kills = db.totalKills or 0
+  local deaths = db.totalDeaths or 0
+  local best = db.bestStreak or 0
+  local streak = db.streak or 0
+  local wins, losses = 0, 0
+  if ns.Stats and ns.Stats.DuelStats then
+    wins, losses = ns.Stats.DuelStats()
+  end
+  local sk, sd, ss = 0, 0, 0
+  if ns.Stats and ns.Stats.Session then
+    sk, sd, ss = ns.Stats.Session()
+  end
+  frame.heroKills:SetText(tostring(kills))
+  frame.heroKillsLabel:SetText(L.COMP_KILLS or "Abates")
+  frame.heroStats:SetText(table.concat({
+    (L.COMP_TOTAL_DEATHS or "Mortes: %d"):format(deaths),
+    (L.COMP_BEST_STREAK or "Melhor série: %d"):format(best),
+    (L.COMP_STREAK_NOW or "Série atual: %d"):format(streak),
+    (L.COMP_DUELS or "Duelos: %d–%d"):format(wins, losses),
+    (L.MINIMAP_SESSION or "Sessão: %d / %d / %d"):format(sk, sd, ss),
+  }, "\n\n"))
+
+  frame.sideTitle:SetText(L.COMP_SPOTLIGHT or "Destaques")
+  local lines = {}
+  if ns.Stats and ns.Stats.Spotlight then
+    local nemesis, prey, zone = ns.Stats.Spotlight()
+    lines[#lines + 1] = nemesis and (L.SPOT_NEMESIS or "Nêmesis %s (%d)"):format(nemesis.name or "?", nemesis.deaths or 0) or (L.SPOT_EMPTY or "—")
+    lines[#lines + 1] = prey and (L.SPOT_PREY or "Presa %s (%d)"):format(prey.name or "?", prey.kills or 0) or (L.SPOT_EMPTY or "—")
+    lines[#lines + 1] = zone and (L.SPOT_ZONE or "Zona %s"):format(zone) or (L.SPOT_EMPTY or "—")
+  end
+  lines[#lines + 1] = ""
+  lines[#lines + 1] = L.COMP_RECENT_LOG or "Diário recente"
+  local log = ns.Stats and ns.Stats.PvpLog and ns.Stats.PvpLog() or {}
+  for i = 1, math.min(5, #log) do
+    local e = log[i]
+    local side = e.side or "?"
+    local label = side
+    if side == "kill" then
+      label = L.COMP_LOG_KILL or "Abate"
+    elseif side == "death" then
+      label = L.COMP_LOG_DEATH or "Morte"
+    elseif side == "duel_win" then
+      label = L.COMP_LOG_DUEL_WIN or "Duelo +"
+    elseif side == "duel_loss" then
+      label = L.COMP_LOG_DUEL_LOSS or "Duelo −"
+    end
+    local who = e.name or "?"
+    local where = e.zone and (" · " .. e.zone) or ""
+    local lvl = e.level and (" [" .. e.level .. "]") or ""
+    lines[#lines + 1] = label .. ": " .. who .. lvl .. where
+  end
+  if #log == 0 then
+    lines[#lines + 1] = L.COMP_DIARY_EMPTY or "Nenhum evento PvP ainda."
+  end
+  lines[#lines + 1] = ""
+  lines[#lines + 1] = L.COMP_RECENT_FEATS or "Feitos recentes"
+  local recent = ns.Achievements and ns.Achievements.RecentDone and ns.Achievements.RecentDone(4) or {}
+  if #recent == 0 then
+    lines[#lines + 1] = L.COMP_LOCKED or "—"
+  else
+    for i = 1, #recent do
+      local row = recent[i]
+      lines[#lines + 1] = (row.title or "?") .. " · " .. formatWhen(row.when)
+    end
+  end
+  frame.sideBody:SetText(table.concat(lines, "\n"))
+  frame.Hint:SetText(L.COMP_OVERVIEW_HINT or "Resumo do livro PvP.")
+  setPager(false, false)
+end
+
+local function paintChallenges()
+  local cats = ns.Achievements and ns.Achievements.Categories and ns.Achievements.Categories() or {}
+  local cat = frame.challengeCat
+  if not cat and cats[1] then
+    cat = cats[1].id
+    frame.challengeCat = cat
+  end
+  for i = 1, #frame.subTabs do
+    local tab = frame.subTabs[i]
+    local info = cats[i]
+    if not info then
+      tab:Hide()
+    else
+      tab:Show()
+      tab.label:SetText(info.label)
+      if info.id == cat then
+        tab.label:SetTextColor(1, 0.82, 0)
+      else
+        tab.label:SetTextColor(0.75, 0.7, 0.55)
+      end
+      tab:SetScript("OnClick", function()
+        frame.challengeCat = info.id
+        frame.listPage = 1
+        Compendium.Refresh()
+      end)
+    end
   end
 
-  frame.Story = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  frame.Story:SetPoint("TOPLEFT", 210, -78)
-  frame.Story:SetWidth(500)
-  frame.Story:SetHeight(340)
-  frame.Story:SetJustifyH("LEFT")
-  frame.Story:SetJustifyV("TOP")
-  if frame.Story.SetWordWrap then
-    frame.Story:SetWordWrap(true)
+  local list = ns.Achievements and ns.Achievements.List and ns.Achievements.List(cat or "challenges") or {}
+  local index = frame.listPage or 1
+  local pages = math.max(1, math.ceil(#list / CHALLENGE_ROWS))
+  if index > pages then
+    index = pages
   end
-  frame.Story:Hide()
-  frame:Hide()
+  if index < 1 then
+    index = 1
+  end
+  frame.listPage = index
+  local start = (index - 1) * CHALLENGE_ROWS
+  for i = 1, CHALLENGE_ROWS do
+    local item = list[start + i]
+    local row = frame.challengeRows[i]
+    if not item then
+      row:Hide()
+    else
+      row:Show()
+      row.icon:SetTexture(item.icon)
+      row.title:SetText(item.title or "")
+      if item.done then
+        row.title:SetTextColor(1, 0.82, 0)
+        row.state:SetText((L.COMP_DONE or "feito") .. " · " .. formatWhen(item.when))
+        row.state:SetTextColor(0.85, 0.75, 0.4)
+      else
+        row.title:SetTextColor(0.95, 0.92, 0.85)
+        local goal = item.goal or 1
+        local progress = item.progress or 0
+        if progress <= 0 then
+          row.state:SetText(L.COMP_OPEN or "aberto")
+          row.state:SetTextColor(0.65, 0.65, 0.6)
+        else
+          row.state:SetText(progress .. "/" .. goal)
+          row.state:SetTextColor(0.85, 0.85, 0.75)
+        end
+      end
+      local goal = math.max(1, item.goal or 1)
+      local progress = math.min(goal, item.progress or 0)
+      row.bar:SetMinMaxValues(0, goal)
+      row.bar:SetValue(progress)
+      if item.done then
+        row.bar:SetStatusBarColor(0.95, 0.75, 0.15)
+      else
+        row.bar:SetStatusBarColor(0.35, 0.55, 0.22)
+      end
+    end
+  end
+  local last = math.min(#list, start + CHALLENGE_ROWS)
+  if #list == 0 then
+    frame.Hint:SetText(L.ACH_HINT or "")
+  else
+    frame.Hint:SetText((L.ACH_PAGE or "%d–%d de %d"):format(start + 1, last, #list))
+  end
+  setPager(index > 1, index < pages)
+end
+
+local function paintCounts(db)
+  frame.countHeaderL:Show()
+  frame.countHeaderR:Show()
+  frame.countHeaderL:SetText((L.COMP_RACE or "Raça") .. "  ·  " .. (L.COMP_KILLS or "Abates") .. "/" .. (L.COMP_DEATHS or "Mortes"))
+  frame.countHeaderR:SetText((L.COMP_CLASS or "Classe") .. "  ·  " .. (L.COMP_KILLS or "Abates") .. "/" .. (L.COMP_DEATHS or "Mortes"))
+  ink(frame.countHeaderL, 1, 0.82, 0)
+  ink(frame.countHeaderR, 1, 0.82, 0)
+  local kills = db.kills or {}
+  local deaths = db.deaths or {}
+  local classes = Data.CLASSES or {}
+  for i = 1, 9 do
+    local row = frame.countRows[i]
+    row.race:Show()
+    row.raceStats:Show()
+    row.class:Show()
+    row.classStats:Show()
+    local race = RACES[i]
+    if race then
+      local rk = countOf(kills.Race, race)
+      row.race:SetText(featMark(rk) .. Data.RaceLabel(race))
+      row.raceStats:SetText(rk .. "/" .. countOf(deaths.Race, race))
+    else
+      row.race:SetText("")
+      row.raceStats:SetText("")
+    end
+    local class = classes[i]
+    if class then
+      local ck = countOf(kills.Class, class)
+      row.class:SetText(featMark(ck) .. Data.ClassLabel(class))
+      row.classStats:SetText(ck .. "/" .. countOf(deaths.Class, class))
+    else
+      row.class:SetText("")
+      row.classStats:SetText("")
+    end
+  end
+  frame.Hint:SetText(L.COMP_HINT or "")
+  setPager(false, false)
+end
+
+local function paintListPage(items, emptyHint)
+  local index = frame.listPage or 1
+  local per = 12
+  local pages = math.max(1, math.ceil(#items / per))
+  if index > pages then
+    index = pages
+  end
+  frame.listPage = index
+  local start = (index - 1) * per
+  for i = 1, per do
+    local row = frame.listRows[i]
+    local text = items[start + i]
+    if text then
+      row:Show()
+      row:SetText(text)
+    else
+      row:Hide()
+    end
+  end
+  if #items == 0 then
+    frame.Hint:SetText(emptyHint or "")
+  else
+    frame.Hint:SetText((L.ACH_PAGE or "%d–%d de %d"):format(start + 1, math.min(#items, start + per), #items))
+  end
+  setPager(index > 1, index < pages)
+end
+
+local function paintRivals()
+  local items = {}
+  local list = ns.Stats and ns.Stats.RivalList and ns.Stats.RivalList() or {}
+  for i = 1, #list do
+    local row = list[i]
+    local score = (L.RIVAL_SCORE or "%d–%d"):format(row.kills or 0, row.deaths or 0)
+    local line = (row.name or "?") .. "   " .. score .. "   " .. formatWhen(row.last)
+    local meetings = row.meetings
+    if type(meetings) == "table" and #meetings > 0 then
+      local last = meetings[#meetings]
+      local side = last.side == "deaths" and (L.MEET_DEATH or "queda") or (L.MEET_KILL or "abate")
+      if type(last.zone) == "string" and last.zone ~= "" then
+        line = line .. "   " .. side .. " · " .. last.zone
+      else
+        line = line .. "   " .. side
+      end
+    end
+    items[#items + 1] = line
+  end
+  paintListPage(items, L.COMP_RIVALS_EMPTY or "Nenhum rival ainda.")
+end
+
+local function paintDiary()
+  local items = {}
+  local log = ns.Stats and ns.Stats.PvpLog and ns.Stats.PvpLog() or {}
+  for i = 1, #log do
+    local e = log[i]
+    local side = e.side or "?"
+    local label = side
+    if side == "kill" then
+      label = L.COMP_LOG_KILL or "Abate"
+    elseif side == "death" then
+      label = L.COMP_LOG_DEATH or "Morte"
+    elseif side == "duel_win" then
+      label = L.COMP_LOG_DUEL_WIN or "Duelo +"
+    elseif side == "duel_loss" then
+      label = L.COMP_LOG_DUEL_LOSS or "Duelo −"
+    end
+    local race = e.race and Data.RaceLabel and Data.RaceLabel(e.race) or e.race
+    local class = e.class and Data.ClassLabel and Data.ClassLabel(e.class) or e.class
+    local bits = { label, e.name or "?" }
+    if e.level then
+      bits[#bits + 1] = "nv" .. e.level
+    end
+    if race then
+      bits[#bits + 1] = race
+    end
+    if class then
+      bits[#bits + 1] = class
+    end
+    if e.zone then
+      bits[#bits + 1] = e.zone
+    end
+    if e.context then
+      bits[#bits + 1] = e.context
+    end
+    bits[#bits + 1] = formatWhen(e.t)
+    items[#items + 1] = table.concat(bits, " · ")
+  end
+  paintListPage(items, L.COMP_DIARY_EMPTY or "Nenhum evento PvP ainda.")
+end
+
+local function paintStory()
+  frame.Story:Show()
+  local chapters = ns.Chronicle and ns.Chronicle.Chapters and ns.Chronicle.Chapters() or {}
+  local index = frame.listPage or 1
+  if #chapters == 0 then
+    frame.Story:SetText(L.NARR_EMPTY or "")
+    frame.Hint:SetText(L.NARR_HINT or "")
+    setPager(false, false)
+    return
+  end
+  if index > #chapters then
+    index = #chapters
+  end
+  if index < 1 then
+    index = 1
+  end
+  frame.listPage = index
+  local chapter = chapters[index]
+  frame.Story:SetText((chapter.title or "") .. "\n\n" .. (chapter.text or ""))
+  frame.Hint:SetText((L.NARR_PAGE or "Capítulo %d de %d"):format(index, #chapters))
+  setPager(index > 1, index < #chapters)
 end
 
 function Compendium.Refresh()
@@ -318,361 +738,46 @@ function Compendium.Refresh()
     return
   end
   local db = ns.Stats and ns.Stats.GetDB and ns.Stats.GetDB() or {}
-  local page = frame.page or "counts"
-  frame.Title:SetText(L.COMP_TITLE)
-  frame.Close:SetText(L.COMP_CLOSE)
-  local function setPager(canBack, canMore)
-    if not canBack and not canMore then
-      frame.Back:Hide()
-      frame.More:Hide()
-      return
-    end
-    frame.Back:Show()
-    frame.More:Show()
-    if frame.Back.SetEnabled then
-      frame.Back:SetEnabled(canBack and true or false)
-    end
-    if frame.More.SetEnabled then
-      frame.More:SetEnabled(canMore and true or false)
-    end
-  end
-  if frame.Story then
-    frame.Story:Hide()
-  end
-  if frame.nav and ns.Achievements and ns.Achievements.Categories then
-    local categories = ns.Achievements.Categories()
-    for i = 1, #frame.nav do
-      local button = frame.nav[i]
-      local label = categories[i] and categories[i].label or ""
-      button.label:SetText(label)
-      if button.page == page then
-        button.label:SetTextColor(1, 0.82, 0)
-        button.hi:Show()
-      else
-        button.label:SetTextColor(0.85, 0.75, 0.55)
-        button.hi:Hide()
-      end
-    end
-  end
+  frame.Title:SetText(L.COMP_TITLE or "Compêndio de PvP")
+  frame.Close:SetText(L.COMP_CLOSE or "Fechar")
+  hideAllContent()
+  refreshNav()
 
-  local function ledger(show)
-    local headers = {
-      frame.RaceHeader, frame.RaceKillsHeader, frame.RaceDeathsHeader,
-      frame.ClassHeader, frame.ClassKillsHeader, frame.ClassDeathsHeader,
-    }
-    for i = 1, #headers do
-      if show then
-        headers[i]:Show()
-      else
-        headers[i]:Hide()
-      end
-    end
-    for i = 1, 9 do
-      local row = frame.rows[i]
-      local cells = { row.race, row.raceKills, row.raceDeaths, row.class, row.classKills, row.classDeaths }
-      for c = 1, #cells do
-        if show then
-          cells[c]:Show()
-        else
-          cells[c]:Hide()
-        end
-      end
-    end
+  local done, total = 0, 0
+  if ns.Achievements and ns.Achievements.Counts then
+    done, total = ns.Achievements.Counts()
   end
+  frame.ProgressLabel:SetText((L.ACH_TOTAL or "Conquistas: %d/%d"):format(done, total))
+  frame.ProgressBar:SetMinMaxValues(0, math.max(1, total))
+  frame.ProgressBar:SetValue(done)
 
-  local function hideAch()
-    if not frame.achRows then
-      return
-    end
-    for i = 1, #frame.achRows do
-      frame.achRows[i]:Hide()
-    end
-  end
-
-  local ledgerPage = page == "counts" or page == "rivals" or page == "feats" or page == "story"
-  if not ledgerPage and ns.Achievements and ns.Achievements.List then
-    ledger(false)
-    hideAch()
-    local list = ns.Achievements.List(page)
-    local done, total = ns.Achievements.Counts()
-    frame.Totals:SetText(L.ACH_TOTAL:format(done, total))
-    local index = frame.listPage or 1
-    local pages = math.max(1, math.ceil(#list / 6))
-    if index > pages then
-      index = pages
-    end
-    if index < 1 then
-      index = 1
-    end
-    frame.listPage = index
-    local start = (index - 1) * 6
-    for i = 1, 6 do
-      local item = list[start + i]
-      local row = frame.achRows[i]
-      if not item then
-        row:Hide()
-      else
-        row:Show()
-        local title = item.title or ""
-        if item.done and item.when and item.when > 0 and date then
-          title = title .. "   |cFF9D9D9D" .. date("%d/%m/%Y", item.when) .. "|r"
-        end
-        row.title:SetText(title)
-        if item.blocked then
-          row.title:SetTextColor(0.55, 0.55, 0.55)
-        elseif item.done then
-          row.title:SetTextColor(1, 0.82, 0)
-        else
-          row.title:SetTextColor(1, 1, 1)
-        end
-        local desc = item.desc or ""
-        if item.detail and item.detail ~= "" then
-          desc = desc .. "\n" .. item.detail
-        end
-        if item.blocked then
-          desc = "|cFF888888" .. item.blocked .. "|r\n" .. desc
-        end
-        row.desc:SetText(desc)
-        row.icon:SetTexture(item.icon)
-        if row.icon.SetDesaturated then
-          row.icon:SetDesaturated(item.blocked and true or false)
-        end
-        local goal = item.goal or 1
-        if goal < 1 then
-          goal = 1
-        end
-        local progress = item.progress or 0
-        if progress > goal then
-          progress = goal
-        end
-        row.bar:SetMinMaxValues(0, goal)
-        row.bar:SetValue(progress)
-        row.barText:SetText(progress .. "/" .. goal)
-        if item.done then
-          row.bar:SetStatusBarColor(0.95, 0.75, 0.15)
-        elseif item.blocked then
-          row.bar:SetStatusBarColor(0.35, 0.35, 0.35)
-        else
-          row.bar:SetStatusBarColor(0.2, 0.55, 0.15)
-        end
-      end
-    end
-    local last = math.min(#list, start + 6)
-    local pageLine
-    if #list == 0 then
-      pageLine = L.ACH_HINT
-    else
-      pageLine = L.ACH_PAGE:format(start + 1, last, #list)
-    end
-    if page == "summary" and ns.Stats and ns.Stats.Spotlight then
-      local nemesis, prey, zone = ns.Stats.Spotlight()
-      local nemesisText = nemesis and L.SPOT_NEMESIS:format(nemesis.name or "?", nemesis.deaths or 0) or L.SPOT_EMPTY
-      local preyText = prey and L.SPOT_PREY:format(prey.name or "?", prey.kills or 0) or L.SPOT_EMPTY
-      local zoneText = zone and L.SPOT_ZONE:format(zone) or L.SPOT_EMPTY
-      frame.Hint:SetText(nemesisText .. "   ·   " .. preyText .. "   ·   " .. zoneText .. "\n" .. pageLine)
-    else
-      frame.Hint:SetText(pageLine)
-    end
-    setPager(index > 1, index < pages)
-    return
-  end
-
-  hideAch()
-  ledger(true)
-  frame.Totals:SetText(L.COMP_TOTAL_KILLS:format(db.totalKills or 0) .. "    " .. L.COMP_TOTAL_DEATHS:format(db.totalDeaths or 0))
-
-  local function widen(wide)
-    for i = 1, 9 do
-      local row = frame.rows[i]
-      row.race:SetWidth(wide and 230 or 128)
-      row.class:SetWidth(wide and 230 or 128)
-      if wide then
-        row.raceKills:Hide()
-        row.raceDeaths:Hide()
-        row.classKills:Hide()
-        row.classDeaths:Hide()
-      else
-        row.raceKills:Show()
-        row.raceDeaths:Show()
-        row.classKills:Show()
-        row.classDeaths:Show()
-      end
-    end
-    if wide then
-      frame.RaceKillsHeader:Hide()
-      frame.RaceDeathsHeader:Hide()
-      frame.ClassKillsHeader:Hide()
-      frame.ClassDeathsHeader:Hide()
-    else
-      frame.RaceKillsHeader:Show()
-      frame.RaceDeathsHeader:Show()
-      frame.ClassKillsHeader:Show()
-      frame.ClassDeathsHeader:Show()
-    end
-  end
-
-  local function clearRows()
-    for i = 1, 9 do
-      local row = frame.rows[i]
-      row.race:SetText("")
-      row.class:SetText("")
-      row.raceKills:SetText("")
-      row.raceDeaths:SetText("")
-      row.classKills:SetText("")
-      row.classDeaths:SetText("")
-    end
-  end
-
-  local function formatWhen(ts)
-    ts = tonumber(ts) or 0
-    if ts <= 0 or not date then
-      return L.COMP_LOCKED
-    end
-    return date("%d/%m/%Y", ts)
-  end
-
-  if page == "story" then
-    widen(true)
-    clearRows()
-    frame.RaceHeader:SetText("")
-    frame.ClassHeader:SetText("")
-    frame.Story:Show()
-    local chapters = ns.Chronicle and ns.Chronicle.Chapters and ns.Chronicle.Chapters() or {}
-    local index = frame.listPage or 1
-    if #chapters == 0 then
-      frame.Story:SetText(L.NARR_EMPTY)
-      frame.Hint:SetText(L.NARR_HINT)
-      setPager(false, false)
-      return
-    end
-    if index > #chapters then
-      index = #chapters
-    end
-    if index < 1 then
-      index = 1
-    end
-    frame.listPage = index
-    local chapter = chapters[index]
-    frame.Story:SetText(chapter.title .. "\n\n" .. chapter.text)
-    frame.Hint:SetText(L.NARR_PAGE:format(index, #chapters))
-    setPager(index > 1, index < #chapters)
-    return
-  end
-
-  if page == "counts" then
-    widen(false)
-    frame.Hint:SetText(L.COMP_HINT)
-    frame.RaceHeader:SetText(L.COMP_RACE)
-    frame.ClassHeader:SetText(L.COMP_CLASS)
-    frame.RaceKillsHeader:SetText(L.COMP_KILLS)
-    frame.RaceDeathsHeader:SetText(L.COMP_DEATHS)
-    frame.ClassKillsHeader:SetText(L.COMP_KILLS)
-    frame.ClassDeathsHeader:SetText(L.COMP_DEATHS)
-    setPager(false, false)
-    local kills = db.kills or {}
-    local deaths = db.deaths or {}
-    local classes = Data.CLASSES
-    for i = 1, 9 do
-      local row = frame.rows[i]
-      local race = RACES[i]
-      if race then
-        local rk = countOf(kills.Race, race)
-        row.race:SetText(featMark(rk) .. Data.RaceLabel(race))
-        row.raceKills:SetText(tostring(rk))
-        row.raceDeaths:SetText(tostring(countOf(deaths.Race, race)))
-      else
-        row.race:SetText("")
-        row.raceKills:SetText("")
-        row.raceDeaths:SetText("")
-      end
-      local class = classes[i]
-      if class then
-        local ck = countOf(kills.Class, class)
-        row.class:SetText(featMark(ck) .. Data.ClassLabel(class))
-        row.classKills:SetText(tostring(ck))
-        row.classDeaths:SetText(tostring(countOf(deaths.Class, class)))
-      else
-        row.class:SetText("")
-        row.classKills:SetText("")
-        row.classDeaths:SetText("")
-      end
-    end
-    return
-  end
-
-  widen(true)
-  clearRows()
-  local items = {}
-  if page == "rivals" then
-    frame.Hint:SetText(L.COMP_SCORE .. "  ·  " .. L.COMP_LAST)
-    frame.RaceHeader:SetText(L.COMP_RIVALS)
-    frame.ClassHeader:SetText("")
-    local list = ns.Stats and ns.Stats.RivalList and ns.Stats.RivalList() or {}
-    for i = 1, #list do
-      local row = list[i]
-      local score = L.RIVAL_SCORE:format(row.kills or 0, row.deaths or 0)
-      local line = (row.name or "?") .. "   " .. score .. "   " .. formatWhen(row.last)
-      local meetings = row.meetings
-      if type(meetings) == "table" and #meetings > 0 then
-        local last = meetings[#meetings]
-        local side = last.side == "deaths" and L.MEET_DEATH or L.MEET_KILL
-        local where = type(last.zone) == "string" and last.zone or ""
-        if where ~= "" then
-          line = line .. "   " .. side .. " · " .. where
-        else
-          line = line .. "   " .. side
-        end
-      end
-      items[#items + 1] = line
-    end
+  local page = frame.page or "overview"
+  if page == "overview" then
+    paintOverview(db)
+  elseif page == "challenges" then
+    paintChallenges()
+  elseif page == "counts" then
+    paintCounts(db)
+  elseif page == "rivals" then
+    paintRivals()
+  elseif page == "story" then
+    paintStory()
+  elseif page == "diary" then
+    paintDiary()
   else
-    frame.Hint:SetText(L.COMP_FEATS)
-    frame.RaceHeader:SetText(L.COMP_FEATS)
-    frame.ClassHeader:SetText("")
-    local specials = {
-      { "revenge", L.FEAT_REVENGE },
-      { "legendary", L.FEAT_LEGENDARY },
-      { "milestone100", L.FEAT_MILESTONE100 },
-      { "streak3", L.FEAT_STREAK3 },
-      { "streak5", L.FEAT_STREAK5 },
-      { "streak10", L.FEAT_STREAK10 },
-    }
-    for i = 1, #specials do
-      items[#items + 1] = { specials[i][1], specials[i][2] }
-    end
-    for i = 1, #RACES do
-      items[#items + 1] = { "race:" .. RACES[i], L.FEAT_RACE:format(Data.RaceLabel(RACES[i])) }
-    end
-    local classes = Data.CLASSES
-    for i = 1, #classes do
-      items[#items + 1] = { "class:" .. classes[i], L.FEAT_CLASS:format(Data.ClassLabel(classes[i])) }
-    end
-    for i = 1, #items do
-      local id, label = items[i][1], items[i][2]
-      local when = ns.Stats and ns.Stats.FeatTime and ns.Stats.FeatTime(id)
-      if when then
-        items[i] = label .. "   |cFF9D9D9D" .. formatWhen(when) .. "|r"
-      else
-        items[i] = "|cFF666666" .. label .. "|r   " .. L.COMP_LOCKED
-      end
-    end
+    frame.page = "overview"
+    paintOverview(db)
   end
-
-  local pageIndex = frame.listPage or 1
-  local start = (pageIndex - 1) * 18
-  for i = 1, 9 do
-    local row = frame.rows[i]
-    row.race:SetText(items[start + i] or "")
-    row.class:SetText(items[start + 9 + i] or "")
-  end
-  setPager(pageIndex > 1, start + 18 < #items)
 end
 
 function Compendium.ShowPage(page)
   if not frame then
     buildFrame()
   end
-  frame.page = page or frame.page or "summary"
+  if page == "summary" then
+    page = "overview"
+  end
+  frame.page = page or frame.page or "overview"
   frame.listPage = 1
   Compendium.Refresh()
   frame:Show()
@@ -790,6 +895,22 @@ function Compendium.Init()
 
   placeMinimap(button)
   minimapButton = button
+end
+
+function Compendium.RefreshMinimapStreak(streak)
+  if not minimapButton or not minimapButton.Icon then
+    return
+  end
+  streak = tonumber(streak) or 0
+  if streak >= 10 then
+    minimapButton.Icon:SetVertexColor(1, 0.35, 0.15)
+  elseif streak >= 5 then
+    minimapButton.Icon:SetVertexColor(1, 0.7, 0.2)
+  elseif streak >= 3 then
+    minimapButton.Icon:SetVertexColor(0.85, 0.85, 1)
+  else
+    minimapButton.Icon:SetVertexColor(1, 1, 1)
+  end
 end
 
 _G[addonName] = ns

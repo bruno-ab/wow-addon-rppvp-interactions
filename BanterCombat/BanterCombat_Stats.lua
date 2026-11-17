@@ -5,7 +5,8 @@ ns.Stats = ns.Stats or {}
 local Stats = ns.Stats
 local Data = ns.Data
 
-local DB_VERSION = 4
+local DB_VERSION = 5
+local PVP_LOG_MAX = 80
 
 local VALID_RACE = {
   Human = true, Dwarf = true, NightElf = true, Gnome = true,
@@ -86,6 +87,7 @@ end
 
 local sessionKills = 0
 local sessionDeaths = 0
+local ensureDB -- forward declare (appendPvpLog / Record* call it)
 
 local function clip(text, maxLen)
   if type(text) ~= "string" then
@@ -280,7 +282,81 @@ local function scrubLastKiller(lk)
   }
 end
 
-local function ensureDB()
+local function scrubDuels(duels)
+  if type(duels) ~= "table" then
+    return { wins = 0, losses = 0 }
+  end
+  return {
+    wins = math.max(0, math.floor(tonumber(duels.wins) or 0)),
+    losses = math.max(0, math.floor(tonumber(duels.losses) or 0)),
+  }
+end
+
+local VALID_PVP_SIDE = {
+  kill = true,
+  death = true,
+  duel_win = true,
+  duel_loss = true,
+}
+
+local function scrubPvpLog(list)
+  if type(list) ~= "table" then
+    return {}
+  end
+  local out = {}
+  local startAt = math.max(1, #list - PVP_LOG_MAX + 1)
+  for i = startAt, #list do
+    local row = list[i]
+    if type(row) == "table" and VALID_PVP_SIDE[row.side] then
+      local level = math.max(0, math.floor(tonumber(row.level) or 0))
+      local mapID = math.floor(tonumber(row.mapID) or 0)
+      out[#out + 1] = {
+        t = math.max(0, math.floor(tonumber(row.t) or 0)),
+        side = row.side,
+        name = clip(row.name, 48),
+        race = normalizeRace(row.race),
+        class = (type(row.class) == "string" and VALID_CLASS[row.class]) and row.class or nil,
+        level = level > 0 and level or nil,
+        zone = clip(row.zone, 48),
+        mapID = mapID > 0 and mapID or nil,
+        context = contextOf(row.context),
+        by = (row.by == "pet" or row.by == "group" or row.by == "self") and row.by or "self",
+      }
+    end
+  end
+  return out
+end
+
+local function appendPvpLog(side, person, info)
+  local db = ensureDB()
+  info = info or {}
+  person = person or {}
+  local mapID = tonumber(info.mapID)
+  if (not mapID or mapID <= 0) and C_Map and C_Map.GetBestMapForUnit then
+    local ok, id = pcall(C_Map.GetBestMapForUnit, "player")
+    if ok then
+      mapID = tonumber(id)
+    end
+  end
+  local level = math.max(0, math.floor(tonumber(person.level) or tonumber(info.level) or 0))
+  db.pvpLog[#db.pvpLog + 1] = {
+    t = time(),
+    side = side,
+    name = clip(person.name, 48),
+    race = normalizeRace(person.race),
+    class = (type(person.class) == "string" and VALID_CLASS[person.class]) and person.class or nil,
+    level = level > 0 and level or nil,
+    zone = clip(info.zone, 48),
+    mapID = (mapID and mapID > 0) and math.floor(mapID) or nil,
+    context = contextOf(info.context),
+    by = (info.by == "pet" or info.by == "group") and info.by or "self",
+  }
+  while #db.pvpLog > PVP_LOG_MAX do
+    table.remove(db.pvpLog, 1)
+  end
+end
+
+ensureDB = function()
   if type(BanterCombatDB) ~= "table" then
     BanterCombatDB = {}
   end
@@ -296,6 +372,8 @@ local function ensureDB()
   db.totalKills = math.max(0, math.floor(tonumber(db.totalKills) or 0))
   db.totalDeaths = math.max(0, math.floor(tonumber(db.totalDeaths) or 0))
   db.lastKiller = scrubLastKiller(db.lastKiller)
+  db.duels = scrubDuels(db.duels)
+  db.pvpLog = scrubPvpLog(db.pvpLog)
   db.settings = type(db.settings) == "table" and db.settings or {}
   db.settings.customCommon = scrubLines(db.settings.customCommon)
   db.settings.customEpic = scrubLines(db.settings.customEpic)
@@ -353,12 +431,8 @@ local function ensureDB()
     db.titleStreak = tier
   end
 
-  if from < 2 then
-    -- v2: settings + scrubbed counters. v3: rivals, feats, streak. v4: chronicle.
-    db.version = DB_VERSION
-  else
-    db.version = DB_VERSION
-  end
+  -- v2: settings. v3: rivals/feats/streak. v4: chronicle. v5: pvpLog + duels.
+  db.version = DB_VERSION
   return db
 end
 
@@ -659,6 +733,7 @@ function Stats.RecordDeathBy(killer, info)
   local db = ensureDB()
   sessionDeaths = sessionDeaths + 1
   db.totalDeaths = db.totalDeaths + 1
+  info = info or {}
   if killer then
     killer.race = normalizeRace(killer.race)
   end
@@ -672,6 +747,7 @@ function Stats.RecordDeathBy(killer, info)
     db.lastKiller = scrubLastKiller(killer)
     Stats.TouchRival(killer, "deaths", info)
   end
+  appendPvpLog("death", killer, info)
   return Stats.BreakStreak()
 end
 
@@ -726,7 +802,61 @@ function Stats.RecordKill(victim, info)
     personal = rival.kills
   end
   local streak, streakHit = bumpStreak()
+  appendPvpLog("kill", victim, info)
   return raceCount, classCount, hitKind, hitValue, hitKey, rival, streakHit, streak, personal
+end
+
+function Stats.RecordDuel(won, opponent, info)
+  local db = ensureDB()
+  info = info or {}
+  info.context = "duel"
+  opponent = opponent or {}
+  opponent.race = normalizeRace(opponent.race)
+  if won then
+    db.duels.wins = (db.duels.wins or 0) + 1
+    appendPvpLog("duel_win", opponent, info)
+  else
+    db.duels.losses = (db.duels.losses or 0) + 1
+    appendPvpLog("duel_loss", opponent, info)
+  end
+  -- Only bump duel-specific rival counters; avoid double-counting with kill/death CLEU.
+  if type(opponent.name) == "string" and opponent.name ~= "" then
+    local key = nameKey(opponent.name)
+    if key then
+      local row = db.rivals[key]
+      if not row then
+        row = { name = displayName(opponent.name), kills = 0, deaths = 0, meetings = {} }
+        db.rivals[key] = row
+      end
+      if won then
+        row.duelKills = (row.duelKills or 0) + 1
+      else
+        row.duelDeaths = (row.duelDeaths or 0) + 1
+      end
+      row.last = time()
+      if Stats.IsValidClass(opponent.class) then
+        row.class = opponent.class
+      end
+      if opponent.race then
+        row.race = opponent.race
+      end
+    end
+  end
+  return db.duels.wins, db.duels.losses
+end
+
+function Stats.PvpLog()
+  local list = ensureDB().pvpLog
+  local out = {}
+  for i = #list, 1, -1 do
+    out[#out + 1] = list[i]
+  end
+  return out
+end
+
+function Stats.DuelStats()
+  local d = ensureDB().duels
+  return d.wins or 0, d.losses or 0
 end
 
 function Stats.Session()

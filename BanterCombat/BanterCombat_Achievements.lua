@@ -1530,6 +1530,14 @@ local function gate(def)
   return text("Requer ", "Requires ") .. need
 end
 
+local function isAvailable(def)
+  return gate(def) == nil
+end
+
+function Achievements.IsAvailable(def)
+  return type(def) == "table" and isAvailable(def)
+end
+
 local function rowTitle(def)
   if def.ashen then
     local name = text("Defensor do Vale-gris", "Ashenvale Defender")
@@ -2060,32 +2068,37 @@ local function viewOf(def)
 end
 
 function Achievements.Categories()
+  -- Challenge categories only (ledger pages live in Compendium nav).
+  local skip = { summary = true, counts = true, rivals = true, story = true, feats = true }
   local rows = {}
   for i = 1, #CATS do
-    rows[i] = { id = CATS[i].id, label = text(CATS[i].pt, CATS[i].en) }
+    local cat = CATS[i]
+    if not skip[cat.id] then
+      rows[#rows + 1] = { id = cat.id, label = text(cat.pt, cat.en) }
+    end
   end
   return rows
 end
 
 function Achievements.IsLedger(page)
   return page == "counts" or page == "rivals" or page == "feats" or page == "story"
+    or page == "diary" or page == "overview"
 end
 
 function Achievements.List(page)
   local rows = {}
   for i = 1, #DEFS do
     local def = DEFS[i]
-    if page == "summary" or def.cat == page then
-      rows[#rows + 1] = viewOf(def)
+    if not isAvailable(def) then
+      -- Hide race/class-gated challenges that do not apply to this character.
+    elseif page == "summary" or page == "challenges" or def.cat == page then
+      local row = viewOf(def)
+      row.blocked = nil
+      rows[#rows + 1] = row
     end
   end
-  if page == "summary" then
+  if page == "summary" or page == "challenges" then
     table.sort(rows, function(a, b)
-      local aBlock = a.blocked and 1 or 0
-      local bBlock = b.blocked and 1 or 0
-      if aBlock ~= bBlock then
-        return aBlock < bBlock
-      end
       local aDone = a.done and 1 or 0
       local bDone = b.done and 1 or 0
       if aDone ~= bDone then
@@ -2107,7 +2120,9 @@ function Achievements.PrimeFeats()
     return
   end
   for i = 1, #DEFS do
-    viewOf(DEFS[i])
+    if isAvailable(DEFS[i]) then
+      viewOf(DEFS[i])
+    end
   end
   book.featSeeded = true
 end
@@ -2119,7 +2134,6 @@ function Achievements.FreshTitle()
     return nil
   end
   if not book.featSeeded then
-    -- Seed book.when for already-completed feats so we do not spam history as "new".
     Achievements.PrimeFeats()
     return nil
   end
@@ -2132,11 +2146,13 @@ function Achievements.FreshTitle()
   local first
   for i = 1, #DEFS do
     local def = DEFS[i]
-    local wasKnown = known[def.id]
-    local row = viewOf(def)
-    if row.done and not row.blocked and not wasKnown then
-      if not first then
-        first = row.title
+    if isAvailable(def) then
+      local wasKnown = known[def.id]
+      local row = viewOf(def)
+      if row.done and not wasKnown then
+        if not first then
+          first = row.title
+        end
       end
     end
   end
@@ -2144,14 +2160,38 @@ function Achievements.FreshTitle()
 end
 
 function Achievements.Counts()
-  local done, total = 0, #DEFS
+  local done, total = 0, 0
   for i = 1, #DEFS do
-    local row = viewOf(DEFS[i])
-    if row.done then
-      done = done + 1
+    if isAvailable(DEFS[i]) then
+      total = total + 1
+      local row = viewOf(DEFS[i])
+      if row.done then
+        done = done + 1
+      end
     end
   end
   return done, total
+end
+
+function Achievements.RecentDone(limit)
+  limit = math.max(1, math.floor(tonumber(limit) or 5))
+  local rows = {}
+  for i = 1, #DEFS do
+    local def = DEFS[i]
+    if isAvailable(def) then
+      local row = viewOf(def)
+      if row.done and row.when then
+        rows[#rows + 1] = row
+      end
+    end
+  end
+  table.sort(rows, function(a, b)
+    return (a.when or 0) > (b.when or 0)
+  end)
+  while #rows > limit do
+    table.remove(rows)
+  end
+  return rows
 end
 
 local watch = CreateFrame("Frame")
