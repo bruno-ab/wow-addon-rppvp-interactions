@@ -308,29 +308,45 @@ local function scrubPvpLog(list)
   for i = startAt, #list do
     local row = list[i]
     if type(row) == "table" and VALID_PVP_SIDE[row.side] then
-      local level = math.max(0, math.floor(tonumber(row.level) or 0))
-      local mapID = math.floor(tonumber(row.mapID) or 0)
-      out[#out + 1] = {
-        t = math.max(0, math.floor(tonumber(row.t) or 0)),
-        side = row.side,
-        name = clip(row.name, 48),
-        race = normalizeRace(row.race),
-        class = (type(row.class) == "string" and VALID_CLASS[row.class]) and row.class or nil,
-        level = level > 0 and level or nil,
-        zone = clip(row.zone, 48),
-        mapID = mapID > 0 and mapID or nil,
-        context = contextOf(row.context),
-        by = (row.by == "pet" or row.by == "group" or row.by == "self") and row.by or "self",
-      }
+      local name = clip(row.name, 48)
+      if name then
+        local level = math.max(0, math.floor(tonumber(row.level) or 0))
+        local mapID = math.floor(tonumber(row.mapID) or 0)
+        local stamp = math.max(0, math.floor(tonumber(row.t) or 0))
+        local prev = out[#out]
+        -- Collapse duplicate duel rows within 3s (DUEL_FINISHED + CLEU race).
+        if prev and prev.side == row.side and prev.name == name
+          and (row.side == "duel_win" or row.side == "duel_loss")
+          and math.abs((prev.t or 0) - stamp) <= 3 then
+          -- keep previous
+        else
+          out[#out + 1] = {
+            t = stamp,
+            side = row.side,
+            name = name,
+            race = normalizeRace(row.race),
+            class = (type(row.class) == "string" and VALID_CLASS[row.class]) and row.class or nil,
+            level = level > 0 and level or nil,
+            zone = clip(row.zone, 48),
+            mapID = mapID > 0 and mapID or nil,
+            context = contextOf(row.context),
+            by = (row.by == "pet" or row.by == "group" or row.by == "self") and row.by or "self",
+          }
+        end
+      end
     end
   end
   return out
 end
 
 local function appendPvpLog(side, person, info)
+  person = person or {}
+  local name = clip(person.name, 48)
+  if not name then
+    return
+  end
   local db = ensureDB()
   info = info or {}
-  person = person or {}
   local mapID = tonumber(info.mapID)
   if (not mapID or mapID <= 0) and C_Map and C_Map.GetBestMapForUnit then
     local ok, id = pcall(C_Map.GetBestMapForUnit, "player")
@@ -339,10 +355,17 @@ local function appendPvpLog(side, person, info)
     end
   end
   local level = math.max(0, math.floor(tonumber(person.level) or tonumber(info.level) or 0))
+  local stamp = time()
+  local prev = db.pvpLog[#db.pvpLog]
+  if prev and prev.side == side and prev.name == name
+    and (side == "duel_win" or side == "duel_loss")
+    and math.abs((prev.t or 0) - stamp) <= 3 then
+    return
+  end
   db.pvpLog[#db.pvpLog + 1] = {
-    t = time(),
+    t = stamp,
     side = side,
-    name = clip(person.name, 48),
+    name = name,
     race = normalizeRace(person.race),
     class = (type(person.class) == "string" and VALID_CLASS[person.class]) and person.class or nil,
     level = level > 0 and level or nil,
@@ -807,10 +830,14 @@ function Stats.RecordKill(victim, info)
 end
 
 function Stats.RecordDuel(won, opponent, info)
+  opponent = opponent or {}
+  local key = nameKey(opponent.name)
+  if not key then
+    return ensureDB().duels.wins or 0, ensureDB().duels.losses or 0
+  end
   local db = ensureDB()
   info = info or {}
   info.context = "duel"
-  opponent = opponent or {}
   opponent.race = normalizeRace(opponent.race)
   if won then
     db.duels.wins = (db.duels.wins or 0) + 1
@@ -820,27 +847,22 @@ function Stats.RecordDuel(won, opponent, info)
     appendPvpLog("duel_loss", opponent, info)
   end
   -- Only bump duel-specific rival counters; avoid double-counting with kill/death CLEU.
-  if type(opponent.name) == "string" and opponent.name ~= "" then
-    local key = nameKey(opponent.name)
-    if key then
-      local row = db.rivals[key]
-      if not row then
-        row = { name = displayName(opponent.name), kills = 0, deaths = 0, meetings = {} }
-        db.rivals[key] = row
-      end
-      if won then
-        row.duelKills = (row.duelKills or 0) + 1
-      else
-        row.duelDeaths = (row.duelDeaths or 0) + 1
-      end
-      row.last = time()
-      if Stats.IsValidClass(opponent.class) then
-        row.class = opponent.class
-      end
-      if opponent.race then
-        row.race = opponent.race
-      end
-    end
+  local row = db.rivals[key]
+  if not row then
+    row = { name = displayName(opponent.name), kills = 0, deaths = 0, meetings = {} }
+    db.rivals[key] = row
+  end
+  if won then
+    row.duelKills = (row.duelKills or 0) + 1
+  else
+    row.duelDeaths = (row.duelDeaths or 0) + 1
+  end
+  row.last = time()
+  if Stats.IsValidClass(opponent.class) then
+    row.class = opponent.class
+  end
+  if opponent.race then
+    row.race = opponent.race
   end
   return db.duels.wins, db.duels.losses
 end

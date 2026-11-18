@@ -19,7 +19,8 @@ local eventFrame
 local pruneCounter = 0
 local history = {}
 local sessionHK
-local lastHostilePlayer -- { name, guid, class, race, at }
+local lastHostilePlayer -- { name, guid, class, race, level, at }
+local lastDuelOpponent -- { name, guid, class, race, level, at }
 local knownPlayers = {} -- guid -> { name, class, race, at }
 local lastEngageAt = 0 -- any recent mine hit on a hostile (even if name/GUID secret)
 local BLOW_WINDOW = 8.0 -- Forever: trap/DoT/honor lag past the old 2.5–3s gate
@@ -230,16 +231,104 @@ local function NormalizeRaceValue(race)
 end
 
 local function RaceFromUnit(unit)
-  if not unit or not UnitExists or not UnitExists(unit) or not UnitRace then
+  if not unit or not UnitExists or not UnitExists(unit) then
     return nil
   end
-  local ok, fileOrId = pcall(function()
-    return select(2, UnitRace(unit))
-  end)
-  if not ok or fileOrId == nil or IsSecret(fileOrId) then
+  if UnitRace then
+    local ok, fileOrId = pcall(function()
+      return select(2, UnitRace(unit))
+    end)
+    if ok and fileOrId ~= nil and not IsSecret(fileOrId) then
+      local race = NormalizeRaceValue(fileOrId)
+      if race then
+        return race
+      end
+    end
+  end
+  local guid = SafeString(UnitGUID and UnitGUID(unit))
+  if guid and GetPlayerInfoByGUID then
+    local ok, _, _, _, englishRace = pcall(GetPlayerInfoByGUID, guid)
+    if ok then
+      local race = NormalizeRaceValue(englishRace)
+      if race then
+        return race
+      end
+    end
+  end
+  if guid and knownPlayers and knownPlayers[guid] and knownPlayers[guid].race then
+    return NormalizeRaceValue(knownPlayers[guid].race)
+  end
+  return nil
+end
+
+local function UnitLevelSafe(unit)
+  if not unit or not UnitExists or not UnitExists(unit) or not UnitLevel then
     return nil
   end
-  return NormalizeRaceValue(fileOrId)
+  local ok, level = pcall(UnitLevel, unit)
+  if ok and type(level) == "number" and level > 0 then
+    return level
+  end
+  return nil
+end
+
+local function RememberDuelOpponent(unit)
+  if not unit or not UnitExists(unit) or not UnitIsPlayer(unit) then
+    return
+  end
+  if UnitIsUnit and UnitIsUnit(unit, "player") then
+    return
+  end
+  local name = NameUsable(UnitName(unit))
+  if not name then
+    return
+  end
+  lastDuelOpponent = {
+    name = name,
+    guid = SafeString(UnitGUID and UnitGUID(unit)),
+    class = select(2, UnitClass(unit)),
+    race = RaceFromUnit(unit),
+    level = UnitLevelSafe(unit),
+    at = GetTime and GetTime() or 0,
+  }
+end
+
+-- Classic duels: both fighters are often alive at DUEL_FINISHED. Prefer relative HP.
+local function ResolveDuelOutcome(opponentUnit)
+  local meDead = UnitIsDeadOrGhost and UnitIsDeadOrGhost("player")
+  local themDead = opponentUnit and UnitExists(opponentUnit) and UnitIsDeadOrGhost and UnitIsDeadOrGhost(opponentUnit)
+  if meDead and not themDead then
+    return false
+  end
+  if themDead and not meDead then
+    return true
+  end
+  local myMax = UnitHealthMax and UnitHealthMax("player") or 0
+  local myHp = UnitHealth and UnitHealth("player") or 0
+  local theirMax = opponentUnit and UnitHealthMax and UnitHealthMax(opponentUnit) or 0
+  local theirHp = opponentUnit and UnitHealth and UnitHealth(opponentUnit) or 0
+  if myMax > 0 and theirMax > 0 then
+    local myPct = myHp / myMax
+    local theirPct = theirHp / theirMax
+    -- Both nearly full → cancelled / walked away.
+    if myPct > 0.92 and theirPct > 0.92 then
+      return nil
+    end
+    if myPct > theirPct + 0.02 then
+      return true
+    end
+    if theirPct > myPct + 0.02 then
+      return false
+    end
+    return nil
+  end
+  if meDead then
+    return false
+  end
+  if themDead then
+    return true
+  end
+  return nil
 end
 
 local function BroadcastPayload(encoded, whisperTarget)
@@ -419,6 +508,7 @@ local function RememberHostile(info)
     guid = SafeString(info.guid),
     class = info.class,
     race = info.race,
+    level = (type(info.level) == "number" and info.level > 0) and info.level or nil,
     at = GetTime and GetTime() or 0,
   }
   NoteKnownPlayer(info.guid, plain, info.class, info.race)
@@ -438,12 +528,14 @@ local function RememberHostileFromUnit(unit)
   local race = RaceFromUnit(unit)
   local guid = UnitGUID(unit)
   local name = UnitName(unit)
+  local level = UnitLevelSafe(unit)
   NoteKnownPlayer(guid, name, class, race)
   RememberHostile({
     name = name,
     guid = guid,
     class = class,
     race = race,
+    level = level,
   })
 end
 
@@ -562,11 +654,8 @@ end
 local function EnrichPlace(place, person)
   place = place or PlaceNow()
   place.by = place.by or BlowBy()
-  if person and not person.level and UnitLevel and UnitExists("target") then
-    local level = UnitLevel("target")
-    if type(level) == "number" and level > 0 then
-      person.level = level
-    end
+  if person and not person.level then
+    person.level = UnitLevelSafe("target") or person.level
   end
   return place
 end
@@ -1814,32 +1903,45 @@ local function OnEvent(_, event, ...)
     if not ok then
       Debug("chat-kill err", err)
     end
+  elseif event == "DUEL_TO_THE_DEATH" or event == "DUEL_REQUESTED" then
+    RememberDuelOpponent("target")
   elseif event == "DUEL_FINISHED" then
-    local won = not (UnitIsDeadOrGhost and UnitIsDeadOrGhost("player"))
-    local opponent = {}
+    local opponentUnit
     if UnitExists("target") and UnitIsPlayer("target") and not UnitIsUnit("target", "player") then
-      opponent.name = NameUsable(UnitName("target"))
-      opponent.class = select(2, UnitClass("target"))
-      opponent.race = RaceFromUnit("target")
-      if UnitLevel then
-        local level = UnitLevel("target")
-        if type(level) == "number" and level > 0 then
-          opponent.level = level
-        end
-      end
+      opponentUnit = "target"
+      RememberDuelOpponent("target")
+    end
+    local opponent = {}
+    if lastDuelOpponent and (GetTime() - (lastDuelOpponent.at or 0)) <= 180 then
+      opponent.name = lastDuelOpponent.name
+      opponent.guid = lastDuelOpponent.guid
+      opponent.class = lastDuelOpponent.class
+      opponent.race = lastDuelOpponent.race
+      opponent.level = lastDuelOpponent.level
+    elseif opponentUnit then
+      opponent.name = NameUsable(UnitName(opponentUnit))
+      opponent.class = select(2, UnitClass(opponentUnit))
+      opponent.race = RaceFromUnit(opponentUnit)
+      opponent.level = UnitLevelSafe(opponentUnit)
     elseif lastHostilePlayer and (GetTime() - (lastHostilePlayer.at or 0)) <= 60 then
       opponent.name = lastHostilePlayer.name
       opponent.class = lastHostilePlayer.class
       opponent.race = lastHostilePlayer.race
+      opponent.level = lastHostilePlayer.level
     end
-    if Stats.RecordDuel then
+    local won = ResolveDuelOutcome(opponentUnit)
+    if won == nil then
+      Debug("duel cancel/tie", opponent.name or "?")
+    elseif Stats.RecordDuel then
       Stats.RecordDuel(won, opponent, EnrichPlace(PlaceNow(), opponent))
+      Debug("duel", won and "win" or "loss", opponent.name or "?")
     end
-    Debug("duel", won and "win" or "loss", opponent.name or "?")
+    lastDuelOpponent = nil
   elseif event == "PLAYER_TARGET_CHANGED" or event == "UNIT_HEALTH" or event == "UNIT_FLAGS" then
     local unit = event == "PLAYER_TARGET_CHANGED" and "target" or ...
     if unit == "target" then
       pcall(RememberHostileFromUnit, "target")
+      pcall(RememberDuelOpponent, "target")
       pcall(WatchTargetDeath)
     end
   elseif event == "CHAT_MSG_ADDON" then
@@ -2079,6 +2181,8 @@ pcall(eventFrame.RegisterEvent, eventFrame, "CHAT_MSG_SYSTEM")
 eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
 pcall(eventFrame.RegisterEvent, eventFrame, "UNIT_FLAGS")
 pcall(eventFrame.RegisterEvent, eventFrame, "DUEL_FINISHED")
+pcall(eventFrame.RegisterEvent, eventFrame, "DUEL_REQUESTED")
+pcall(eventFrame.RegisterEvent, eventFrame, "DUEL_TO_THE_DEATH")
 if eventFrame.RegisterUnitEvent then
   eventFrame:RegisterUnitEvent("UNIT_HEALTH", "target")
 else

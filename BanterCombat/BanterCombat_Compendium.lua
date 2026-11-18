@@ -122,9 +122,61 @@ local function hideAllContent()
   end
   if frame.countRows then
     for i = 1, #frame.countRows do
-      frame.countRows[i]:Hide()
+      local row = frame.countRows[i]
+      row.race:Hide()
+      row.raceStats:Hide()
+      row.class:Hide()
+      row.classStats:Hide()
     end
   end
+  if frame.countHeaderL then
+    frame.countHeaderL:Hide()
+  end
+  if frame.countHeaderR then
+    frame.countHeaderR:Hide()
+  end
+end
+
+local function formatPvpLogEntry(e, withDate)
+  if type(e) ~= "table" then
+    return ""
+  end
+  local side = e.side or "?"
+  local label = side
+  if side == "kill" then
+    label = L.COMP_LOG_KILL or "Abate"
+  elseif side == "death" then
+    label = L.COMP_LOG_DEATH or "Morte"
+  elseif side == "duel_win" then
+    label = L.COMP_LOG_DUEL_WIN or "Duelo +"
+  elseif side == "duel_loss" then
+    label = L.COMP_LOG_DUEL_LOSS or "Duelo −"
+  end
+  local bits = { label, e.name or "?" }
+  if e.level then
+    bits[#bits + 1] = (L.COMP_LEVEL_SHORT or "nv%d"):format(e.level)
+  end
+  if e.race and Data.RaceLabel then
+    bits[#bits + 1] = Data.RaceLabel(e.race)
+  elseif e.race then
+    bits[#bits + 1] = e.race
+  end
+  if e.class and Data.ClassLabel then
+    bits[#bits + 1] = Data.ClassLabel(e.class)
+  elseif e.class then
+    bits[#bits + 1] = e.class
+  end
+  if e.zone then
+    bits[#bits + 1] = e.zone
+  end
+  if e.context then
+    local ctxKey = "COMP_LOG_CTX_" .. tostring(e.context)
+    bits[#bits + 1] = L[ctxKey] or e.context
+  end
+  if withDate then
+    bits[#bits + 1] = formatWhen(e.t)
+  end
+  return table.concat(bits, " · ")
 end
 
 local function buildFrame()
@@ -225,14 +277,20 @@ local function buildFrame()
   frame.subTabs = {}
   for i = 1, 12 do
     local tab = CreateFrame("Button", nil, frame)
-    tab:SetSize(92, 16)
+    tab:SetSize(98, 20)
     local col = (i - 1) % 6
     local rowN = math.floor((i - 1) / 6)
-    tab:SetPoint("TOPLEFT", 180 + col * 94, -52 - rowN * 16)
+    tab:SetPoint("TOPLEFT", 180 + col * 100, -50 - rowN * 20)
+    local hi = solidTex(tab, "BACKGROUND", 0.72, 0.55, 0.18, 0.35)
+    hi:SetAllPoints()
+    hi:Hide()
+    tab.hi = hi
     local label = tab:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    label:SetAllPoints()
+    label:SetPoint("LEFT", 4, 0)
+    label:SetWidth(90)
     label:SetJustifyH("LEFT")
     tab.label = label
+    tab:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
     tab:Hide()
     frame.subTabs[i] = tab
   end
@@ -242,7 +300,7 @@ local function buildFrame()
   for i = 1, CHALLENGE_ROWS do
     local row = CreateFrame("Frame", nil, frame)
     row:SetSize(560, 34)
-    row:SetPoint("TOPLEFT", 180, -92 - (i - 1) * 36)
+    row:SetPoint("TOPLEFT", 180, -100 - (i - 1) * 36)
     local bg = solidTex(row, "BACKGROUND", 0.12, 0.10, 0.07, 0.55)
     bg:SetAllPoints()
     row.icon = row:CreateTexture(nil, "ARTWORK")
@@ -448,7 +506,7 @@ local function paintOverview(db)
     (L.COMP_STREAK_NOW or "Série atual: %d"):format(streak),
     (L.COMP_DUELS or "Duelos: %d–%d"):format(wins, losses),
     (L.MINIMAP_SESSION or "Sessão: %d / %d / %d"):format(sk, sd, ss),
-  }, "\n\n"))
+  }, "\n"))
 
   frame.sideTitle:SetText(L.COMP_SPOTLIGHT or "Destaques")
   local lines = {}
@@ -461,23 +519,8 @@ local function paintOverview(db)
   lines[#lines + 1] = ""
   lines[#lines + 1] = L.COMP_RECENT_LOG or "Diário recente"
   local log = ns.Stats and ns.Stats.PvpLog and ns.Stats.PvpLog() or {}
-  for i = 1, math.min(5, #log) do
-    local e = log[i]
-    local side = e.side or "?"
-    local label = side
-    if side == "kill" then
-      label = L.COMP_LOG_KILL or "Abate"
-    elseif side == "death" then
-      label = L.COMP_LOG_DEATH or "Morte"
-    elseif side == "duel_win" then
-      label = L.COMP_LOG_DUEL_WIN or "Duelo +"
-    elseif side == "duel_loss" then
-      label = L.COMP_LOG_DUEL_LOSS or "Duelo −"
-    end
-    local who = e.name or "?"
-    local where = e.zone and (" · " .. e.zone) or ""
-    local lvl = e.level and (" [" .. e.level .. "]") or ""
-    lines[#lines + 1] = label .. ": " .. who .. lvl .. where
+  for i = 1, math.min(3, #log) do
+    lines[#lines + 1] = formatPvpLogEntry(log[i], true)
   end
   if #log == 0 then
     lines[#lines + 1] = L.COMP_DIARY_EMPTY or "Nenhum evento PvP ainda."
@@ -486,7 +529,7 @@ local function paintOverview(db)
   lines[#lines + 1] = L.COMP_RECENT_FEATS or "Feitos recentes"
   local recent = ns.Achievements and ns.Achievements.RecentDone and ns.Achievements.RecentDone(4) or {}
   if #recent == 0 then
-    lines[#lines + 1] = L.COMP_LOCKED or "—"
+    lines[#lines + 1] = L.COMP_FEATS_EMPTY or "Nenhum feito recente."
   else
     for i = 1, #recent do
       local row = recent[i]
@@ -515,8 +558,14 @@ local function paintChallenges()
       tab.label:SetText(info.label)
       if info.id == cat then
         tab.label:SetTextColor(1, 0.82, 0)
+        if tab.hi then
+          tab.hi:Show()
+        end
       else
         tab.label:SetTextColor(0.75, 0.7, 0.55)
+        if tab.hi then
+          tab.hi:Hide()
+        end
       end
       tab:SetScript("OnClick", function()
         frame.challengeCat = info.id
@@ -575,7 +624,7 @@ local function paintChallenges()
   end
   local last = math.min(#list, start + CHALLENGE_ROWS)
   if #list == 0 then
-    frame.Hint:SetText(L.ACH_HINT or "")
+    frame.Hint:SetText(L.COMP_CHALLENGES_EMPTY or L.ACH_HINT or "")
   else
     frame.Hint:SetText((L.ACH_PAGE or "%d–%d de %d"):format(start + 1, last, #list))
   end
@@ -624,7 +673,18 @@ end
 local function paintListPage(items, emptyHint)
   local index = frame.listPage or 1
   local per = 12
-  local pages = math.max(1, math.ceil(#items / per))
+  local pages = math.max(1, math.ceil(math.max(#items, 1) / per))
+  if #items == 0 then
+    for i = 1, per do
+      frame.listRows[i]:Hide()
+    end
+    frame.listRows[1]:Show()
+    frame.listRows[1]:SetText(emptyHint or "")
+    frame.listRows[1]:SetTextColor(0.65, 0.62, 0.55)
+    frame.Hint:SetText("")
+    setPager(false, false)
+    return
+  end
   if index > pages then
     index = pages
   end
@@ -636,15 +696,12 @@ local function paintListPage(items, emptyHint)
     if text then
       row:Show()
       row:SetText(text)
+      row:SetTextColor(0.92, 0.90, 0.84)
     else
       row:Hide()
     end
   end
-  if #items == 0 then
-    frame.Hint:SetText(emptyHint or "")
-  else
-    frame.Hint:SetText((L.ACH_PAGE or "%d–%d de %d"):format(start + 1, math.min(#items, start + per), #items))
-  end
+  frame.Hint:SetText((L.ACH_PAGE or "%d–%d de %d"):format(start + 1, math.min(#items, start + per), #items))
   setPager(index > 1, index < pages)
 end
 
@@ -674,38 +731,7 @@ local function paintDiary()
   local items = {}
   local log = ns.Stats and ns.Stats.PvpLog and ns.Stats.PvpLog() or {}
   for i = 1, #log do
-    local e = log[i]
-    local side = e.side or "?"
-    local label = side
-    if side == "kill" then
-      label = L.COMP_LOG_KILL or "Abate"
-    elseif side == "death" then
-      label = L.COMP_LOG_DEATH or "Morte"
-    elseif side == "duel_win" then
-      label = L.COMP_LOG_DUEL_WIN or "Duelo +"
-    elseif side == "duel_loss" then
-      label = L.COMP_LOG_DUEL_LOSS or "Duelo −"
-    end
-    local race = e.race and Data.RaceLabel and Data.RaceLabel(e.race) or e.race
-    local class = e.class and Data.ClassLabel and Data.ClassLabel(e.class) or e.class
-    local bits = { label, e.name or "?" }
-    if e.level then
-      bits[#bits + 1] = "nv" .. e.level
-    end
-    if race then
-      bits[#bits + 1] = race
-    end
-    if class then
-      bits[#bits + 1] = class
-    end
-    if e.zone then
-      bits[#bits + 1] = e.zone
-    end
-    if e.context then
-      bits[#bits + 1] = e.context
-    end
-    bits[#bits + 1] = formatWhen(e.t)
-    items[#items + 1] = table.concat(bits, " · ")
+    items[#items + 1] = formatPvpLogEntry(log[i], true)
   end
   paintListPage(items, L.COMP_DIARY_EMPTY or "Nenhum evento PvP ainda.")
 end
@@ -786,6 +812,8 @@ end
 function Compendium.Toggle()
   if not frame then
     buildFrame()
+  else
+    applyWowDialogBackdrop(frame)
   end
   if frame:IsShown() then
     frame:Hide()
@@ -895,22 +923,6 @@ function Compendium.Init()
 
   placeMinimap(button)
   minimapButton = button
-end
-
-function Compendium.RefreshMinimapStreak(streak)
-  if not minimapButton or not minimapButton.Icon then
-    return
-  end
-  streak = tonumber(streak) or 0
-  if streak >= 10 then
-    minimapButton.Icon:SetVertexColor(1, 0.35, 0.15)
-  elseif streak >= 5 then
-    minimapButton.Icon:SetVertexColor(1, 0.7, 0.2)
-  elseif streak >= 3 then
-    minimapButton.Icon:SetVertexColor(0.85, 0.85, 1)
-  else
-    minimapButton.Icon:SetVertexColor(1, 1, 1)
-  end
 end
 
 _G[addonName] = ns

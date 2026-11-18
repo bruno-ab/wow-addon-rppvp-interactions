@@ -1091,6 +1091,22 @@ function Options.ToggleMinimapMenu(anchor)
       row.text:SetJustifyH("LEFT")
       row.key = info.key
       row.label = info.label
+      local hi = row:CreateTexture(nil, "BACKGROUND")
+      hi:SetAllPoints()
+      hi:SetTexture("Interface\\Buttons\\WHITE8X8")
+      hi:SetVertexColor(0.72, 0.55, 0.18, 0.28)
+      hi:Hide()
+      row.hi = hi
+      row:SetScript("OnEnter", function(self)
+        if self.hi then
+          self.hi:Show()
+        end
+      end)
+      row:SetScript("OnLeave", function(self)
+        if self.hi then
+          self.hi:Hide()
+        end
+      end)
       row:SetScript("OnClick", function(self)
         local current = Options.Get()[self.key]
         Options.Set(self.key, not current)
@@ -1109,6 +1125,22 @@ function Options.ToggleMinimapMenu(anchor)
       row.text:SetPoint("LEFT", 2, 0)
       row.text:SetWidth(254)
       row.text:SetJustifyH("LEFT")
+      local hi = row:CreateTexture(nil, "BACKGROUND")
+      hi:SetAllPoints()
+      hi:SetTexture("Interface\\Buttons\\WHITE8X8")
+      hi:SetVertexColor(0.72, 0.55, 0.18, 0.28)
+      hi:Hide()
+      row.hi = hi
+      row:SetScript("OnEnter", function(self)
+        if self.hi then
+          self.hi:Show()
+        end
+      end)
+      row:SetScript("OnLeave", function(self)
+        if self.hi then
+          self.hi:Hide()
+        end
+      end)
       row:SetScript("OnClick", function()
         if not keepOpen then
           Options.HideMinimapMenu()

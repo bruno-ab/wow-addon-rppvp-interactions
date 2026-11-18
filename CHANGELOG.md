@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.24
+
+- Duel outcome by relative HP (ignore cancels); remember duel opponent; skip nameless duel log rows.
+- Compendium polish: hide stuck Contas headers, empty diary/rivals states, shared log formatting, wider challenge tabs.
+- Minimap menu hover; race fallback via GUID; locale bits for level/context/empty feats.
+
 ## 1.0.23
 
 - Compendium redesigned like Ink & Embers Legacy: Overview, Challenges (sub-tabs), Counts, Rivals, Chronicle, PvP Diary.
