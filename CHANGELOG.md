@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.30
+
+- Multi-kill window (Double/Triple/Ultra/Rampage) set to 8 seconds between kills.
+
 ## 1.0.29
 
 - Fix KB hitch: `ensureDB` full scrub once per session (not every GetDB), chronicle append without rebuild, rivals prune only when oversized.

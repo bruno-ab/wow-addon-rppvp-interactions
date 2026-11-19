@@ -719,9 +719,14 @@ end
 
 local multiCount = 0
 local lastAnnounceAt = 0
-local MULTI_WINDOW = 12
+-- Seconds between kills to keep Double/Triple/Ultra/Rampage counting.
+local MULTI_WINDOW = 8
 -- First Blood is once per session, and again when you enter a battleground.
 local firstBloodTaken = false
+
+function Stats.MultiWindow()
+  return MULTI_WINDOW
+end
 
 function Stats.ResetAnnouncer()
   multiCount = 0

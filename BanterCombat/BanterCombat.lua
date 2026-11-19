@@ -2255,7 +2255,8 @@ end
 local function nextTestAnnouncer()
   local now = GetTime and GetTime() or 0
   testStreak = testStreak + 1
-  if testAnnounceAt > 0 and (now - testAnnounceAt) <= 12 then
+  local multiWindow = (Stats.MultiWindow and Stats.MultiWindow()) or 8
+  if testAnnounceAt > 0 and (now - testAnnounceAt) <= multiWindow then
     testMulti = testMulti + 1
   else
     testMulti = 1
