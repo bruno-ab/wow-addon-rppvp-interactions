@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.26
+
+- Chronicle rebuilt as day chapters: rivalry memory (stranger/rematch/revenge), place + ambient, combat blow/level/streak.
+- Each kill stores prior score, revenge and streak for the narrative; chronicle buffer raised to 80.
+- Story page scrolls longer day prose; locale hints updated.
+
 ## 1.0.25
 
 - Challenges show the condition under the title (e.g. “Matar 500 Trolls”).

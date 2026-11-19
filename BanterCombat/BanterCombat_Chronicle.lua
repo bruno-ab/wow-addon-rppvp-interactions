@@ -28,14 +28,113 @@ local FEM_CLASS = {
   ["Druida"] = "Druidesa",
 }
 
-local SPINE = {
+local DAY_OPEN = {
   ptBR = {
-    first = "Eu ainda era {pg:um|uma} {myclass} iniciante, nível {level}, e {spell} mudou tudo. Meu primeiro alvo foi {g:um|uma} {race} {class} em {zone}. {detail} Fiquei sabendo que o nome {g:dele|dela} era {name}.",
-    next = "Depois veio {g:um|uma} {race} {class}, em {zone}. Eu já estava no nível {level}. {detail} {spell} fechou o que ainda faltava dizer. O nome {g:dele|dela} era {name}.",
+    first = "Ainda era cedo na minha história: nível {level}, {pg:um|uma} {myclass} aprendendo o peso do próprio nome. Naquele dia o caminho passou por {places}. {ambient}",
+    again = "No dia {date} eu já carregava o ofício de {myclass} no nível {level}. O caminho cruzou {places}. {ambient}",
   },
   enUS = {
-    first = "I was still a novice {myclass}, level {level}, and {spell} changed everything. My first quarry was a {race} {class} in {zone}. {detail} I learned the name was {name}.",
-    next = "Next came a {race} {class}, in {zone}. I was already level {level}. {detail} {spell} finished what was left unsaid. The name was {name}.",
+    first = "It was still early in my story: level {level}, a {myclass} learning the weight of my own name. That day the road ran through {places}. {ambient}",
+    again = "On {date} I already carried the craft of a {myclass} at level {level}. The road crossed {places}. {ambient}",
+  },
+}
+
+local DAY_CLOSE = {
+  ptBR = {
+    one = "O caderno fechou com um único nome: {names}. Bastou.",
+    few = "Antes do fim do dia, {count} encontros ficaram gravados: {names}.",
+    many = "Foi um dia longo. {count} nomes entraram no caderno — {names} — e o chão ainda cheirava a ferro.",
+  },
+  enUS = {
+    one = "The book closed on a single name: {names}. It was enough.",
+    few = "Before the day ended, {count} meetings stayed written: {names}.",
+    many = "It was a long day. {count} names entered the book — {names} — and the ground still smelled of iron.",
+  },
+}
+
+local RELATION = {
+  ptBR = {
+    firstEver = "Meu primeiro alvo no mundo foi {g:um|uma} {race} {class}. Eu ainda não sabia o nome. Depois soube: {name}.",
+    stranger = "Encontrei {g:um|uma} {race} {class} que eu nunca tinha visto. O nome veio depois do golpe: {name}.",
+    rematch = "{name} voltou. Já tínhamos história — placar {priorKills}–{priorDeaths} — e {g:ele|ela} ainda era {g:um|uma} {race} {class}.",
+    hunted = "{name} já tinha me derrubado {priorDeaths} {priorDeathsWord}. Desta vez fui eu quem encontrou {g:um|uma} {race} {class} no caminho.",
+    rival = "O rival {name} cruzou o campo de novo. {priorKills} abates meus, {priorDeaths} quedas. {g:Um|Uma} {race} {class} que o caderno já conhecia.",
+    revenge = "Vingança. {name} ainda tinha o gosto do meu último sangue na boca quando {g:um|uma} {race} {class} caiu sob o meu golpe.",
+    sameDay = "Mais tarde, no mesmo dia, {name} — de novo {g:um|uma} {race} {class} — apareceu onde eu ainda estava.",
+  },
+  enUS = {
+    firstEver = "My first quarry in the world was a {race} {class}. I did not know the name yet. Then I learned it: {name}.",
+    stranger = "I met a {race} {class} I had never seen. The name came after the blow: {name}.",
+    rematch = "{name} came back. We already had a history — score {priorKills}–{priorDeaths} — and they were still a {race} {class}.",
+    hunted = "{name} had already put me down {priorDeaths} {priorDeathsWord}. This time I was the one who found a {race} {class} on the road.",
+    rival = "Rival {name} crossed the field again. {priorKills} kills of mine, {priorDeaths} falls. A {race} {class} the book already knew.",
+    revenge = "Revenge. {name} still had the taste of my last blood when a {race} {class} fell under my blow.",
+    sameDay = "Later the same day, {name} — again a {race} {class} — showed up where I still stood.",
+  },
+}
+
+local PLACE = {
+  ptBR = {
+    withSub = "O duelo aconteceu em {zone}, no trecho chamado {subzone}.",
+    zoneOnly = "O campo era {zone}.",
+    bg = "Estávamos em campo de batalha: {zone}.",
+    duel = "Foi um duelo marcado em {zone}.",
+    unknown = "O lugar não tinha nome no mapa, só no corpo.",
+  },
+  enUS = {
+    withSub = "The fight happened in {zone}, in the stretch called {subzone}.",
+    zoneOnly = "The field was {zone}.",
+    bg = "We were in a battleground: {zone}.",
+    duel = "It was a marked duel in {zone}.",
+    unknown = "The place had no name on the map, only on the body.",
+  },
+}
+
+local COMBAT = {
+  ptBR = {
+    spell = "{detail} O golpe que fechou tudo foi {spell}.",
+    nospell = "{detail} O último gesto não pediu nome — só resultado.",
+    above = " {g:Ele|Ela} vinha {gap} níveis acima. Mesmo assim o chão escolheu o meu lado.",
+    below = " {g:Ele|Ela} estava {gap} níveis abaixo. Não houve perdão no caderno.",
+    streak = " A série ia em {streak}. O campo já sabia a conta.",
+  },
+  enUS = {
+    spell = "{detail} The blow that closed it was {spell}.",
+    nospell = "{detail} The last gesture asked for no name — only an ending.",
+    above = " They came in {gap} levels above. Even so the ground chose my side.",
+    below = " They stood {gap} levels below. The book showed no mercy.",
+    streak = " The streak sat at {streak}. The field already knew the count.",
+  },
+}
+
+local AMBIENT = {
+  ptBR = {
+    ashenvale = "A floresta de Vale Gris falava baixo, como quem esconde bandeira entre as folhas.",
+    warsong = "A ravina ecoava grito e metal; o meio do campo não perdoa quem hesita.",
+    arathi = "A bacia aberta de Arathi deixava cada passo visível demais.",
+    alterac = "O frio de Alterac entrava pela armadura antes do golpe.",
+    barrens = "O sertão seco estalava sob os pés; poeira e distância eram a única sombra.",
+    stranglethorn = "O Espinhaço úmido cheirava a seiva e emboscada.",
+    hillsbrad = "Eira dos Montes misturava estrada de pedra com rancor antigo.",
+    stonetalon = "Torres de Pedra cortavam o vento em lâminas finas.",
+    duskwood = "O Crepúsculo parecia noite mesmo de dia.",
+    elwynn = "Elwynn ainda fingia paz de fazenda, até o aço discordar.",
+    tirisfal = "Tirisfal tinha cheiro de cripta aberta e névoa sem dono.",
+    default = "O ar do campo carregava ferro, suor e a pressa de quem não pede licença.",
+  },
+  enUS = {
+    ashenvale = "Ashenvale spoke softly, like a forest hiding a banner in the leaves.",
+    warsong = "The gulch echoed with shout and steel; the midfield forgives no hesitation.",
+    arathi = "The open basin of Arathi made every step too visible.",
+    alterac = "Alterac cold slid under the armor before the blow did.",
+    barrens = "The dry Barrens cracked underfoot; dust and distance were the only shade.",
+    stranglethorn = "Stranglethorn smelled of sap and ambush.",
+    hillsbrad = "Hillsbrad mixed stone road with old grudges.",
+    stonetalon = "Stonetalon cut the wind into thin blades.",
+    duskwood = "Duskwood felt like night even at noon.",
+    elwynn = "Elwynn still pretended farmstead peace, until steel disagreed.",
+    tirisfal = "Tirisfal smelled of an open crypt and ownerless mist.",
+    default = "The field air carried iron, sweat, and the haste of those who ask no leave.",
   },
 }
 
@@ -443,6 +542,19 @@ local function raceLabel(token, sex)
   return label
 end
 
+local function langDeathsWord(lang, n)
+  if lang == "ptBR" then
+    if n == 1 then
+      return "vez"
+    end
+    return "vezes"
+  end
+  if n == 1 then
+    return "time"
+  end
+  return "times"
+end
+
 local function fill(text, ctx)
   ctx = ctx or {}
   local sex = ctx.sex
@@ -456,7 +568,19 @@ local function fill(text, ctx)
   end
   local level = tonumber(ctx.level) or 0
   local levelText = level > 0 and tostring(level) or "?"
+  local deaths = tonumber(ctx.priorDeaths) or 0
+  local deathsWord = langDeathsWord(ctx.lang, deaths)
   text = text:gsub("{detail}", ctx.detail or "")
+  text = text:gsub("{ambient}", ctx.ambient or "")
+  text = text:gsub("{places}", ctx.places or zone)
+  text = text:gsub("{date}", ctx.date or "")
+  text = text:gsub("{subzone}", ctx.subzone or "")
+  text = text:gsub("{names}", ctx.names or "")
+  text = text:gsub("{priorKills}", tostring(ctx.priorKills or 0))
+  text = text:gsub("{priorDeaths}", tostring(deaths))
+  text = text:gsub("{priorDeathsWord}", deathsWord)
+  text = text:gsub("{gap}", tostring(ctx.gap or 0))
+  text = text:gsub("{streak}", tostring(ctx.streak or 0))
   text = text:gsub("{race}", raceLabel(ctx.race, sex))
   text = text:gsub("{class}", classLabel(ctx.class, sex))
   text = text:gsub("{myclass}", classLabel(ctx.myClass, ctx.mySex))
@@ -483,6 +607,8 @@ local function fill(text, ctx)
     text = ns.Genderize(text, sex)
   end
   text = text:gsub("  +", " ")
+  text = text:gsub("%s+\n", "\n")
+  text = text:gsub("\n%s+", "\n")
   return text
 end
 
@@ -534,51 +660,310 @@ local function add(chapters, title, text, meta)
   end
 end
 
+local function dayKey(stamp)
+  stamp = tonumber(stamp) or 0
+  if stamp <= 0 or not date then
+    return "0"
+  end
+  return date("%Y-%m-%d", stamp)
+end
+
+local function dayLabel(lang, stamp)
+  stamp = tonumber(stamp) or 0
+  if stamp <= 0 or not date then
+    return lang == "ptBR" and "Dia sem data" or "Undated day"
+  end
+  if lang == "ptBR" then
+    return date("%d/%m/%Y", stamp)
+  end
+  return date("%Y-%m-%d", stamp)
+end
+
+local function ambientFor(lang, zone)
+  local pack = AMBIENT[lang] or AMBIENT.enUS
+  local lower = type(zone) == "string" and zone:lower() or ""
+  local keys = {
+    { "ashenvale", "vale-gris", "vale gris", "ashenvale" },
+    { "warsong", "brado", "ravina", "warsong", "gulch" },
+    { "arathi", "arathi", "bacia" },
+    { "alterac", "alterac" },
+    { "barrens", "sertões", "sertoes", "barrens" },
+    { "stranglethorn", "espinhaço", "espinhaco", "stranglethorn" },
+    { "hillsbrad", "eira", "hillsbrad" },
+    { "stonetalon", "torres de pedra", "stonetalon" },
+    { "duskwood", "crepúsculo", "crepusculo", "duskwood" },
+    { "elwynn", "elwynn" },
+    { "tirisfal", "tirisfal" },
+  }
+  local map = {
+    ashenvale = pack.ashenvale,
+    warsong = pack.warsong,
+    arathi = pack.arathi,
+    alterac = pack.alterac,
+    barrens = pack.barrens,
+    stranglethorn = pack.stranglethorn,
+    hillsbrad = pack.hillsbrad,
+    stonetalon = pack.stonetalon,
+    duskwood = pack.duskwood,
+    elwynn = pack.elwynn,
+    tirisfal = pack.tirisfal,
+  }
+  for i = 1, #keys do
+    local id = keys[i][1]
+    for k = 2, #keys[i] do
+      if lower:find(keys[i][k], 1, true) then
+        return map[id] or pack.default
+      end
+    end
+  end
+  return pack.default
+end
+
+local function joinPlaces(lang, rows)
+  local seen, list = {}, {}
+  for i = 1, #rows do
+    local zone = rows[i].zone
+    local sub = rows[i].subzone
+    local label = nil
+    if type(zone) == "string" and zone ~= "" then
+      if type(sub) == "string" and sub ~= "" and sub ~= zone then
+        label = zone .. " (" .. sub .. ")"
+      else
+        label = zone
+      end
+    elseif type(sub) == "string" and sub ~= "" then
+      label = sub
+    end
+    if label and not seen[label] then
+      seen[label] = true
+      list[#list + 1] = label
+    end
+  end
+  if #list == 0 then
+    return lang == "ptBR" and "um campo sem nome" or "a nameless field"
+  end
+  if #list == 1 then
+    return list[1]
+  end
+  if #list == 2 then
+    return list[1] .. (lang == "ptBR" and " e " or " and ") .. list[2]
+  end
+  local last = table.remove(list)
+  return table.concat(list, ", ") .. (lang == "ptBR" and " e " or " and ") .. last
+end
+
+local function relationKey(row, seenNamesToday, globalFirst)
+  if globalFirst or row.first then
+    return "firstEver"
+  end
+  local who = shortName(row.name)
+  if seenNamesToday[who] then
+    return "sameDay"
+  end
+  if row.revenge then
+    return "revenge"
+  end
+  local priorKills = tonumber(row.priorKills) or 0
+  local priorDeaths = tonumber(row.priorDeaths) or 0
+  -- Legacy rows: infer from live rival book when possible.
+  if priorKills == 0 and priorDeaths == 0 and ns.Stats and ns.Stats.RivalByName then
+    local rival = ns.Stats.RivalByName(row.name)
+    if rival then
+      priorKills = math.max(0, (rival.kills or 1) - 1)
+      priorDeaths = rival.deaths or 0
+      row.priorKills = priorKills
+      row.priorDeaths = priorDeaths
+    end
+  end
+  if priorDeaths > priorKills and priorDeaths > 0 then
+    return "hunted"
+  end
+  if priorKills >= 3 or (priorKills >= 1 and priorDeaths >= 1) then
+    return "rival"
+  end
+  if priorKills >= 1 then
+    return "rematch"
+  end
+  return "stranger"
+end
+
+local function placeLine(lang, row)
+  local pack = PLACE[lang] or PLACE.enUS
+  local zone = row.zone
+  local sub = row.subzone
+  if row.context == "bg" and type(zone) == "string" and zone ~= "" then
+    return fill(pack.bg, { zone = zone, lang = lang })
+  end
+  if row.context == "duel" and type(zone) == "string" and zone ~= "" then
+    return fill(pack.duel, { zone = zone, lang = lang })
+  end
+  if type(zone) == "string" and zone ~= "" and type(sub) == "string" and sub ~= "" and sub ~= zone then
+    return fill(pack.withSub, { zone = zone, subzone = sub, lang = lang })
+  end
+  if type(zone) == "string" and zone ~= "" then
+    return fill(pack.zoneOnly, { zone = zone, lang = lang })
+  end
+  return pack.unknown
+end
+
+local function combatLine(lang, row, detail, variant)
+  local pack = COMBAT[lang] or COMBAT.enUS
+  local ctx = {
+    detail = detail,
+    spell = row.spell,
+    sex = row.sex,
+    streak = row.streak,
+    lang = lang,
+  }
+  local body
+  if type(row.spell) == "string" and row.spell ~= "" then
+    body = fill(pack.spell, ctx)
+  else
+    body = fill(pack.nospell, ctx)
+  end
+  local vl = tonumber(row.victimLevel) or 0
+  local pl = tonumber(row.level) or 0
+  if vl > 0 and pl > 0 then
+    local gap = math.abs(vl - pl)
+    if gap >= 5 then
+      ctx.gap = gap
+      if vl > pl then
+        body = body .. fill(pack.above, ctx)
+      elseif pl > vl then
+        body = body .. fill(pack.below, ctx)
+      end
+    end
+    body = body .. " " .. L.NARR_LEVEL:format(vl)
+  end
+  if (tonumber(row.streak) or 0) >= 3 then
+    body = body .. fill(pack.streak, ctx)
+  end
+  return body
+end
+
+local function writeEncounter(lang, row, opts)
+  opts = opts or {}
+  local who = shortName(row.name)
+  local rel = relationKey(row, opts.seenNamesToday or {}, opts.globalFirst)
+  local relTpl = (RELATION[lang] or RELATION.enUS)[rel] or RELATION.enUS.stranger
+  local detail = detailFor(lang, row.race, row.class, opts.variant or 1)
+  local ctx = {
+    name = who,
+    race = row.race,
+    class = row.class,
+    zone = row.zone,
+    subzone = row.subzone,
+    spell = row.spell,
+    level = row.level,
+    myClass = row.myClass,
+    sex = row.sex,
+    mySex = row.mySex,
+    priorKills = row.priorKills or 0,
+    priorDeaths = row.priorDeaths or 0,
+    streak = row.streak or 0,
+    detail = detail,
+    lang = lang,
+  }
+  local parts = {
+    fill(relTpl, ctx),
+    placeLine(lang, row),
+    combatLine(lang, row, detail, opts.variant),
+  }
+  return table.concat(parts, " "), who
+end
+
+local function writeDayChapter(lang, dayRows, dayIndex, isFirstDay)
+  local stamp = dayRows[1] and dayRows[1].time or 0
+  local label = dayLabel(lang, stamp)
+  local places = joinPlaces(lang, dayRows)
+  local ambient = ambientFor(lang, dayRows[1] and dayRows[1].zone)
+  local openPack = DAY_OPEN[lang] or DAY_OPEN.enUS
+  local openTpl = (isFirstDay or (dayRows[1] and dayRows[1].first)) and openPack.first or openPack.again
+  local myClass = dayRows[1] and dayRows[1].myClass
+  local mySex = dayRows[1] and dayRows[1].mySex
+  local level = dayRows[1] and dayRows[1].level or 0
+  local paragraphs = {
+    fill(openTpl, {
+      level = level,
+      myClass = myClass,
+      mySex = mySex,
+      places = places,
+      ambient = ambient,
+      date = label,
+      lang = lang,
+    }),
+  }
+  local seenNamesToday = {}
+  local names = {}
+  local comboSeen = {}
+  for i = 1, #dayRows do
+    local row = dayRows[i]
+    local combo = (row.race or "?") .. ":" .. (row.class or "?")
+    comboSeen[combo] = (comboSeen[combo] or 0) + 1
+    local prose, who = writeEncounter(lang, row, {
+      seenNamesToday = seenNamesToday,
+      globalFirst = isFirstDay and i == 1,
+      variant = comboSeen[combo],
+    })
+    paragraphs[#paragraphs + 1] = prose
+    seenNamesToday[who] = true
+    names[#names + 1] = who
+  end
+  local closePack = DAY_CLOSE[lang] or DAY_CLOSE.enUS
+  local closeTpl = closePack.one
+  if #dayRows >= 5 then
+    closeTpl = closePack.many
+  elseif #dayRows >= 2 then
+    closeTpl = closePack.few
+  end
+  local nameList
+  if #names > 6 then
+    local head = {}
+    for i = 1, 6 do
+      head[i] = names[i]
+    end
+    nameList = table.concat(head, ", ") .. (lang == "ptBR" and " e outros" or " and others")
+  else
+    nameList = table.concat(names, ", ")
+  end
+  paragraphs[#paragraphs + 1] = fill(closeTpl, {
+    count = #dayRows,
+    names = nameList,
+    lang = lang,
+  })
+  local title = (L.NARR_DAY or (lang == "ptBR" and "Dia %s" or "Day %s")):format(label)
+  local meta = places .. " · " .. tostring(#dayRows) .. (lang == "ptBR" and " encontros" or " meetings")
+  return title, table.concat(paragraphs, "\n\n"), meta
+end
+
 function Chronicle.Chapters()
   local lang = packLang()
   local chapters = {}
   local list = ns.Stats and ns.Stats.Chronicle and ns.Stats.Chronicle() or {}
-  local seen = {}
+
+  local days, order = {}, {}
   for i = 1, #list do
     local row = list[i]
-    local key = (row.race or "?") .. ":" .. (row.class or "?")
-    seen[key] = (seen[key] or 0) + 1
-    local spine = row.first and SPINE[lang].first or SPINE[lang].next
-    local who = shortName(row.name)
-    local ctx = {
-      name = who,
-      race = row.race,
-      class = row.class,
-      zone = row.zone,
-      spell = row.spell,
-      level = row.level,
-      myClass = row.myClass,
-      sex = row.sex,
-      mySex = row.mySex,
-      detail = detailFor(lang, row.race, row.class, seen[key]),
-    }
-    local body = fill(spine, ctx)
-    local vlevel = tonumber(row.victimLevel) or 0
-    if vlevel > 0 then
-      body = body .. " " .. L.NARR_LEVEL:format(vlevel)
+    local key = dayKey(row.time)
+    if not days[key] then
+      days[key] = {}
+      order[#order + 1] = key
     end
-    if type(row.subzone) == "string" and row.subzone ~= "" and row.subzone ~= row.zone then
-      body = body .. " " .. L.NARR_PLACE:format(row.subzone)
-    end
-    local metaBits = { who }
-    if row.race and Data.RaceLabel then
-      metaBits[#metaBits + 1] = Data.RaceLabel(row.race)
-    end
-    if row.class and Data.ClassLabel then
-      metaBits[#metaBits + 1] = Data.ClassLabel(row.class)
-    end
-    if type(row.zone) == "string" and row.zone ~= "" then
-      metaBits[#metaBits + 1] = row.zone
-    end
-    if row.time and date then
-      metaBits[#metaBits + 1] = date("%d/%m/%Y", row.time)
-    end
-    add(chapters, L.NARR_CHAPTER:format(i), body, table.concat(metaBits, " · "))
+    days[key][#days[key] + 1] = row
+  end
+  table.sort(order)
+  local originDay = order[1]
+  -- Newest day first for reading; origin day still opens with the "first story" voice.
+  table.sort(order, function(a, b)
+    return a > b
+  end)
+  for d = 1, #order do
+    local rows = days[order[d]]
+    table.sort(rows, function(a, b)
+      return (a.time or 0) < (b.time or 0)
+    end)
+    local title, text, meta = writeDayChapter(lang, rows, d, order[d] == originDay)
+    add(chapters, title, text, meta)
   end
 
   local feats = FEATS[lang] or {}

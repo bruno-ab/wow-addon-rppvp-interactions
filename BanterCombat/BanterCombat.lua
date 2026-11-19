@@ -1281,6 +1281,8 @@ local function OnPlayerKill(victim, destFlags)
   end
   local _, myClass = UnitClass("player")
   if Stats.RememberChronicle then
+    local priorKills = rival and math.max(0, (rival.kills or 1) - 1) or 0
+    local priorDeaths = rival and (rival.deaths or 0) or 0
     Stats.RememberChronicle({
       name = victim.name,
       race = victim.race,
@@ -1294,6 +1296,10 @@ local function OnPlayerKill(victim, destFlags)
       myClass = myClass,
       mySex = UnitSex and UnitSex("player") or nil,
       sex = victim.sex,
+      revenge = isRevenge or nil,
+      streak = streakNow,
+      priorKills = priorKills,
+      priorDeaths = priorDeaths,
     })
   end
 

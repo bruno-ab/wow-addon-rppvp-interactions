@@ -259,7 +259,7 @@ local function scrubChronicle(list)
     return {}
   end
   local out = {}
-  local limit = math.min(#list, 40)
+  local limit = math.min(#list, 80)
   for i = 1, limit do
     local row = list[i]
     if type(row) == "table" and type(row.name) == "string" and row.name ~= "" then
@@ -280,6 +280,10 @@ local function scrubChronicle(list)
         victimLevel = math.max(0, math.floor(tonumber(row.victimLevel) or 0)),
         subzone = scrubPlain(row.subzone, 64),
         context = (row.context == "bg" or row.context == "duel" or row.context == "world") and row.context or nil,
+        revenge = row.revenge and true or nil,
+        streak = math.max(0, math.floor(tonumber(row.streak) or 0)),
+        priorKills = math.max(0, math.floor(tonumber(row.priorKills) or 0)),
+        priorDeaths = math.max(0, math.floor(tonumber(row.priorDeaths) or 0)),
       }
     end
   end
@@ -512,7 +516,7 @@ function Stats.RememberChronicle(info)
   local db = ensureDB()
   local sex = tonumber(info.sex)
   local row = {
-    name = info.name,
+    name = displayName(info.name) or info.name,
     race = normalizeRace(info.race),
     class = (type(info.class) == "string" and VALID_CLASS[info.class]) and info.class or nil,
     zone = info.zone,
@@ -527,9 +531,13 @@ function Stats.RememberChronicle(info)
     victimLevel = math.max(0, math.floor(tonumber(info.victimLevel) or 0)),
     subzone = info.subzone,
     context = (info.context == "bg" or info.context == "duel" or info.context == "world") and info.context or nil,
+    revenge = info.revenge and true or nil,
+    streak = math.max(0, math.floor(tonumber(info.streak) or 0)),
+    priorKills = math.max(0, math.floor(tonumber(info.priorKills) or 0)),
+    priorDeaths = math.max(0, math.floor(tonumber(info.priorDeaths) or 0)),
   }
   db.chronicle[#db.chronicle + 1] = row
-  while #db.chronicle > 40 do
+  while #db.chronicle > 80 do
     if db.chronicle[2] then
       table.remove(db.chronicle, 2)
     else

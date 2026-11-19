@@ -113,7 +113,9 @@ local function hideAllContent()
   if frame.sideBox then
     frame.sideBox:Hide()
   end
-  if frame.Story then
+  if frame.StoryScroll then
+    frame.StoryScroll:Hide()
+  elseif frame.Story then
     frame.Story:Hide()
   end
   if frame.challengeRows then
@@ -441,16 +443,32 @@ local function buildFrame()
   frame.countHeaderL:Hide()
   frame.countHeaderR:Hide()
 
-  frame.Story = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  frame.Story:SetPoint("TOPLEFT", 180, -72)
-  frame.Story:SetWidth(560)
-  frame.Story:SetHeight(360)
+  frame.StoryScroll = CreateFrame("ScrollFrame", nil, frame)
+  frame.StoryScroll:SetPoint("TOPLEFT", 180, -72)
+  frame.StoryScroll:SetSize(560, 360)
+  frame.StoryScroll:EnableMouseWheel(true)
+  frame.StoryScroll:SetScript("OnMouseWheel", function(self, delta)
+    local cur = self:GetVerticalScroll() or 0
+    local max = self:GetVerticalScrollRange() or 0
+    local next = math.min(max, math.max(0, cur - delta * 28))
+    self:SetVerticalScroll(next)
+  end)
+  local storyChild = CreateFrame("Frame", nil, frame.StoryScroll)
+  storyChild:SetSize(540, 360)
+  frame.StoryScroll:SetScrollChild(storyChild)
+  frame.Story = storyChild:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  frame.Story:SetPoint("TOPLEFT", 0, 0)
+  frame.Story:SetWidth(540)
   frame.Story:SetJustifyH("LEFT")
   frame.Story:SetJustifyV("TOP")
   if frame.Story.SetWordWrap then
     frame.Story:SetWordWrap(true)
   end
-  frame.Story:Hide()
+  if frame.Story.SetNonSpaceWrap then
+    frame.Story:SetNonSpaceWrap(true)
+  end
+  frame.StoryChild = storyChild
+  frame.StoryScroll:Hide()
 
   local function arrowButton(direction)
     local button = CreateFrame("Button", nil, frame)
@@ -805,11 +823,18 @@ local function paintDiary()
 end
 
 local function paintStory()
+  if frame.StoryScroll then
+    frame.StoryScroll:Show()
+    frame.StoryScroll:SetVerticalScroll(0)
+  end
   frame.Story:Show()
   local chapters = ns.Chronicle and ns.Chronicle.Chapters and ns.Chronicle.Chapters() or {}
   local index = frame.listPage or 1
   if #chapters == 0 then
     frame.Story:SetText("|cffc9b896" .. (L.NARR_EMPTY or "") .. "|r")
+    if frame.StoryChild then
+      frame.StoryChild:SetHeight(80)
+    end
     frame.Hint:SetText(L.NARR_HINT or "")
     setPager(false, false)
     return
@@ -830,8 +855,17 @@ local function paintStory()
   end
   parts[#parts + 1] = ""
   parts[#parts + 1] = "|cffe8dcc8" .. (chapter.text or "") .. "|r"
-  frame.Story:SetText(table.concat(parts, "\n"))
-  frame.Hint:SetText((L.NARR_PAGE or "Capítulo %d de %d"):format(index, #chapters))
+  local body = table.concat(parts, "\n")
+  frame.Story:SetText(body)
+  local height = 360
+  if frame.Story.GetStringHeight then
+    height = math.max(360, (frame.Story:GetStringHeight() or 360) + 24)
+  end
+  if frame.StoryChild then
+    frame.StoryChild:SetHeight(height)
+  end
+  local dayHint = chapter.meta and (" · " .. chapter.meta) or ""
+  frame.Hint:SetText((L.NARR_PAGE or "Capítulo %d de %d"):format(index, #chapters) .. dayHint)
   setPager(index > 1, index < #chapters)
 end
 
