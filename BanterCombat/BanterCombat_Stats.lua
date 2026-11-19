@@ -128,10 +128,27 @@ local function nameKey(name)
 end
 
 local function displayName(name)
-  if Ambiguate then
-    return Ambiguate(name, "none") or name
+  if type(name) ~= "string" or name == "" then
+    return name
   end
-  return name
+  local short = name
+  if Ambiguate then
+    local ok, amb = pcall(Ambiguate, name, "none")
+    if ok and type(amb) == "string" and amb ~= "" then
+      short = amb
+    end
+  end
+  -- Forever / cross-realm often keep "Name-Realm"; never show the realm in the book.
+  local bare = short:match("^([^%-]+)")
+  if type(bare) == "string" and bare ~= "" then
+    short = bare
+  end
+  short = short:match("^%s*(.-)%s*$") or short
+  return short
+end
+
+function Stats.DisplayName(name)
+  return displayName(name)
 end
 
 local function scrubLines(list)
@@ -177,7 +194,7 @@ local function scrubRivals(map)
           end
         end
         out[k] = {
-          name = v.name:sub(1, 48),
+          name = (displayName(v.name) or v.name):sub(1, 48),
           kills = kills,
           deaths = deaths,
           last = math.max(0, math.floor(tonumber(v.last) or 0)),
@@ -248,7 +265,7 @@ local function scrubChronicle(list)
     if type(row) == "table" and type(row.name) == "string" and row.name ~= "" then
       local sex = tonumber(row.sex)
       out[#out + 1] = {
-        name = scrubPlain(row.name, 48) or "?",
+        name = scrubPlain(displayName(row.name), 48) or "?",
         race = normalizeRace(row.race),
         class = (type(row.class) == "string" and VALID_CLASS[row.class]) and row.class or nil,
         zone = scrubPlain(row.zone, 64),
@@ -274,7 +291,7 @@ local function scrubLastKiller(lk)
     return nil
   end
   return {
-    name = tostring(lk.name),
+    name = displayName(tostring(lk.name)) or tostring(lk.name),
     race = normalizeRace(lk.race),
     class = (type(lk.class) == "string" and VALID_CLASS[lk.class]) and lk.class or nil,
     guid = type(lk.guid) == "string" and lk.guid or nil,
@@ -308,7 +325,7 @@ local function scrubPvpLog(list)
   for i = startAt, #list do
     local row = list[i]
     if type(row) == "table" and VALID_PVP_SIDE[row.side] then
-      local name = clip(row.name, 48)
+      local name = clip(displayName(row.name), 48)
       if name then
         local level = math.max(0, math.floor(tonumber(row.level) or 0))
         local mapID = math.floor(tonumber(row.mapID) or 0)
@@ -341,7 +358,7 @@ end
 
 local function appendPvpLog(side, person, info)
   person = person or {}
-  local name = clip(person.name, 48)
+  local name = clip(displayName(person.name), 48)
   if not name then
     return
   end

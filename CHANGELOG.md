@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.25
+
+- Challenges show the condition under the title (e.g. “Matar 500 Trolls”).
+- Hide unobtainable feats: same-faction race slayers/firsts and empty race/class categories.
+- Rival, diary, chronicle and spotlight names strip the realm (name only).
+- Diary grouped by day with colored sides; chronicle chapters show meta (name · race · class · zone · date).
+
 ## 1.0.24
 
 - Duel outcome by relative HP (ignore cancels); remember duel opponent; skip nameless duel log rows.

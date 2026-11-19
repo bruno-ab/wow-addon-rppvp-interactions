@@ -1520,14 +1520,45 @@ local function measure(def)
   return 0, def.goal or 1, nil, false
 end
 
+local function isEnemyRace(race)
+  if type(race) ~= "string" or race == "" then
+    return false
+  end
+  local races = enemyRaces()
+  for i = 1, #races do
+    if races[i] == race then
+      return true
+    end
+  end
+  return false
+end
+
+local function targetRaceOf(def)
+  if type(def) ~= "table" then
+    return nil
+  end
+  if type(def.race) == "string" and def.race ~= "" then
+    return def.race
+  end
+  if type(def.feat) == "string" then
+    return def.feat:match("^race:(.+)$")
+  end
+  return nil
+end
+
 local function gate(def)
   local raceOk = (not def.gateRaces) or def.gateRaces[myRace()]
   local classOk = (not def.gateClasses) or def.gateClasses[myClass()]
-  if raceOk and classOk then
-    return nil
+  if not (raceOk and classOk) then
+    local need = text(def.needPt or "outra raça ou classe", def.needEn or "another race or class")
+    return text("Requer ", "Requires ") .. need
   end
-  local need = text(def.needPt or "outra raça ou classe", def.needEn or "another race or class")
-  return text("Requer ", "Requires ") .. need
+  -- Same-faction race targets are not obtainable in open-world PvP.
+  local target = targetRaceOf(def)
+  if target and not isEnemyRace(target) then
+    return text("Raça da sua facção", "Same-faction race")
+  end
+  return nil
 end
 
 local function isAvailable(def)
@@ -1957,7 +1988,7 @@ local function catalog()
     local race = races[i]
     table.insert(list, 1 + i, D("exec:" .. race, "race", "raceKills", 500, heads[race],
       "Carrasco de " .. ptName[race], enName[race] .. " Slayer",
-      "500 abates desta raça.", "500 kills of this race.", { race = race }))
+      "Matar 500 " .. ptName[race] .. ".", "Kill 500 " .. enName[race] .. ".", { race = race }))
   end
   local firstPt = {
     Human = "Primeiro Humano", Dwarf = "Primeiro Anão", NightElf = "Primeiro Elfo Noturno", Gnome = "Primeiro Gnomo",
@@ -1967,29 +1998,37 @@ local function catalog()
     Human = "First Human", Dwarf = "First Dwarf", NightElf = "First Night Elf", Gnome = "First Gnome",
     Orc = "First Orc", Scourge = "First Undead", Tauren = "First Tauren", Troll = "First Troll",
   }
+  local ptOne = {
+    Human = "Humano", Dwarf = "Anão", NightElf = "Elfo Noturno", Gnome = "Gnomo",
+    Orc = "Orc", Scourge = "Morto-vivo", Tauren = "Tauren", Troll = "Troll",
+  }
+  local enOne = {
+    Human = "Human", Dwarf = "Dwarf", NightElf = "Night Elf", Gnome = "Gnome",
+    Orc = "Orc", Scourge = "Undead", Tauren = "Tauren", Troll = "Troll",
+  }
   for i = 1, #races do
     local race = races[i]
     list[#list + 1] = D("first:" .. race, "race", "dated", 1, heads[race],
       firstPt[race], firstEn[race],
-      "O primeiro abate desta raça.", "The first kill of this race.",
+      "Matar o primeiro " .. ptOne[race] .. ".",
+      "Kill your first " .. enOne[race] .. ".",
       { feat = "race:" .. race })
   end
   local classRows = {
-    { "WARRIOR", P.sword, "Primeiro Guerreiro", "First Warrior" },
-    { "PALADIN", P.holy, "Primeiro Paladino", "First Paladin" },
-    { "HUNTER", P.bow, "Primeiro Caçador", "First Hunter" },
-    { "ROGUE", P.rogue, "Primeiro Ladino", "First Rogue" },
-    { "PRIEST", P.holy, "Primeiro Sacerdote", "First Priest" },
-    { "SHAMAN", P.nature, "Primeiro Xamã", "First Shaman" },
-    { "MAGE", P.frost, "Primeiro Mago", "First Mage" },
-    { "WARLOCK", P.shadow, "Primeiro Bruxo", "First Warlock" },
-    { "DRUID", P.druid, "Primeiro Druida", "First Druid" },
+    { "WARRIOR", P.sword, "Primeiro Guerreiro", "First Warrior", "Matar o primeiro Guerreiro.", "Kill your first Warrior." },
+    { "PALADIN", P.holy, "Primeiro Paladino", "First Paladin", "Matar o primeiro Paladino.", "Kill your first Paladin." },
+    { "HUNTER", P.bow, "Primeiro Caçador", "First Hunter", "Matar o primeiro Caçador.", "Kill your first Hunter." },
+    { "ROGUE", P.rogue, "Primeiro Ladino", "First Rogue", "Matar o primeiro Ladino.", "Kill your first Rogue." },
+    { "PRIEST", P.holy, "Primeiro Sacerdote", "First Priest", "Matar o primeiro Sacerdote.", "Kill your first Priest." },
+    { "SHAMAN", P.nature, "Primeiro Xamã", "First Shaman", "Matar o primeiro Xamã.", "Kill your first Shaman." },
+    { "MAGE", P.frost, "Primeiro Mago", "First Mage", "Matar o primeiro Mago.", "Kill your first Mage." },
+    { "WARLOCK", P.shadow, "Primeiro Bruxo", "First Warlock", "Matar o primeiro Bruxo.", "Kill your first Warlock." },
+    { "DRUID", P.druid, "Primeiro Druida", "First Druid", "Matar o primeiro Druida.", "Kill your first Druid." },
   }
   for i = 1, #classRows do
     local row = classRows[i]
     list[#list + 1] = D("first:" .. row[1], "class", "dated", 1, row[2],
-      row[3], row[4],
-      "O primeiro abate desta classe.", "The first kill of this class.",
+      row[3], row[4], row[5], row[6],
       { feat = "class:" .. row[1] })
   end
   list[#list + 1] = D("first:milestone100", "marks", "dated", 1, P.book,
@@ -2074,7 +2113,17 @@ function Achievements.Categories()
   for i = 1, #CATS do
     local cat = CATS[i]
     if not skip[cat.id] then
-      rows[#rows + 1] = { id = cat.id, label = text(cat.pt, cat.en) }
+      local has = false
+      for d = 1, #DEFS do
+        local def = DEFS[d]
+        if def.cat == cat.id and isAvailable(def) then
+          has = true
+          break
+        end
+      end
+      if has then
+        rows[#rows + 1] = { id = cat.id, label = text(cat.pt, cat.en) }
+      end
     end
   end
   return rows

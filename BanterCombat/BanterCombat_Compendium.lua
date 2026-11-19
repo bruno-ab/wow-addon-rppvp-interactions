@@ -7,9 +7,20 @@ local L = ns.L
 local Data = ns.Data
 
 local RACES = { "Human", "Dwarf", "NightElf", "Gnome", "Orc", "Scourge", "Tauren", "Troll" }
-local CHALLENGE_ROWS = 9
+local CHALLENGE_ROWS = 8
 local frame
 local minimapButton
+
+local function shortName(name)
+  if ns.Stats and ns.Stats.DisplayName then
+    return ns.Stats.DisplayName(name) or name or "?"
+  end
+  if type(name) ~= "string" or name == "" then
+    return "?"
+  end
+  local bare = name:match("^([^%-]+)")
+  return (bare and bare ~= "" and bare) or name
+end
 
 local NAV = {
   { id = "overview", labelKey = "COMP_OVERVIEW" },
@@ -137,6 +148,22 @@ local function hideAllContent()
   end
 end
 
+local function sideColor(side)
+  if side == "kill" then
+    return "|cff6ecf6e"
+  end
+  if side == "death" then
+    return "|cffcf6e6e"
+  end
+  if side == "duel_win" then
+    return "|cff6eb0cf"
+  end
+  if side == "duel_loss" then
+    return "|cffcf9a6e"
+  end
+  return "|cffcfcfcf"
+end
+
 local function formatPvpLogEntry(e, withDate)
   if type(e) ~= "table" then
     return ""
@@ -152,7 +179,8 @@ local function formatPvpLogEntry(e, withDate)
   elseif side == "duel_loss" then
     label = L.COMP_LOG_DUEL_LOSS or "Duelo −"
   end
-  local bits = { label, e.name or "?" }
+  local colored = sideColor(side) .. label .. "|r"
+  local bits = { colored, "|cffffffff" .. shortName(e.name) .. "|r" }
   if e.level then
     bits[#bits + 1] = (L.COMP_LEVEL_SHORT or "nv%d"):format(e.level)
   end
@@ -174,7 +202,7 @@ local function formatPvpLogEntry(e, withDate)
     bits[#bits + 1] = L[ctxKey] or e.context
   end
   if withDate then
-    bits[#bits + 1] = formatWhen(e.t)
+    bits[#bits + 1] = "|cffaaaaaa" .. formatWhen(e.t) .. "|r"
   end
   return table.concat(bits, " · ")
 end
@@ -295,29 +323,33 @@ local function buildFrame()
     frame.subTabs[i] = tab
   end
 
-  -- Challenge dense rows (Legado style)
+  -- Challenge dense rows (title + condition + bar)
   frame.challengeRows = {}
   for i = 1, CHALLENGE_ROWS do
     local row = CreateFrame("Frame", nil, frame)
-    row:SetSize(560, 34)
-    row:SetPoint("TOPLEFT", 180, -100 - (i - 1) * 36)
+    row:SetSize(560, 42)
+    row:SetPoint("TOPLEFT", 180, -100 - (i - 1) * 44)
     local bg = solidTex(row, "BACKGROUND", 0.12, 0.10, 0.07, 0.55)
     bg:SetAllPoints()
     row.icon = row:CreateTexture(nil, "ARTWORK")
-    row.icon:SetSize(28, 28)
+    row.icon:SetSize(30, 30)
     row.icon:SetPoint("LEFT", 6, 0)
     row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     row.title = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    row.title:SetPoint("LEFT", 40, 6)
+    row.title:SetPoint("TOPLEFT", 42, -4)
     row.title:SetWidth(300)
     row.title:SetJustifyH("LEFT")
+    row.cond = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    row.cond:SetPoint("TOPLEFT", 42, -18)
+    row.cond:SetWidth(340)
+    row.cond:SetJustifyH("LEFT")
     row.state = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.state:SetPoint("RIGHT", -8, 6)
+    row.state:SetPoint("TOPRIGHT", -8, -4)
     row.state:SetWidth(160)
     row.state:SetJustifyH("RIGHT")
     row.bar = CreateFrame("StatusBar", nil, row)
     row.bar:SetSize(500, 4)
-    row.bar:SetPoint("BOTTOMLEFT", 40, 4)
+    row.bar:SetPoint("BOTTOMLEFT", 42, 4)
     row.bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
     local bbg = row.bar:CreateTexture(nil, "BACKGROUND")
     bbg:SetAllPoints()
@@ -512,21 +544,21 @@ local function paintOverview(db)
   local lines = {}
   if ns.Stats and ns.Stats.Spotlight then
     local nemesis, prey, zone = ns.Stats.Spotlight()
-    lines[#lines + 1] = nemesis and (L.SPOT_NEMESIS or "Nêmesis %s (%d)"):format(nemesis.name or "?", nemesis.deaths or 0) or (L.SPOT_EMPTY or "—")
-    lines[#lines + 1] = prey and (L.SPOT_PREY or "Presa %s (%d)"):format(prey.name or "?", prey.kills or 0) or (L.SPOT_EMPTY or "—")
+    lines[#lines + 1] = nemesis and (L.SPOT_NEMESIS or "Nêmesis %s (%d)"):format(shortName(nemesis.name), nemesis.deaths or 0) or (L.SPOT_EMPTY or "—")
+    lines[#lines + 1] = prey and (L.SPOT_PREY or "Presa %s (%d)"):format(shortName(prey.name), prey.kills or 0) or (L.SPOT_EMPTY or "—")
     lines[#lines + 1] = zone and (L.SPOT_ZONE or "Zona %s"):format(zone) or (L.SPOT_EMPTY or "—")
   end
   lines[#lines + 1] = ""
-  lines[#lines + 1] = L.COMP_RECENT_LOG or "Diário recente"
+  lines[#lines + 1] = "|cffffd100" .. (L.COMP_RECENT_LOG or "Diário recente") .. "|r"
   local log = ns.Stats and ns.Stats.PvpLog and ns.Stats.PvpLog() or {}
-  for i = 1, math.min(3, #log) do
+  for i = 1, math.min(4, #log) do
     lines[#lines + 1] = formatPvpLogEntry(log[i], true)
   end
   if #log == 0 then
     lines[#lines + 1] = L.COMP_DIARY_EMPTY or "Nenhum evento PvP ainda."
   end
   lines[#lines + 1] = ""
-  lines[#lines + 1] = L.COMP_RECENT_FEATS or "Feitos recentes"
+  lines[#lines + 1] = "|cffffd100" .. (L.COMP_RECENT_FEATS or "Feitos recentes") .. "|r"
   local recent = ns.Achievements and ns.Achievements.RecentDone and ns.Achievements.RecentDone(4) or {}
   if #recent == 0 then
     lines[#lines + 1] = L.COMP_FEATS_EMPTY or "Nenhum feito recente."
@@ -544,7 +576,14 @@ end
 local function paintChallenges()
   local cats = ns.Achievements and ns.Achievements.Categories and ns.Achievements.Categories() or {}
   local cat = frame.challengeCat
-  if not cat and cats[1] then
+  local known = false
+  for i = 1, #cats do
+    if cats[i].id == cat then
+      known = true
+      break
+    end
+  end
+  if (not cat or not known) and cats[1] then
     cat = cats[1].id
     frame.challengeCat = cat
   end
@@ -595,6 +634,12 @@ local function paintChallenges()
       row:Show()
       row.icon:SetTexture(item.icon)
       row.title:SetText(item.title or "")
+      local cond = item.desc or ""
+      if type(item.detail) == "string" and item.detail ~= "" and not item.done then
+        cond = cond ~= "" and (cond .. "  ·  " .. item.detail) or item.detail
+      end
+      row.cond:SetText(cond)
+      row.cond:SetTextColor(0.72, 0.68, 0.58)
       if item.done then
         row.title:SetTextColor(1, 0.82, 0)
         row.state:SetText((L.COMP_DONE or "feito") .. " · " .. formatWhen(item.when))
@@ -711,18 +756,25 @@ local function paintRivals()
   for i = 1, #list do
     local row = list[i]
     local score = (L.RIVAL_SCORE or "%d–%d"):format(row.kills or 0, row.deaths or 0)
-    local line = (row.name or "?") .. "   " .. score .. "   " .. formatWhen(row.last)
+    local who = "|cffffffff" .. shortName(row.name) .. "|r"
+    local bits = { who, "|cffffd100" .. score .. "|r", "|cffaaaaaa" .. formatWhen(row.last) .. "|r" }
+    if row.race and Data.RaceLabel then
+      bits[#bits + 1] = Data.RaceLabel(row.race)
+    end
+    if row.class and Data.ClassLabel then
+      bits[#bits + 1] = Data.ClassLabel(row.class)
+    end
     local meetings = row.meetings
     if type(meetings) == "table" and #meetings > 0 then
       local last = meetings[#meetings]
       local side = last.side == "deaths" and (L.MEET_DEATH or "queda") or (L.MEET_KILL or "abate")
       if type(last.zone) == "string" and last.zone ~= "" then
-        line = line .. "   " .. side .. " · " .. last.zone
+        bits[#bits + 1] = side .. " · " .. last.zone
       else
-        line = line .. "   " .. side
+        bits[#bits + 1] = side
       end
     end
-    items[#items + 1] = line
+    items[#items + 1] = table.concat(bits, "   ")
   end
   paintListPage(items, L.COMP_RIVALS_EMPTY or "Nenhum rival ainda.")
 end
@@ -730,10 +782,26 @@ end
 local function paintDiary()
   local items = {}
   local log = ns.Stats and ns.Stats.PvpLog and ns.Stats.PvpLog() or {}
+  local lastDay = nil
   for i = 1, #log do
-    items[#items + 1] = formatPvpLogEntry(log[i], true)
+    local e = log[i]
+    local day = formatWhen(e.t)
+    if day ~= lastDay then
+      items[#items + 1] = "|cffffd100— " .. day .. " —|r"
+      lastDay = day
+    end
+    items[#items + 1] = "  " .. formatPvpLogEntry(e, false)
   end
   paintListPage(items, L.COMP_DIARY_EMPTY or "Nenhum evento PvP ainda.")
+  if #log > 0 and frame.Hint then
+    local pageHint = frame.Hint:GetText() or ""
+    local tally = (L.COMP_DIARY_HINT or "Abates, mortes e duelos · %d eventos"):format(#log)
+    if pageHint ~= "" then
+      frame.Hint:SetText(pageHint .. "  ·  " .. tally)
+    else
+      frame.Hint:SetText(tally)
+    end
+  end
 end
 
 local function paintStory()
@@ -741,7 +809,7 @@ local function paintStory()
   local chapters = ns.Chronicle and ns.Chronicle.Chapters and ns.Chronicle.Chapters() or {}
   local index = frame.listPage or 1
   if #chapters == 0 then
-    frame.Story:SetText(L.NARR_EMPTY or "")
+    frame.Story:SetText("|cffc9b896" .. (L.NARR_EMPTY or "") .. "|r")
     frame.Hint:SetText(L.NARR_HINT or "")
     setPager(false, false)
     return
@@ -754,7 +822,15 @@ local function paintStory()
   end
   frame.listPage = index
   local chapter = chapters[index]
-  frame.Story:SetText((chapter.title or "") .. "\n\n" .. (chapter.text or ""))
+  local parts = {
+    "|cffffd100" .. (chapter.title or "") .. "|r",
+  }
+  if type(chapter.meta) == "string" and chapter.meta ~= "" then
+    parts[#parts + 1] = "|cffaaaaaa" .. chapter.meta .. "|r"
+  end
+  parts[#parts + 1] = ""
+  parts[#parts + 1] = "|cffe8dcc8" .. (chapter.text or "") .. "|r"
+  frame.Story:SetText(table.concat(parts, "\n"))
   frame.Hint:SetText((L.NARR_PAGE or "Capítulo %d de %d"):format(index, #chapters))
   setPager(index > 1, index < #chapters)
 end

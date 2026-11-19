@@ -499,9 +499,38 @@ local function detailFor(lang, race, class, variant)
   return lines[index]
 end
 
-local function add(chapters, title, text)
+local function shortName(name)
+  if ns.Stats and ns.Stats.DisplayName then
+    return ns.Stats.DisplayName(name) or name or "?"
+  end
+  if type(name) ~= "string" or name == "" then
+    return "?"
+  end
+  local bare = name:match("^([^%-]+)")
+  return (bare and bare ~= "" and bare) or name
+end
+
+local function myFaction()
+  local faction = UnitFactionGroup and UnitFactionGroup("player")
+  if faction == "Alliance" or faction == "Horde" then
+    return faction
+  end
+  return "Alliance"
+end
+
+local ALLIANCE = { Human = true, Dwarf = true, NightElf = true, Gnome = true }
+local HORDE = { Orc = true, Scourge = true, Tauren = true, Troll = true }
+
+local function isEnemyRace(race)
+  if myFaction() == "Horde" then
+    return ALLIANCE[race] and true or false
+  end
+  return HORDE[race] and true or false
+end
+
+local function add(chapters, title, text, meta)
   if type(text) == "string" and text ~= "" then
-    chapters[#chapters + 1] = { title = title, text = text }
+    chapters[#chapters + 1] = { title = title, text = text, meta = meta }
   end
 end
 
@@ -515,8 +544,9 @@ function Chronicle.Chapters()
     local key = (row.race or "?") .. ":" .. (row.class or "?")
     seen[key] = (seen[key] or 0) + 1
     local spine = row.first and SPINE[lang].first or SPINE[lang].next
+    local who = shortName(row.name)
     local ctx = {
-      name = row.name,
+      name = who,
       race = row.race,
       class = row.class,
       zone = row.zone,
@@ -535,7 +565,20 @@ function Chronicle.Chapters()
     if type(row.subzone) == "string" and row.subzone ~= "" and row.subzone ~= row.zone then
       body = body .. " " .. L.NARR_PLACE:format(row.subzone)
     end
-    add(chapters, L.NARR_CHAPTER:format(i), body)
+    local metaBits = { who }
+    if row.race and Data.RaceLabel then
+      metaBits[#metaBits + 1] = Data.RaceLabel(row.race)
+    end
+    if row.class and Data.ClassLabel then
+      metaBits[#metaBits + 1] = Data.ClassLabel(row.class)
+    end
+    if type(row.zone) == "string" and row.zone ~= "" then
+      metaBits[#metaBits + 1] = row.zone
+    end
+    if row.time and date then
+      metaBits[#metaBits + 1] = date("%d/%m/%Y", row.time)
+    end
+    add(chapters, L.NARR_CHAPTER:format(i), body, table.concat(metaBits, " · "))
   end
 
   local feats = FEATS[lang] or {}
@@ -551,21 +594,20 @@ function Chronicle.Chapters()
     local when = ns.Stats and ns.Stats.FeatTime and ns.Stats.FeatTime(id)
     local body = feats[id]
     if when and body then
-      local stamp = ""
-      if date then
-        stamp = " " .. date("%d/%m/%Y", when)
-      end
-      add(chapters, title .. stamp, body)
+      local stamp = date and date("%d/%m/%Y", when) or nil
+      add(chapters, title, body, stamp)
     end
   end
   for i = 1, #featOrder do
     pushFeat(featOrder[i][1], featOrder[i][2])
   end
-  local races = Data.RACES and Data.RACES.Alliance and Data.RACES.Horde and {
+  local races = {
     "Human", "Dwarf", "NightElf", "Gnome", "Orc", "Scourge", "Tauren", "Troll",
-  } or { "Human", "Dwarf", "NightElf", "Gnome", "Orc", "Scourge", "Tauren", "Troll" }
+  }
   for i = 1, #races do
-    pushFeat("race:" .. races[i], L.FEAT_RACE:format(Data.RaceLabel(races[i])))
+    if isEnemyRace(races[i]) then
+      pushFeat("race:" .. races[i], L.FEAT_RACE:format(Data.RaceLabel(races[i])))
+    end
   end
   local classes = Data.CLASSES
   for i = 1, #classes do
@@ -588,10 +630,12 @@ function Chronicle.Chapters()
       end
       for i = 1, #races do
         local race = races[i]
-        local count = kills.Race and tonumber(kills.Race[race]) or 0
-        local body = mile.race[value] and mile.race[value][race]
-        if count >= value and body then
-          add(chapters, L.MILESTONE:format(value, Data.RaceLabel(race)), body)
+        if isEnemyRace(race) then
+          local count = kills.Race and tonumber(kills.Race[race]) or 0
+          local body = mile.race[value] and mile.race[value][race]
+          if count >= value and body then
+            add(chapters, L.MILESTONE:format(value, Data.RaceLabel(race)), body)
+          end
         end
       end
     end
