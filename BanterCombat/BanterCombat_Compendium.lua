@@ -7,7 +7,7 @@ local L = ns.L
 local Data = ns.Data
 
 local RACES = { "Human", "Dwarf", "NightElf", "Gnome", "Orc", "Scourge", "Tauren", "Troll" }
-local CHALLENGE_ROWS = 8
+local CHALLENGE_ROWS = 6
 local frame
 local minimapButton
 
@@ -292,7 +292,7 @@ local function buildFrame()
     made = (ok and created) or CreateFrame("Frame", "BanterCombatCompendium", UIParent)
   end
   frame = made
-  frame:SetSize(780, 520)
+  frame:SetSize(780, 560)
   frame:SetPoint("CENTER")
   frame:SetFrameStrata("DIALOG")
   frame:EnableMouse(true)
@@ -405,33 +405,42 @@ local function buildFrame()
     frame.subTabs[i] = tab
   end
 
-  -- Challenge dense rows (title + condition + bar)
+  -- Challenge rows: title / condition / bar with room to breathe
   frame.challengeRows = {}
   for i = 1, CHALLENGE_ROWS do
     local row = CreateFrame("Frame", nil, frame)
-    row:SetSize(560, 42)
-    row:SetPoint("TOPLEFT", 180, -100 - (i - 1) * 44)
+    row:SetSize(570, 58)
+    row:SetPoint("TOPLEFT", 180, -104 - (i - 1) * 64)
     local bg = solidTex(row, "BACKGROUND", 0.12, 0.10, 0.07, 0.55)
     bg:SetAllPoints()
     row.icon = row:CreateTexture(nil, "ARTWORK")
-    row.icon:SetSize(30, 30)
-    row.icon:SetPoint("LEFT", 6, 0)
+    row.icon:SetSize(34, 34)
+    row.icon:SetPoint("LEFT", 8, 2)
     row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     row.title = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    row.title:SetPoint("TOPLEFT", 42, -4)
-    row.title:SetWidth(300)
+    row.title:SetPoint("TOPLEFT", 50, -6)
+    row.title:SetWidth(340)
+    row.title:SetHeight(16)
     row.title:SetJustifyH("LEFT")
     row.cond = row:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-    row.cond:SetPoint("TOPLEFT", 42, -18)
-    row.cond:SetWidth(340)
+    row.cond:SetPoint("TOPLEFT", 50, -24)
+    row.cond:SetWidth(360)
+    row.cond:SetHeight(22)
     row.cond:SetJustifyH("LEFT")
+    row.cond:SetJustifyV("TOP")
+    if row.cond.SetWordWrap then
+      row.cond:SetWordWrap(true)
+    end
+    if row.cond.SetNonSpaceWrap then
+      row.cond:SetNonSpaceWrap(true)
+    end
     row.state = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row.state:SetPoint("TOPRIGHT", -8, -4)
-    row.state:SetWidth(160)
+    row.state:SetPoint("TOPRIGHT", -10, -8)
+    row.state:SetWidth(140)
     row.state:SetJustifyH("RIGHT")
     row.bar = CreateFrame("StatusBar", nil, row)
-    row.bar:SetSize(500, 4)
-    row.bar:SetPoint("BOTTOMLEFT", 42, 4)
+    row.bar:SetSize(500, 5)
+    row.bar:SetPoint("BOTTOMLEFT", 50, 6)
     row.bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
     local bbg = row.bar:CreateTexture(nil, "BACKGROUND")
     bbg:SetAllPoints()

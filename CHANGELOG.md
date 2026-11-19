@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.31
+
+- Challenges UI: taller rows, clearer title/condition gap, fewer rows per page so text does not collide.
+- Many new Situations / Racials / Identity / Personal challenges (milestones + world/BG/outnumbered/clean/equal-level tracks).
+
 ## 1.0.30
 
 - Multi-kill window (Double/Triple/Ultra/Rampage) set to 8 seconds between kills.
