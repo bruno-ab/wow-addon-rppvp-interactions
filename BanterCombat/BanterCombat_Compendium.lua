@@ -103,10 +103,17 @@ local function ink(fs, r, g, b)
   end
 end
 
+local function hideFilterBar()
+  if frame and frame.filterBar then
+    frame.filterBar:Hide()
+  end
+end
+
 local function hideAllContent()
   if not frame then
     return
   end
+  hideFilterBar()
   if frame.heroBox then
     frame.heroBox:Hide()
   end
@@ -148,6 +155,73 @@ local function hideAllContent()
   if frame.countHeaderR then
     frame.countHeaderR:Hide()
   end
+end
+
+local CTX_CYCLE = { "all", "world", "bg", "duel" }
+
+local function ctxLabel(ctx)
+  if ctx == "world" then
+    return L.COMP_LOG_CTX_world or "mundo"
+  end
+  if ctx == "bg" then
+    return L.COMP_LOG_CTX_bg or "CB"
+  end
+  if ctx == "duel" then
+    return L.COMP_LOG_CTX_duel or "duelo"
+  end
+  return L.COMP_FILTER_ALL or "todos"
+end
+
+local function queryLower()
+  local q = frame and frame.filterQuery or ""
+  if type(q) ~= "string" then
+    return ""
+  end
+  return q:lower():match("^%s*(.-)%s*$") or ""
+end
+
+local function nameMatches(name, q)
+  if q == "" then
+    return true
+  end
+  local short = shortName(name):lower()
+  return short:find(q, 1, true) and true or false
+end
+
+local function rivalMatchesContext(row, ctx)
+  if not ctx or ctx == "all" then
+    return true
+  end
+  local meetings = row.meetings
+  if type(meetings) == "table" then
+    for i = 1, #meetings do
+      if meetings[i].context == ctx then
+        return true
+      end
+    end
+  end
+  if ctx == "world" then
+    return ((row.worldKills or 0) + (row.worldDeaths or 0)) > 0
+  end
+  if ctx == "bg" then
+    return ((row.bgKills or 0) + (row.bgDeaths or 0)) > 0
+  end
+  if ctx == "duel" then
+    return ((row.duelKills or 0) + (row.duelDeaths or 0)) > 0
+  end
+  return false
+end
+
+local function diaryDays(log)
+  local seen, days = {}, {}
+  for i = 1, #log do
+    local day = formatWhen(log[i].t)
+    if day and day ~= (L.COMP_LOCKED or "—") and not seen[day] then
+      seen[day] = true
+      days[#days + 1] = day
+    end
+  end
+  return days
 end
 
 local function sideColor(side)
@@ -295,8 +369,14 @@ local function buildFrame()
     button:SetScript("OnClick", function()
       frame.page = info.id
       frame.listPage = 1
+      frame.rivalFocus = nil
       if info.id ~= "challenges" then
         frame.challengeCat = nil
+      end
+      if info.id ~= "rivals" and info.id ~= "diary" then
+        frame.filterQuery = ""
+        frame.filterContext = "all"
+        frame.filterDayKey = "all"
       end
       Compendium.Refresh()
     end)
@@ -401,16 +481,133 @@ local function buildFrame()
   end
   frame.sideBox:Hide()
 
-  -- Generic list rows (rivals / diary)
+  -- Filter bar (rivals / diary)
+  frame.filterBar = CreateFrame("Frame", nil, frame)
+  frame.filterBar:SetPoint("TOPLEFT", 180, -48)
+  frame.filterBar:SetSize(560, 24)
+  local search
+  do
+    local ok, box = pcall(CreateFrame, "EditBox", nil, frame.filterBar, "InputBoxTemplate")
+    search = (ok and box) or CreateFrame("EditBox", nil, frame.filterBar)
+    if not ok then
+      local bg = solidTex(search, "BACKGROUND", 0.12, 0.11, 0.09, 0.9)
+      bg:SetAllPoints()
+      search:SetFontObject(GameFontHighlightSmall)
+    end
+  end
+  search:SetAutoFocus(false)
+  search:SetSize(150, 20)
+  search:SetPoint("LEFT", 0, 0)
+  search:SetMaxLetters(32)
+  search:SetScript("OnTextChanged", function(self)
+    if frame._filterQuiet then
+      return
+    end
+    frame.filterQuery = self:GetText() or ""
+    frame.listPage = 1
+    if frame.page == "rivals" or frame.page == "diary" then
+      Compendium.Refresh()
+    end
+  end)
+  search:SetScript("OnEditFocusGained", function()
+    if frame.filterSearchHint then
+      frame.filterSearchHint:Hide()
+    end
+  end)
+  search:SetScript("OnEditFocusLost", function(self)
+    if frame.filterSearchHint and (self:GetText() or "") == "" then
+      frame.filterSearchHint:Show()
+    end
+  end)
+  search:SetScript("OnEnterPressed", function(self)
+    self:ClearFocus()
+  end)
+  search:SetScript("OnEscapePressed", function(self)
+    self:SetText("")
+    frame.filterQuery = ""
+    self:ClearFocus()
+    Compendium.Refresh()
+  end)
+  frame.filterSearch = search
+  frame.filterSearchHint = frame.filterBar:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  frame.filterSearchHint:SetPoint("LEFT", search, "LEFT", 6, 0)
+  frame.filterSearchHint:SetText(L.COMP_SEARCH or "Buscar nome…")
+
+  frame.filterCtx = makeButton(frame.filterBar, "", 90)
+  frame.filterCtx:SetPoint("LEFT", search, "RIGHT", 8, 0)
+  frame.filterCtx:SetScript("OnClick", function()
+    local cur = frame.filterContext or "all"
+    local nextCtx = "all"
+    for i = 1, #CTX_CYCLE do
+      if CTX_CYCLE[i] == cur then
+        nextCtx = CTX_CYCLE[(i % #CTX_CYCLE) + 1]
+        break
+      end
+    end
+    frame.filterContext = nextCtx
+    frame.listPage = 1
+    Compendium.Refresh()
+  end)
+
+  frame.filterDay = makeButton(frame.filterBar, "", 110)
+  frame.filterDay:SetPoint("LEFT", frame.filterCtx, "RIGHT", 6, 0)
+  frame.filterDay:SetScript("OnClick", function()
+    local log = ns.Stats and ns.Stats.PvpLog and ns.Stats.PvpLog() or {}
+    local days = diaryDays(log)
+    local cur = frame.filterDayKey or "all"
+    if cur == "all" then
+      frame.filterDayKey = days[1] or "all"
+    else
+      local found
+      for i = 1, #days do
+        if days[i] == cur then
+          frame.filterDayKey = days[i + 1] or "all"
+          found = true
+          break
+        end
+      end
+      if not found then
+        frame.filterDayKey = "all"
+      end
+    end
+    frame.listPage = 1
+    Compendium.Refresh()
+  end)
+
+  frame.filterBack = makeButton(frame.filterBar, L.COMP_BACK or "Voltar", 70)
+  frame.filterBack:SetPoint("RIGHT", 0, 0)
+  frame.filterBack:SetScript("OnClick", function()
+    frame.rivalFocus = nil
+    frame.listPage = 1
+    Compendium.Refresh()
+  end)
+  frame.filterBar:Hide()
+
+  -- Clickable list rows (rivals / diary)
   frame.listRows = {}
   for i = 1, 12 do
-    local row = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    row:SetPoint("TOPLEFT", 180, -72 - (i - 1) * 28)
-    row:SetWidth(560)
-    row:SetJustifyH("LEFT")
+    local row = CreateFrame("Button", nil, frame)
+    row:SetSize(560, 26)
+    row:SetPoint("TOPLEFT", 180, -78 - (i - 1) * 28)
+    local hi = solidTex(row, "HIGHLIGHT", 0.72, 0.55, 0.18, 0.25)
+    hi:SetAllPoints()
+    row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    row.label:SetPoint("LEFT", 4, 0)
+    row.label:SetWidth(552)
+    row.label:SetJustifyH("LEFT")
+    row:SetScript("OnClick", function(self)
+      if self.onActivate then
+        self.onActivate()
+      end
+    end)
     row:Hide()
     frame.listRows[i] = row
   end
+
+  frame.filterQuery = ""
+  frame.filterContext = "all"
+  frame.filterDayKey = "all"
+  frame.rivalFocus = nil
 
   -- Counts dual column
   frame.countRows = {}
@@ -733,17 +930,65 @@ local function paintCounts(db)
   setPager(false, false)
 end
 
-local function paintListPage(items, emptyHint)
+local function showFilterBar(mode)
+  -- mode: "rivals" | "diary" | "sheet"
+  frame.filterBar:Show()
+  local q = frame.filterQuery or ""
+  if frame.filterSearch and frame.filterSearch.SetText then
+    if (frame.filterSearch:GetText() or "") ~= q then
+      frame._filterQuiet = true
+      frame.filterSearch:SetText(q)
+      frame._filterQuiet = nil
+    end
+  end
+  if frame.filterSearchHint then
+    if q == "" and not (frame.filterSearch and frame.filterSearch.HasFocus and frame.filterSearch:HasFocus()) then
+      frame.filterSearchHint:Show()
+    else
+      frame.filterSearchHint:Hide()
+    end
+  end
+  local ctx = frame.filterContext or "all"
+  frame.filterCtx:SetText((L.COMP_FILTER_CTX or "Ctx: %s"):format(ctxLabel(ctx)))
+  if mode == "sheet" then
+    frame.filterSearch:Hide()
+    frame.filterSearchHint:Hide()
+    frame.filterCtx:Hide()
+    frame.filterDay:Hide()
+    frame.filterBack:Show()
+    frame.filterBack:SetText(L.COMP_BACK or "Voltar")
+  elseif mode == "diary" then
+    frame.filterSearch:Show()
+    frame.filterCtx:Show()
+    frame.filterDay:Show()
+    frame.filterBack:Hide()
+    local day = frame.filterDayKey or "all"
+    if day == "all" then
+      frame.filterDay:SetText((L.COMP_FILTER_DAY or "Dia: %s"):format(L.COMP_FILTER_ALL or "todos"))
+    else
+      frame.filterDay:SetText((L.COMP_FILTER_DAY or "Dia: %s"):format(day))
+    end
+  else
+    frame.filterSearch:Show()
+    frame.filterCtx:Show()
+    frame.filterDay:Hide()
+    frame.filterBack:Hide()
+  end
+end
+
+local function paintListPage(entries, emptyHint)
   local index = frame.listPage or 1
   local per = 12
-  local pages = math.max(1, math.ceil(math.max(#items, 1) / per))
-  if #items == 0 then
+  local pages = math.max(1, math.ceil(math.max(#entries, 1) / per))
+  if #entries == 0 then
     for i = 1, per do
       frame.listRows[i]:Hide()
     end
-    frame.listRows[1]:Show()
-    frame.listRows[1]:SetText(emptyHint or "")
-    frame.listRows[1]:SetTextColor(0.65, 0.62, 0.55)
+    local row = frame.listRows[1]
+    row:Show()
+    row.label:SetText(emptyHint or "")
+    row.label:SetTextColor(0.65, 0.62, 0.55)
+    row.onActivate = nil
     frame.Hint:SetText("")
     setPager(false, false)
     return
@@ -755,65 +1000,195 @@ local function paintListPage(items, emptyHint)
   local start = (index - 1) * per
   for i = 1, per do
     local row = frame.listRows[i]
-    local text = items[start + i]
-    if text then
+    local entry = entries[start + i]
+    if entry then
       row:Show()
-      row:SetText(text)
-      row:SetTextColor(0.92, 0.90, 0.84)
+      row.label:SetText(entry.text or "")
+      row.label:SetTextColor(entry.colorR or 0.92, entry.colorG or 0.90, entry.colorB or 0.84)
+      row.onActivate = entry.onActivate
+      if entry.onActivate then
+        row:EnableMouse(true)
+      else
+        row:EnableMouse(false)
+      end
     else
       row:Hide()
+      row.onActivate = nil
     end
   end
-  frame.Hint:SetText((L.ACH_PAGE or "%d–%d de %d"):format(start + 1, math.min(#items, start + per), #items))
+  frame.Hint:SetText((L.ACH_PAGE or "%d–%d de %d"):format(start + 1, math.min(#entries, start + per), #entries))
   setPager(index > 1, index < pages)
 end
 
+local function openRivalSheet(rival)
+  frame.rivalFocus = rival
+  frame.listPage = 1
+  Compendium.Refresh()
+end
+
+local function paintRivalSheet(rival)
+  showFilterBar("sheet")
+  for i = 1, #frame.listRows do
+    frame.listRows[i]:Hide()
+  end
+  if frame.StoryScroll then
+    frame.StoryScroll:Show()
+    frame.StoryScroll:SetVerticalScroll(0)
+  end
+  frame.Story:Show()
+  local who = shortName(rival.name)
+  local score = (L.RIVAL_SCORE or "%d–%d"):format(rival.kills or 0, rival.deaths or 0)
+  local lines = {
+    "|cffffd100" .. who .. "|r",
+    "|cffaaaaaa" .. (L.COMP_RIVAL_SHEET or "Ficha do rival") .. " · " .. score .. "|r",
+  }
+  local meta = {}
+  if rival.race and Data.RaceLabel then
+    meta[#meta + 1] = Data.RaceLabel(rival.race)
+  end
+  if rival.class and Data.ClassLabel then
+    meta[#meta + 1] = Data.ClassLabel(rival.class)
+  end
+  if #meta > 0 then
+    lines[#lines + 1] = table.concat(meta, " · ")
+  end
+  lines[#lines + 1] = ""
+  lines[#lines + 1] = "|cffffd100" .. (L.COMP_RIVAL_BREAKDOWN or "Por contexto") .. "|r"
+  lines[#lines + 1] = (L.COMP_LOG_CTX_world or "mundo") .. ": "
+    .. (rival.worldKills or 0) .. "–" .. (rival.worldDeaths or 0)
+  lines[#lines + 1] = (L.COMP_LOG_CTX_bg or "CB") .. ": "
+    .. (rival.bgKills or 0) .. "–" .. (rival.bgDeaths or 0)
+  lines[#lines + 1] = (L.COMP_LOG_CTX_duel or "duelo") .. ": "
+    .. (rival.duelKills or 0) .. "–" .. (rival.duelDeaths or 0)
+  lines[#lines + 1] = ""
+  lines[#lines + 1] = "|cffffd100" .. (L.COMP_RIVAL_TIMELINE or "Linha do tempo") .. "|r"
+
+  local meetings = type(rival.meetings) == "table" and rival.meetings or {}
+  if #meetings == 0 then
+    lines[#lines + 1] = "|cff888888" .. (L.COMP_RIVAL_NO_MEET or "Nenhum encontro detalhado ainda.") .. "|r"
+  else
+    for i = #meetings, 1, -1 do
+      local m = meetings[i]
+      local side = m.side == "deaths" and (L.MEET_DEATH or "queda") or (L.MEET_KILL or "abate")
+      local color = m.side == "deaths" and "|cffcf6e6e" or "|cff6ecf6e"
+      local bits = {
+        color .. side .. "|r",
+        "|cffaaaaaa" .. formatWhen(m.time) .. "|r",
+      }
+      if type(m.zone) == "string" and m.zone ~= "" then
+        bits[#bits + 1] = m.zone
+      end
+      if m.context then
+        bits[#bits + 1] = ctxLabel(m.context)
+      end
+      lines[#lines + 1] = "  " .. table.concat(bits, " · ")
+    end
+  end
+
+  local body = table.concat(lines, "\n")
+  frame.Story:SetText(body)
+  local height = 360
+  if frame.Story.GetStringHeight then
+    height = math.max(360, (frame.Story:GetStringHeight() or 360) + 24)
+  end
+  if frame.StoryChild then
+    frame.StoryChild:SetHeight(height)
+  end
+  frame.Hint:SetText((L.COMP_RIVAL_HINT or "Clique em Voltar para a lista. · %d encontros"):format(#meetings))
+  setPager(false, false)
+end
+
 local function paintRivals()
-  local items = {}
+  if frame.rivalFocus then
+    paintRivalSheet(frame.rivalFocus)
+    return
+  end
+  showFilterBar("rivals")
+  local q = queryLower()
+  local ctx = frame.filterContext or "all"
+  local entries = {}
   local list = ns.Stats and ns.Stats.RivalList and ns.Stats.RivalList() or {}
   for i = 1, #list do
     local row = list[i]
-    local score = (L.RIVAL_SCORE or "%d–%d"):format(row.kills or 0, row.deaths or 0)
-    local who = "|cffffffff" .. shortName(row.name) .. "|r"
-    local bits = { who, "|cffffd100" .. score .. "|r", "|cffaaaaaa" .. formatWhen(row.last) .. "|r" }
-    if row.race and Data.RaceLabel then
-      bits[#bits + 1] = Data.RaceLabel(row.race)
-    end
-    if row.class and Data.ClassLabel then
-      bits[#bits + 1] = Data.ClassLabel(row.class)
-    end
-    local meetings = row.meetings
-    if type(meetings) == "table" and #meetings > 0 then
-      local last = meetings[#meetings]
-      local side = last.side == "deaths" and (L.MEET_DEATH or "queda") or (L.MEET_KILL or "abate")
-      if type(last.zone) == "string" and last.zone ~= "" then
-        bits[#bits + 1] = side .. " · " .. last.zone
-      else
-        bits[#bits + 1] = side
+    if nameMatches(row.name, q) and rivalMatchesContext(row, ctx) then
+      local score = (L.RIVAL_SCORE or "%d–%d"):format(row.kills or 0, row.deaths or 0)
+      local who = "|cffffffff" .. shortName(row.name) .. "|r"
+      local bits = { who, "|cffffd100" .. score .. "|r", "|cffaaaaaa" .. formatWhen(row.last) .. "|r" }
+      if row.race and Data.RaceLabel then
+        bits[#bits + 1] = Data.RaceLabel(row.race)
       end
+      if row.class and Data.ClassLabel then
+        bits[#bits + 1] = Data.ClassLabel(row.class)
+      end
+      local meetings = row.meetings
+      if type(meetings) == "table" and #meetings > 0 then
+        local last = meetings[#meetings]
+        local side = last.side == "deaths" and (L.MEET_DEATH or "queda") or (L.MEET_KILL or "abate")
+        if type(last.zone) == "string" and last.zone ~= "" then
+          bits[#bits + 1] = side .. " · " .. last.zone
+        else
+          bits[#bits + 1] = side
+        end
+      end
+      entries[#entries + 1] = {
+        text = table.concat(bits, "   "),
+        onActivate = function()
+          openRivalSheet(row)
+        end,
+      }
     end
-    items[#items + 1] = table.concat(bits, "   ")
   end
-  paintListPage(items, L.COMP_RIVALS_EMPTY or "Nenhum rival ainda.")
+  local empty = L.COMP_RIVALS_EMPTY or "Nenhum rival ainda."
+  if #list > 0 and #entries == 0 then
+    empty = L.COMP_FILTER_EMPTY or "Nada com este filtro."
+  end
+  paintListPage(entries, empty)
+  if #entries > 0 then
+    frame.Hint:SetText((frame.Hint:GetText() or "") .. "  ·  " .. (L.COMP_RIVAL_CLICK or "Clique para abrir a ficha"))
+  end
 end
 
 local function paintDiary()
-  local items = {}
+  showFilterBar("diary")
+  local q = queryLower()
+  local ctx = frame.filterContext or "all"
+  local dayKey = frame.filterDayKey or "all"
+  local entries = {}
   local log = ns.Stats and ns.Stats.PvpLog and ns.Stats.PvpLog() or {}
+  local matched = 0
   local lastDay = nil
   for i = 1, #log do
     local e = log[i]
     local day = formatWhen(e.t)
-    if day ~= lastDay then
-      items[#items + 1] = "|cffffd100— " .. day .. " —|r"
-      lastDay = day
+    local ctxOk = (ctx == "all") or (e.context == ctx)
+    local dayOk = (dayKey == "all") or (day == dayKey)
+    local nameOk = nameMatches(e.name, q)
+    if ctxOk and dayOk and nameOk then
+      matched = matched + 1
+      if day ~= lastDay then
+        entries[#entries + 1] = {
+          text = "|cffffd100— " .. day .. " —|r",
+          colorR = 1, colorG = 0.82, colorB = 0,
+        }
+        lastDay = day
+      end
+      local rival = ns.Stats and ns.Stats.RivalByName and ns.Stats.RivalByName(e.name)
+      entries[#entries + 1] = {
+        text = "  " .. formatPvpLogEntry(e, false),
+        onActivate = rival and function()
+          openRivalSheet(rival)
+        end or nil,
+      }
     end
-    items[#items + 1] = "  " .. formatPvpLogEntry(e, false)
   end
-  paintListPage(items, L.COMP_DIARY_EMPTY or "Nenhum evento PvP ainda.")
-  if #log > 0 and frame.Hint then
+  local empty = L.COMP_DIARY_EMPTY or "Nenhum evento PvP ainda."
+  if #log > 0 and matched == 0 then
+    empty = L.COMP_FILTER_EMPTY or "Nada com este filtro."
+  end
+  paintListPage(entries, empty)
+  if matched > 0 and frame.Hint then
     local pageHint = frame.Hint:GetText() or ""
-    local tally = (L.COMP_DIARY_HINT or "Abates, mortes e duelos · %d eventos"):format(#log)
+    local tally = (L.COMP_DIARY_HINT or "Abates, mortes e duelos · %d eventos"):format(matched)
     if pageHint ~= "" then
       frame.Hint:SetText(pageHint .. "  ·  " .. tally)
     else
@@ -915,6 +1290,7 @@ function Compendium.ShowPage(page)
   end
   frame.page = page or frame.page or "overview"
   frame.listPage = 1
+  frame.rivalFocus = nil
   Compendium.Refresh()
   frame:Show()
 end

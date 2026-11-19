@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.27
+
+- Rival sheet with timeline (meetings), score by world/BG/duel, click from Rivals or Diary.
+- Compendium filters: name search, context cycle (all/world/BG/duel), diary day cycle.
+- Rival meetings buffer raised to 24.
+
 ## 1.0.26
 
 - Chronicle rebuilt as day chapters: rivalry memory (stranger/rematch/revenge), place + ambient, combat blow/level/streak.

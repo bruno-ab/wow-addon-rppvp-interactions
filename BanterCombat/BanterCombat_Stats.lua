@@ -180,7 +180,7 @@ local function scrubRivals(map)
       if kills + deaths > 0 then
         local meetings = {}
         if type(v.meetings) == "table" then
-          local startAt = math.max(1, #v.meetings - 11)
+          local startAt = math.max(1, #v.meetings - 23)
           for i = startAt, #v.meetings do
             local meeting = v.meetings[i]
             if type(meeting) == "table" and (meeting.side == "kills" or meeting.side == "deaths") then
@@ -600,7 +600,7 @@ function Stats.TouchRival(person, side, info)
     zone = clip(info.zone, 48),
     context = ctx,
   }
-  while #row.meetings > 12 do
+  while #row.meetings > 24 do
     table.remove(row.meetings, 1)
   end
   local race = normalizeRace(person.race)
