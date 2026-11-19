@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.32
+
+- Banner themes: Alliance/Horde, all classes, all races, plus Auto · Faction/Class/Race.
+- Each theme tints shade, border, edge glow and signature; cycle in options.
+
 ## 1.0.31
 
 - Challenges UI: taller rows, clearer title/condition gap, fewer rows per page so text does not collide.

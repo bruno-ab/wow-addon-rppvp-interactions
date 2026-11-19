@@ -127,18 +127,212 @@ local function visualFxOn()
   return s.visualFx ~= false
 end
 
-local function themeName()
-  local t = settings().uiTheme
-  if t == "auto" or t == nil or t == "" then
-    if UnitInBattleground and UnitInBattleground("player") then
-      return "dark"
+-- Banner chrome palettes: shade fill + accent (border / signature tint).
+local THEME_PALETTES = {
+  dark = {
+    shade = { 0.03, 0.03, 0.04, 0.94 },
+    accent = { 0.72, 0.58, 0.28 },
+    signature = { 0.91, 0.77, 0.42 },
+    thin = false,
+  },
+  minimal = {
+    shade = { 0.04, 0.04, 0.05, 0.90 },
+    accent = { 0.70, 0.70, 0.72 },
+    signature = { 0.88, 0.88, 0.90 },
+    thin = true,
+  },
+  parchment = {
+    shade = { 0.12, 0.09, 0.06, 0.94 },
+    accent = { 0.72, 0.58, 0.28 },
+    signature = { 0.91, 0.77, 0.42 },
+    thin = false,
+  },
+  alliance = {
+    shade = { 0.04, 0.06, 0.14, 0.95 },
+    accent = { 0.35, 0.55, 1.00 },
+    signature = { 0.70, 0.82, 1.00 },
+    thin = false,
+  },
+  horde = {
+    shade = { 0.12, 0.03, 0.03, 0.95 },
+    accent = { 0.90, 0.18, 0.12 },
+    signature = { 1.00, 0.62, 0.42 },
+    thin = false,
+  },
+  warrior = {
+    shade = { 0.10, 0.08, 0.05, 0.95 },
+    accent = { 0.78, 0.61, 0.43 },
+    signature = { 0.92, 0.78, 0.55 },
+    thin = false,
+  },
+  paladin = {
+    shade = { 0.12, 0.05, 0.09, 0.95 },
+    accent = { 0.96, 0.55, 0.73 },
+    signature = { 1.00, 0.78, 0.88 },
+    thin = false,
+  },
+  hunter = {
+    shade = { 0.05, 0.10, 0.05, 0.95 },
+    accent = { 0.67, 0.83, 0.45 },
+    signature = { 0.82, 0.94, 0.62 },
+    thin = false,
+  },
+  rogue = {
+    shade = { 0.10, 0.10, 0.04, 0.95 },
+    accent = { 1.00, 0.96, 0.41 },
+    signature = { 1.00, 0.95, 0.70 },
+    thin = false,
+  },
+  priest = {
+    shade = { 0.08, 0.08, 0.10, 0.95 },
+    accent = { 0.95, 0.95, 0.95 },
+    signature = { 1.00, 0.96, 0.88 },
+    thin = false,
+  },
+  shaman = {
+    shade = { 0.03, 0.06, 0.12, 0.95 },
+    accent = { 0.00, 0.44, 0.87 },
+    signature = { 0.55, 0.78, 1.00 },
+    thin = false,
+  },
+  mage = {
+    shade = { 0.04, 0.08, 0.12, 0.95 },
+    accent = { 0.41, 0.80, 0.94 },
+    signature = { 0.70, 0.90, 1.00 },
+    thin = false,
+  },
+  warlock = {
+    shade = { 0.08, 0.05, 0.12, 0.95 },
+    accent = { 0.58, 0.51, 0.79 },
+    signature = { 0.82, 0.72, 1.00 },
+    thin = false,
+  },
+  druid = {
+    shade = { 0.12, 0.07, 0.03, 0.95 },
+    accent = { 1.00, 0.49, 0.04 },
+    signature = { 1.00, 0.72, 0.35 },
+    thin = false,
+  },
+  human = {
+    shade = { 0.07, 0.07, 0.10, 0.95 },
+    accent = { 0.72, 0.68, 0.48 },
+    signature = { 0.92, 0.86, 0.62 },
+    thin = false,
+  },
+  dwarf = {
+    shade = { 0.10, 0.07, 0.04, 0.95 },
+    accent = { 0.72, 0.48, 0.22 },
+    signature = { 0.92, 0.72, 0.40 },
+    thin = false,
+  },
+  nightelf = {
+    shade = { 0.05, 0.06, 0.12, 0.95 },
+    accent = { 0.55, 0.35, 0.85 },
+    signature = { 0.72, 0.85, 0.95 },
+    thin = false,
+  },
+  gnome = {
+    shade = { 0.08, 0.07, 0.04, 0.95 },
+    accent = { 0.95, 0.78, 0.25 },
+    signature = { 1.00, 0.88, 0.55 },
+    thin = false,
+  },
+  orc = {
+    shade = { 0.08, 0.10, 0.04, 0.95 },
+    accent = { 0.35, 0.70, 0.18 },
+    signature = { 0.85, 0.55, 0.22 },
+    thin = false,
+  },
+  undead = {
+    shade = { 0.05, 0.08, 0.08, 0.95 },
+    accent = { 0.35, 0.78, 0.70 },
+    signature = { 0.72, 0.85, 0.78 },
+    thin = false,
+  },
+  tauren = {
+    shade = { 0.10, 0.07, 0.04, 0.95 },
+    accent = { 0.62, 0.42, 0.22 },
+    signature = { 0.78, 0.88, 0.45 },
+    thin = false,
+  },
+  troll = {
+    shade = { 0.05, 0.09, 0.08, 0.95 },
+    accent = { 0.25, 0.72, 0.62 },
+    signature = { 0.85, 0.55, 0.85 },
+    thin = false,
+  },
+}
+
+local RACE_THEME = {
+  Human = "human",
+  Dwarf = "dwarf",
+  NightElf = "nightelf",
+  Gnome = "gnome",
+  Orc = "orc",
+  Scourge = "undead",
+  Undead = "undead",
+  Tauren = "tauren",
+  Troll = "troll",
+}
+
+local function themePalette(name)
+  return THEME_PALETTES[name] or THEME_PALETTES.dark
+end
+
+local function resolveThemeKey(raw)
+  local t = raw
+  if t == nil or t == "" then
+    t = "dark"
+  end
+  if t == "auto" or t == "autoFaction" then
+    local faction = UnitFactionGroup and UnitFactionGroup("player")
+    if faction == "Alliance" then
+      return "alliance"
+    end
+    if faction == "Horde" then
+      return "horde"
     end
     return "dark"
   end
-  if t == "dark" or t == "minimal" or t == "parchment" then
+  if t == "autoClass" then
+    local _, class = UnitClass("player")
+    if type(class) == "string" then
+      local key = string.lower(class)
+      if THEME_PALETTES[key] then
+        return key
+      end
+    end
+    return "dark"
+  end
+  if t == "autoRace" then
+    local _, raceFile = UnitRace("player")
+    local key = raceFile and RACE_THEME[raceFile]
+    if key and THEME_PALETTES[key] then
+      return key
+    end
+    return "dark"
+  end
+  if THEME_PALETTES[t] then
     return t
   end
   return "dark"
+end
+
+local function themeName()
+  return resolveThemeKey(settings().uiTheme)
+end
+
+function UI.ThemePalette(name)
+  return themePalette(resolveThemeKey(name or settings().uiTheme))
+end
+
+function UI.ThemeKeys()
+  local keys = {}
+  for k in pairs(THEME_PALETTES) do
+    keys[#keys + 1] = k
+  end
+  table.sort(keys)
+  return keys
 end
 
 local function setFontSafe(fontString, path, size, flags)
@@ -167,21 +361,29 @@ local function setCueWash(frame, announcer, kind)
   if not frame.CueWash then
     return
   end
-  -- Deaths and plain kills stay dry — no celebration wash.
-  if not visualFxOn() or kind == "death" or kind == "milestone" or (not announcer) or announcer == "Kill" then
+  if not visualFxOn() or kind == "death" or kind == "milestone" then
     frame.CueWash:Hide()
     return
   end
   local rgb = ANNOUNCER_FLASH[announcer]
-  if not rgb then
-    frame.CueWash:Hide()
-    return
-  end
   local a = isHeroCue(announcer) and 0.36 or 0.18
+  local width = isHeroCue(announcer) and 168 or 140
+  -- Plain kills: soft theme accent wash so faction/class/race skins still read.
+  if (not announcer) or announcer == "Kill" or not rgb then
+    local pal = frame._themePal or themePalette(themeName())
+    local theme = themeName()
+    if theme == "minimal" or theme == "dark" or theme == "parchment" or not pal.accent then
+      frame.CueWash:Hide()
+      return
+    end
+    rgb = pal.accent
+    a = 0.12
+    width = 120
+  end
   frame.CueWash:ClearAllPoints()
   frame.CueWash:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
   frame.CueWash:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
-  frame.CueWash:SetWidth(isHeroCue(announcer) and 168 or 140)
+  frame.CueWash:SetWidth(width)
   frame.CueWash:SetTexture("Interface\\Buttons\\WHITE8X8")
   frame.CueWash:SetVertexColor(rgb[1], rgb[2], rgb[3], a)
   frame.CueWash:Show()
@@ -415,33 +617,29 @@ end
 
 local function applyThemeChrome(frame, announcer)
   local theme = themeName()
+  local pal = themePalette(theme)
   frame._uiTheme = theme
+  frame._themePal = pal
   if frame.PaperTop then frame.PaperTop:Hide() end
   if frame.PaperMid then frame.PaperMid:Hide() end
   if frame.PaperBot then frame.PaperBot:Hide() end
   if frame.SocketFrame then frame.SocketFrame:Hide() end
 
-  local border = ANNOUNCER_FLASH[announcer] or { 0.72, 0.58, 0.28 }
-  -- Forever: SetBackdrop often no-ops without BackdropTemplate. Shade is the real fill.
-  local shadeR, shadeG, shadeB, shadeA = 0.03, 0.03, 0.04, 0.94
-  if theme == "parchment" then
-    shadeR, shadeG, shadeB, shadeA = 0.12, 0.09, 0.06, 0.94
-  elseif theme == "minimal" then
-    shadeR, shadeG, shadeB, shadeA = 0.04, 0.04, 0.05, 0.90
-  end
+  local border = ANNOUNCER_FLASH[announcer] or pal.accent or { 0.72, 0.58, 0.28 }
+  local shade = pal.shade or { 0.03, 0.03, 0.04, 0.94 }
+  local shadeR, shadeG, shadeB, shadeA = shade[1], shade[2], shade[3], shade[4] or 0.94
   if frame.Shade then
     frame.Shade:SetTexture("Interface\\Buttons\\WHITE8X8")
     paintSolid(frame.Shade, shadeR, shadeG, shadeB, shadeA)
     frame.Shade:Show()
   end
-  -- SetBackdrop once per theme; only retint the border per cue.
-  local chromeKey = theme
+  local chromeKey = theme .. (pal.thin and ":thin" or ":thick")
   if frame.SetBackdrop and frame._chromeKey ~= chromeKey then
     frame._chromeKey = chromeKey
     pcall(frame.SetBackdrop, frame, {
       bgFile = "Interface\\Buttons\\WHITE8X8",
       edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-      tile = false, edgeSize = theme == "minimal" and 1 or 12,
+      tile = false, edgeSize = pal.thin and 1 or 12,
       insets = { left = 2, right = 2, top = 2, bottom = 2 },
     })
   end
@@ -449,8 +647,8 @@ local function applyThemeChrome(frame, announcer)
     frame:SetBackdropColor(shadeR, shadeG, shadeB, shadeA)
   end
   if frame.SetBackdropBorderColor then
-    local ba = theme == "minimal" and 0.45 or 0.85
-    frame:SetBackdropBorderColor(border[1] * 0.9, border[2] * 0.9, border[3] * 0.9, ba)
+    local ba = pal.thin and 0.45 or 0.88
+    frame:SetBackdropBorderColor(border[1] * 0.95, border[2] * 0.95, border[3] * 0.95, ba)
   end
   frame._dialogueSkin = false
 end
@@ -1055,11 +1253,16 @@ local function tintEdge(frame, kind, rarity, announcer)
   if rgb then
     r, g, b, a = rgb[1], rgb[2], rgb[3], 0.10
   else
-    local hex = rarityHex(kind, rarity)
-    r = (tonumber(hex:sub(3, 4), 16) or 180) / 255
-    g = (tonumber(hex:sub(5, 6), 16) or 180) / 255
-    b = (tonumber(hex:sub(7, 8), 16) or 180) / 255
-    a = 0.08
+    local pal = frame._themePal or themePalette(themeName())
+    if pal.accent and themeName() ~= "dark" and themeName() ~= "parchment" then
+      r, g, b, a = pal.accent[1], pal.accent[2], pal.accent[3], 0.12
+    else
+      local hex = rarityHex(kind, rarity)
+      r = (tonumber(hex:sub(3, 4), 16) or 180) / 255
+      g = (tonumber(hex:sub(5, 6), 16) or 180) / 255
+      b = (tonumber(hex:sub(7, 8), 16) or 180) / 255
+      a = 0.08
+    end
   end
   paintSolid(frame.EdgeGlow, r, g, b, a)
   frame.EdgeGlow:Show()
@@ -1116,14 +1319,20 @@ function UI.DressDialogue(frame)
   applyPopupScale(frame)
   applyThemeChrome(frame)
   local theme = themeName()
-  if theme == "dark" or theme == "minimal" then
+  -- Only parchment uses DialogueUI art; colored themes stay on shade chrome.
+  if theme ~= "parchment" then
     if frame.SocketFrame then
       frame.SocketFrame:Hide()
     end
-    if frame.EdgeGlow and theme == "dark" then
-      frame.EdgeGlow:Show()
-    elseif frame.EdgeGlow then
-      frame.EdgeGlow:Hide()
+    if frame.EdgeGlow then
+      if theme == "minimal" then
+        frame.EdgeGlow:Hide()
+      else
+        local pal = themePalette(theme)
+        local a = pal.accent or { 0.72, 0.58, 0.28 }
+        paintSolid(frame.EdgeGlow, a[1], a[2], a[3], theme == "dark" and 0.08 or 0.12)
+        frame.EdgeGlow:Show()
+      end
     end
     return
   end
@@ -1322,6 +1531,7 @@ local function showNow(payload)
     UI.RefreshMinimapStreak(streak)
   end
 
+  local pal = frame._themePal or themePalette(themeName())
   local bodyR, bodyG, bodyB = 0.90, 0.88, 0.84
   if themeName() == "parchment" then
     bodyR, bodyG, bodyB = 0.93, 0.88, 0.78
@@ -1335,11 +1545,16 @@ local function showNow(payload)
   local speaker = payload.speaker or UnitName("player") or "?"
   local icon = classIconMarkup(payload.class)
   local title = payload.title
+  local sig = pal.signature or { 0.91, 0.77, 0.42 }
+  local sigHex = string.format("%02x%02x%02x",
+    math.floor((sig[1] or 0.91) * 255 + 0.5),
+    math.floor((sig[2] or 0.77) * 255 + 0.5),
+    math.floor((sig[3] or 0.42) * 255 + 0.5))
   if frame.Speaker then
     if compact and kind ~= "milestone" then
       frame.Speaker:Hide()
     else
-      local nameText = icon .. "|cffE8C56A" .. speaker .. "|r"
+      local nameText = icon .. "|cff" .. sigHex .. speaker .. "|r"
       if title and title ~= "" then
         nameText = nameText .. "  |cff8A7A5A· " .. title .. "|r"
         frame.Speaker:SetHeight(16)
@@ -1347,7 +1562,7 @@ local function showNow(payload)
         frame.Speaker:SetHeight(14)
       end
       frame.Speaker:SetText(nameText)
-      frame.Speaker:SetTextColor(0.91, 0.77, 0.42)
+      frame.Speaker:SetTextColor(sig[1], sig[2], sig[3])
       frame.Speaker:Show()
     end
   end

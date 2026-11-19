@@ -134,10 +134,77 @@ function Options.CycleSoundChannel()
   return nextChannel
 end
 
-local UI_THEME_ORDER = { "dark", "minimal", "parchment", "auto" }
+local UI_THEME_ORDER = {
+  "dark", "minimal", "parchment",
+  "alliance", "horde",
+  "warrior", "paladin", "hunter", "rogue", "priest", "shaman", "mage", "warlock", "druid",
+  "human", "dwarf", "nightelf", "gnome", "orc", "undead", "tauren", "troll",
+  "auto", "autoClass", "autoRace",
+}
+
+local THEME_LABEL_KEY = {
+  dark = "OPT_THEME_DARK",
+  minimal = "OPT_THEME_MINIMAL",
+  parchment = "OPT_THEME_PARCHMENT",
+  alliance = "OPT_THEME_ALLIANCE",
+  horde = "OPT_THEME_HORDE",
+  warrior = "OPT_THEME_WARRIOR",
+  paladin = "OPT_THEME_PALADIN",
+  hunter = "OPT_THEME_HUNTER",
+  rogue = "OPT_THEME_ROGUE",
+  priest = "OPT_THEME_PRIEST",
+  shaman = "OPT_THEME_SHAMAN",
+  mage = "OPT_THEME_MAGE",
+  warlock = "OPT_THEME_WARLOCK",
+  druid = "OPT_THEME_DRUID",
+  human = "OPT_THEME_HUMAN",
+  dwarf = "OPT_THEME_DWARF",
+  nightelf = "OPT_THEME_NIGHTELF",
+  gnome = "OPT_THEME_GNOME",
+  orc = "OPT_THEME_ORC",
+  undead = "OPT_THEME_UNDEAD",
+  tauren = "OPT_THEME_TAUREN",
+  troll = "OPT_THEME_TROLL",
+  auto = "OPT_THEME_AUTO",
+  autoFaction = "OPT_THEME_AUTO",
+  autoClass = "OPT_THEME_AUTO_CLASS",
+  autoRace = "OPT_THEME_AUTO_RACE",
+}
+
+local THEME_LABEL_FALLBACK = {
+  dark = "Dark PvP",
+  minimal = "Minimal",
+  parchment = "Pergaminho",
+  alliance = "Aliança",
+  horde = "Horda",
+  warrior = "Guerreiro",
+  paladin = "Paladino",
+  hunter = "Caçador",
+  rogue = "Ladino",
+  priest = "Sacerdote",
+  shaman = "Xamã",
+  mage = "Mago",
+  warlock = "Bruxo",
+  druid = "Druida",
+  human = "Humano",
+  dwarf = "Anão",
+  nightelf = "Elfo Noturno",
+  gnome = "Gnomo",
+  orc = "Orc",
+  undead = "Morto-vivo",
+  tauren = "Tauren",
+  troll = "Troll",
+  auto = "Auto · Facção",
+  autoFaction = "Auto · Facção",
+  autoClass = "Auto · Classe",
+  autoRace = "Auto · Raça",
+}
 
 function Options.CycleUiTheme()
   local current = Options.Get().uiTheme or "dark"
+  if current == "autoFaction" then
+    current = "auto"
+  end
   local index = 1
   for i = 1, #UI_THEME_ORDER do
     if UI_THEME_ORDER[i] == current then
@@ -155,16 +222,18 @@ end
 
 function Options.ThemeLabel(theme)
   theme = theme or Options.Get().uiTheme or "dark"
-  if theme == "auto" then
-    return (L.OPT_THEME_AUTO or "Auto (Dark em BG)")
+  if theme == "autoFaction" then
+    theme = "auto"
   end
-  if theme == "dark" then
-    return (L.OPT_THEME_DARK or "Dark PvP")
+  local key = THEME_LABEL_KEY[theme]
+  if key and L[key] then
+    return L[key]
   end
-  if theme == "minimal" then
-    return (L.OPT_THEME_MINIMAL or "Minimal")
-  end
-  return (L.OPT_THEME_PARCHMENT or "Parchment")
+  return THEME_LABEL_FALLBACK[theme] or theme
+end
+
+function Options.ThemeOrder()
+  return UI_THEME_ORDER
 end
 
 function Options.SetOwnLine(key, text)
