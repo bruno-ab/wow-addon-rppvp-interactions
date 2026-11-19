@@ -400,12 +400,66 @@ local function appendPvpLog(side, person, info)
   end
 end
 
-ensureDB = function()
+-- Full scrub is expensive (rivals/chronicle/pvpLog rebuild). Run once per session
+-- or when SavedVariables version changes — never on every GetDB() during a KB.
+local dbScrubbed = false
+
+local function ensureTables(db)
+  if type(db.kills) ~= "table" then
+    db.kills = {}
+  end
+  if type(db.kills.Race) ~= "table" then
+    db.kills.Race = {}
+  end
+  if type(db.kills.Class) ~= "table" then
+    db.kills.Class = {}
+  end
+  if type(db.deaths) ~= "table" then
+    db.deaths = {}
+  end
+  if type(db.deaths.Race) ~= "table" then
+    db.deaths.Race = {}
+  end
+  if type(db.deaths.Class) ~= "table" then
+    db.deaths.Class = {}
+  end
+  if type(db.settings) ~= "table" then
+    db.settings = {}
+  end
+  if type(db.rivals) ~= "table" then
+    db.rivals = {}
+  end
+  if type(db.feats) ~= "table" then
+    db.feats = {}
+  end
+  if type(db.chronicle) ~= "table" then
+    db.chronicle = {}
+  end
+  if type(db.zones) ~= "table" then
+    db.zones = {}
+  end
+  if type(db.duels) ~= "table" then
+    db.duels = { wins = 0, losses = 0 }
+  end
+  if type(db.pvpLog) ~= "table" then
+    db.pvpLog = {}
+  end
+  db.totalKills = math.max(0, math.floor(tonumber(db.totalKills) or 0))
+  db.totalDeaths = math.max(0, math.floor(tonumber(db.totalDeaths) or 0))
+  db.streak = math.max(0, math.floor(tonumber(db.streak) or 0))
+  db.bestStreak = math.max(db.streak, math.floor(tonumber(db.bestStreak) or 0))
+end
+
+ensureDB = function(force)
   if type(BanterCombatDB) ~= "table" then
     BanterCombatDB = {}
   end
   local db = BanterCombatDB
   local from = tonumber(db.version) or 0
+  if dbScrubbed and from == DB_VERSION and not force then
+    ensureTables(db)
+    return db
+  end
 
   db.kills = type(db.kills) == "table" and db.kills or {}
   db.kills.Race = scrubCounterMap(db.kills.Race, VALID_RACE)
@@ -462,6 +516,9 @@ ensureDB = function()
   if db.settings.visualFx == nil then
     db.settings.visualFx = true
   end
+  if db.settings.compactBanner == nil then
+    db.settings.compactBanner = false
+  end
   db.rivals = scrubRivals(db.rivals)
   db.feats = scrubFeats(db.feats)
   db.chronicle = scrubChronicle(db.chronicle)
@@ -477,11 +534,17 @@ ensureDB = function()
 
   -- v2: settings. v3: rivals/feats/streak. v4: chronicle. v5: pvpLog + duels.
   db.version = DB_VERSION
+  dbScrubbed = true
   return db
 end
 
 function Stats.GetDB()
   return ensureDB()
+end
+
+function Stats.RescrubDB()
+  dbScrubbed = false
+  return ensureDB(true)
 end
 
 function Stats.Chronicle()
@@ -544,7 +607,7 @@ function Stats.RememberChronicle(info)
       break
     end
   end
-  db.chronicle = scrubChronicle(db.chronicle)
+  -- Rows are already normalized above; skip full scrubChronicle on every KB.
 end
 
 function Stats.IsValidRace(race)
@@ -610,7 +673,15 @@ function Stats.TouchRival(person, side, info)
   if Stats.IsValidClass(person.class) then
     row.class = person.class
   end
-  pruneRivals(db)
+  -- Prune only when the map is clearly large (avoid table.sort every kill).
+  local rivalCount = 0
+  for _ in pairs(db.rivals) do
+    rivalCount = rivalCount + 1
+    if rivalCount > 36 then
+      pruneRivals(db)
+      break
+    end
+  end
   return row
 end
 

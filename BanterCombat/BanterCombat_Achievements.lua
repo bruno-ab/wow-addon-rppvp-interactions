@@ -380,9 +380,16 @@ local function isBattlegroundZone(lower)
   return false
 end
 
+local storeBook, storeDb, storeTick
+
 local function Store()
+  local tick = GetTime and GetTime() or 0
+  if storeBook and storeTick == tick then
+    return storeBook, storeDb
+  end
   local db = ns.Stats and ns.Stats.GetDB and ns.Stats.GetDB()
   if type(db) ~= "table" then
+    storeBook, storeDb, storeTick = nil, nil, nil
     return nil
   end
   if type(db.achv) ~= "table" then
@@ -398,6 +405,7 @@ local function Store()
   if type(book.when) ~= "table" then
     book.when = {}
   end
+  storeBook, storeDb, storeTick = book, db, tick
   return book, db
 end
 
@@ -416,6 +424,7 @@ local function setn(key, value)
   end
   value = math.max(0, math.floor(tonumber(value) or 0))
   book.n[key] = value
+  book._fresh = true
   return value
 end
 
@@ -436,6 +445,7 @@ local function markSet(group, key)
   end
   if not book.set[group][key] then
     book.set[group][key] = time()
+    book._fresh = true
   end
 end
 
@@ -482,7 +492,13 @@ local function once(key, window)
   return true
 end
 
-local function syncHonor()
+local lastHonorSync = 0
+local function syncHonor(force)
+  local t = GetTime and GetTime() or 0
+  if not force and (t - lastHonorSync) < 5 then
+    return
+  end
+  lastHonorSync = t
   local book = Store()
   if not book then
     return
@@ -530,10 +546,16 @@ local function seedBook()
   end
 end
 
+local lastTalentNote = 0
 local function noteTalents()
   if not GetNumTalentTabs or not GetTalentTabInfo then
     return
   end
+  local t = GetTime and GetTime() or 0
+  if (t - lastTalentNote) < 30 then
+    return
+  end
+  lastTalentNote = t
   local tabs = GetNumTalentTabs()
   if type(tabs) ~= "number" or tabs < 1 then
     return
@@ -2186,6 +2208,11 @@ function Achievements.FreshTitle()
     Achievements.PrimeFeats()
     return nil
   end
+  -- Skip full catalog scan when counters did not change since last pass.
+  if not book._fresh then
+    return nil
+  end
+  book._fresh = nil
   local known = {}
   for id, stamp in pairs(book.when) do
     if stamp then

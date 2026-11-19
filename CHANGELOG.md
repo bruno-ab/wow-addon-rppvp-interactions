@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.29
+
+- Fix KB hitch: `ensureDB` full scrub once per session (not every GetDB), chronicle append without rebuild, rivals prune only when oversized.
+- Defer chronicle / sync / achievements / FreshTitle to the next frame after sound + banner.
+- Lighter killcam: reuse enter/flash anims, SetBackdrop once per theme, 2D portrait first (3D SetUnit deferred), shorter sound-channel fallback.
+
 ## 1.0.28
 
 - Killcam: subject under portrait (race · class · name), meta corner (world/BG · zone · revenge · score).

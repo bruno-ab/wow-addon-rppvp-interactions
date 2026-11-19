@@ -1290,28 +1290,26 @@ local function OnPlayerKill(victim, destFlags)
     spellName = blow.spell
   end
   local _, myClass = UnitClass("player")
-  if Stats.RememberChronicle then
-    local priorKills = rival and math.max(0, (rival.kills or 1) - 1) or 0
-    local priorDeaths = rival and (rival.deaths or 0) or 0
-    Stats.RememberChronicle({
-      name = victim.name,
-      race = victim.race,
-      class = victim.class,
-      zone = zoneName,
-      subzone = place.subzone,
-      context = place.context,
-      victimLevel = victim.level,
-      spell = spellName,
-      level = UnitLevel and UnitLevel("player") or 0,
-      myClass = myClass,
-      mySex = UnitSex and UnitSex("player") or nil,
-      sex = victim.sex,
-      revenge = isRevenge or nil,
-      streak = streakNow,
-      priorKills = priorKills,
-      priorDeaths = priorDeaths,
-    })
-  end
+  local priorKills = rival and math.max(0, (rival.kills or 1) - 1) or 0
+  local priorDeaths = rival and (rival.deaths or 0) or 0
+  local chronicleInfo = {
+    name = victim.name,
+    race = victim.race,
+    class = victim.class,
+    zone = zoneName,
+    subzone = place.subzone,
+    context = place.context,
+    victimLevel = victim.level,
+    spell = spellName,
+    level = UnitLevel and UnitLevel("player") or 0,
+    myClass = myClass,
+    mySex = UnitSex and UnitSex("player") or nil,
+    sex = victim.sex,
+    revenge = isRevenge or nil,
+    streak = streakNow,
+    priorKills = priorKills,
+    priorDeaths = priorDeaths,
+  }
 
   local quietBg = Options.Get().quietBg and place.context == "bg"
   if Options.Get().chatOnly then
@@ -1326,29 +1324,58 @@ local function OnPlayerKill(victim, destFlags)
       MaybeChatAnnounce(text)
     end
   end
-  -- chatOnly still gets the announcer (already fired above)
+
+  -- Heavy bookkeeping next frame so the KB frame stays free for sound + banner.
+  local victimSnap = {
+    name = victim.name,
+    race = victim.race,
+    class = victim.class,
+    guid = victim.guid,
+    sex = victim.sex,
+    level = victim.level,
+  }
+  local revengeSnap = isRevenge
+  local speakerSnap = {
+    name = selfInfo.name,
+    race = selfInfo.race,
+    class = selfInfo.class,
+  }
+  local encoded
   if victim.name and victim.name ~= "?" then
-    BroadcastPayload(EncodeMessage(
+    encoded = EncodeMessage(
       payload.speaker, payload.race, payload.class, payload.kind, payload.rarity, payload.badge, payload.text, payload.title
-    ), victim.name)
+    )
   end
-  if ns.Achievements and ns.Achievements.OnKill then
-    ns.Achievements.OnKill(victim, isRevenge)
-  end
-  if ns.Achievements and ns.Achievements.FreshTitle then
-    local featTitle = ns.Achievements.FreshTitle()
-    if featTitle then
-      Present({
-        speaker = selfInfo.name,
-        race = selfInfo.race,
-        class = selfInfo.class,
-        kind = "milestone",
-        rarity = "epic",
-        badge = L.FEAT_DONE,
-        text = featTitle,
-        silent = true,
-      }, "player")
+  local function afterKillWork()
+    if Stats.RememberChronicle and chronicleInfo then
+      Stats.RememberChronicle(chronicleInfo)
     end
+    if encoded and victimSnap.name and victimSnap.name ~= "?" then
+      BroadcastPayload(encoded, victimSnap.name)
+    end
+    if ns.Achievements and ns.Achievements.OnKill then
+      ns.Achievements.OnKill(victimSnap, revengeSnap)
+    end
+    if ns.Achievements and ns.Achievements.FreshTitle then
+      local featTitle = ns.Achievements.FreshTitle()
+      if featTitle then
+        Present({
+          speaker = speakerSnap.name,
+          race = speakerSnap.race,
+          class = speakerSnap.class,
+          kind = "milestone",
+          rarity = "epic",
+          badge = L.FEAT_DONE,
+          text = featTitle,
+          silent = true,
+        }, "player")
+      end
+    end
+  end
+  if C_Timer and C_Timer.After then
+    C_Timer.After(0, afterKillWork)
+  else
+    afterKillWork()
   end
   return true
 end

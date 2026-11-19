@@ -939,7 +939,9 @@ local function showDataFrame(mode)
         return
       end
       BanterCombatDB = value
-      if ns.Stats and ns.Stats.GetDB then
+      if ns.Stats and ns.Stats.RescrubDB then
+        ns.Stats.RescrubDB()
+      elseif ns.Stats and ns.Stats.GetDB then
         ns.Stats.GetDB()
       end
       if ns.ApplySavedLocale then

@@ -231,12 +231,17 @@ local function setAnimScale(anim, fromX, fromY, toX, toY)
   end
 end
 
+local enterPunch
 local function ensureEnterAnim(frame, punch)
   punch = punch or 1.06
+  if enterGroup and enterPunch == punch then
+    enterGroup:Stop()
+    return enterGroup
+  end
   if enterGroup then
     enterGroup:Stop()
-    enterGroup = nil
   end
+  enterPunch = punch
   enterGroup = frame:CreateAnimationGroup()
   local scale = enterGroup:CreateAnimation("Scale")
   setAnimScale(scale, 0.90, 0.90, 1.0, 1.0)
@@ -259,6 +264,7 @@ local function ensureEnterAnim(frame, punch)
 end
 
 local flashGroup
+local flashAnim
 local flashToken = 0
 local function playFlash(frame, announcer, kind)
   if not visualFxOn() or not frame or not frame.Flash then
@@ -273,11 +279,19 @@ local function playFlash(frame, announcer, kind)
   frame.Flash:SetVertexColor(rgb[1], rgb[2], rgb[3], 1)
   frame.Flash:SetAlpha(peak)
   frame.Flash:Show()
-  if flashGroup then
+  if not flashGroup then
+    flashGroup = frame.Flash:CreateAnimationGroup()
+    flashAnim = flashGroup:CreateAnimation("Alpha")
+    flashGroup:SetScript("OnFinished", function()
+      if frame.Flash then
+        frame.Flash:Hide()
+        frame.Flash:SetAlpha(0)
+      end
+    end)
+  else
     flashGroup:Stop()
   end
-  flashGroup = frame.Flash:CreateAnimationGroup()
-  local a = flashGroup:CreateAnimation("Alpha")
+  local a = flashAnim
   if a.SetFromAlpha then
     a:SetFromAlpha(peak)
     a:SetToAlpha(0)
@@ -286,12 +300,6 @@ local function playFlash(frame, announcer, kind)
   end
   a:SetDuration(isHeroCue(announcer) and 0.50 or 0.36)
   a:SetSmoothing("OUT")
-  flashGroup:SetScript("OnFinished", function()
-    if frame.Flash then
-      frame.Flash:Hide()
-      frame.Flash:SetAlpha(0)
-    end
-  end)
   flashGroup:Play()
 end
 
@@ -426,20 +434,23 @@ local function applyThemeChrome(frame, announcer)
     paintSolid(frame.Shade, shadeR, shadeG, shadeB, shadeA)
     frame.Shade:Show()
   end
-  if frame.SetBackdrop then
+  -- SetBackdrop once per theme; only retint the border per cue.
+  local chromeKey = theme
+  if frame.SetBackdrop and frame._chromeKey ~= chromeKey then
+    frame._chromeKey = chromeKey
     pcall(frame.SetBackdrop, frame, {
       bgFile = "Interface\\Buttons\\WHITE8X8",
       edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
       tile = false, edgeSize = theme == "minimal" and 1 or 12,
       insets = { left = 2, right = 2, top = 2, bottom = 2 },
     })
-    if frame.SetBackdropColor then
-      frame:SetBackdropColor(shadeR, shadeG, shadeB, shadeA)
-    end
-    if frame.SetBackdropBorderColor then
-      local ba = theme == "minimal" and 0.45 or 0.85
-      frame:SetBackdropBorderColor(border[1] * 0.9, border[2] * 0.9, border[3] * 0.9, ba)
-    end
+  end
+  if frame.SetBackdropColor then
+    frame:SetBackdropColor(shadeR, shadeG, shadeB, shadeA)
+  end
+  if frame.SetBackdropBorderColor then
+    local ba = theme == "minimal" and 0.45 or 0.85
+    frame:SetBackdropBorderColor(border[1] * 0.9, border[2] * 0.9, border[3] * 0.9, ba)
   end
   frame._dialogueSkin = false
 end
@@ -735,7 +746,10 @@ function UI.RefreshMinimapStreak(streak)
   end
 end
 
+local portraitToken = 0
 local function applyPortrait(frame, unitOrNil, classToken, useModel)
+  portraitToken = portraitToken + 1
+  local myToken = portraitToken
   if frame.Model then
     frame.Model:Hide()
     if frame.Model.ClearModel then
@@ -746,52 +760,66 @@ local function applyPortrait(frame, unitOrNil, classToken, useModel)
     frame.Portrait:Show()
   end
 
-  if useModel and frame.Model and unitOrNil and UnitExists(unitOrNil) and frame.Model.SetUnit then
-    local ok = pcall(function()
-      frame.Model:SetUnit(unitOrNil)
-      if frame.Model.SetPortraitZoom then
-        frame.Model:SetPortraitZoom(1)
+  local texture = frame.Portrait
+  if texture then
+    texture:Show()
+    if unitOrNil and UnitExists(unitOrNil) then
+      SetPortraitTexture(texture, unitOrNil)
+      texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    else
+      -- Prefer race head when we know the race; class icon as last resort.
+      local raceIcon = frame._portraitRace and RACE_PORTRAIT[frame._portraitRace]
+      if raceIcon then
+        texture:SetTexture(raceIcon)
+        texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+      else
+        local coords = CLASS_ICON_TCOORDS and classToken and CLASS_ICON_TCOORDS[classToken]
+        texture:SetTexture("Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES")
+        if coords then
+          texture:SetTexCoord(unpack(coords))
+        else
+          texture:SetTexCoord(0, 1, 0, 1)
+        end
       end
-      if frame.Model.SetCamDistanceScale then
-        frame.Model:SetCamDistanceScale(1)
-      end
-      if frame.Model.SetRotation then
-        frame.Model:SetRotation(0)
-      end
-      frame.Model:SetFrameLevel((frame:GetFrameLevel() or 1) + 3)
-      frame.Model:Show()
-      if frame.Portrait then
-        frame.Portrait:Hide()
-      end
-    end)
-    if ok then
-      return
     end
   end
 
-  local texture = frame.Portrait
-  if not texture then
-    return
-  end
-  texture:Show()
-  if unitOrNil and UnitExists(unitOrNil) then
-    SetPortraitTexture(texture, unitOrNil)
-    texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    return
-  end
-  -- Prefer race head when we know the race; class icon as last resort.
-  local raceIcon = frame._portraitRace and RACE_PORTRAIT[frame._portraitRace]
-  if raceIcon then
-    texture:SetTexture(raceIcon)
-    texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-    return
-  end
-  local coords = CLASS_ICON_TCOORDS and classToken and CLASS_ICON_TCOORDS[classToken]
-  texture:SetTexture("Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES")
-  if coords then
-    texture:SetTexCoord(unpack(coords))
-  else
-    texture:SetTexCoord(0, 1, 0, 1)
+  -- 3D model is deferred so SetUnit never blocks the KB frame.
+  if useModel and frame.Model and unitOrNil and UnitExists(unitOrNil) and frame.Model.SetUnit then
+    local unit = unitOrNil
+    local defer = function()
+      if myToken ~= portraitToken or not frame:IsShown() then
+        return
+      end
+      if not UnitExists(unit) then
+        return
+      end
+      local ok = pcall(function()
+        frame.Model:SetUnit(unit)
+        if frame.Model.SetPortraitZoom then
+          frame.Model:SetPortraitZoom(1)
+        end
+        if frame.Model.SetCamDistanceScale then
+          frame.Model:SetCamDistanceScale(1)
+        end
+        if frame.Model.SetRotation then
+          frame.Model:SetRotation(0)
+        end
+        frame.Model:SetFrameLevel((frame:GetFrameLevel() or 1) + 3)
+        frame.Model:Show()
+        if frame.Portrait then
+          frame.Portrait:Hide()
+        end
+      end)
+      if not ok and frame.Portrait then
+        frame.Portrait:Show()
+      end
+    end
+    if C_Timer and C_Timer.After then
+      C_Timer.After(0, defer)
+    else
+      defer()
+    end
   end
 end
 
@@ -877,6 +905,8 @@ local function resolveChannel(settings)
   return "Master"
 end
 
+local lastGoodChannel
+
 local function playFile(path, settings)
   if not path or not PlaySoundFile then
     return false
@@ -896,26 +926,18 @@ local function playFile(path, settings)
   if volume < 40 then
     preferred = "Ambience"
   end
-  -- Only true / numeric handle counts as success. Nil must NOT short-circuit —
-  -- Forever can return nil even when the file never started.
-  local order = { "Master", preferred, "SFX", false, "Ambience", "Dialog" }
+  -- Try the last successful channel first, then a short fallback list (not 6 every KB).
+  local order = { lastGoodChannel, preferred, "Master", "SFX" }
   local seen = {}
   for i = 1, #order do
     local channel = order[i]
-    local key = channel == false and "*" or channel
-    if not seen[key] then
-      seen[key] = true
-      local ok, willPlay, handle
-      if channel then
-        ok, willPlay, handle = pcall(function()
-          return PlaySoundFile(path, channel)
-        end)
-      else
-        ok, willPlay, handle = pcall(function()
-          return PlaySoundFile(path)
-        end)
-      end
+    if channel and not seen[channel] then
+      seen[channel] = true
+      local ok, willPlay, handle = pcall(function()
+        return PlaySoundFile(path, channel)
+      end)
       if ok and (willPlay == true or type(willPlay) == "number" or type(handle) == "number") then
+        lastGoodChannel = channel
         return true
       end
     end
