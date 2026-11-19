@@ -1154,6 +1154,11 @@ local function Present(payload, unit)
     victimName = payload.victimName,
     victimClass = payload.victimClass,
     victimRace = payload.victimRace,
+    zone = payload.zone,
+    context = payload.context,
+    revenge = payload.revenge,
+    rivalKills = payload.rivalKills,
+    rivalDeaths = payload.rivalDeaths,
     unit = unit,
   })
 end
@@ -1263,6 +1268,11 @@ local function OnPlayerKill(victim, destFlags)
     victimName = victim.name,
     victimClass = victim.class,
     victimRace = victim.race,
+    zone = place.zone,
+    context = place.context,
+    revenge = isRevenge or nil,
+    rivalKills = rival and rival.kills or nil,
+    rivalDeaths = rival and rival.deaths or nil,
   }
   -- Same path as /banter announce: play cue immediately (UI queue can lag or skip sound).
   if s.sound ~= false and announcer and ns.UI and ns.UI.PlayPreviewSound then
@@ -1382,6 +1392,7 @@ local function OnPlayerDeath(killer)
     text, rarity, badge = SelectDeathSpeech(ctx)
   end
   local selfInfo = PlayerSelfInfo()
+  local rivalRow = killer and killer.name and Stats.RivalByName and Stats.RivalByName(killer.name)
   local payload = {
     speaker = selfInfo.name,
     race = selfInfo.race,
@@ -1390,6 +1401,14 @@ local function OnPlayerDeath(killer)
     rarity = rarity,
     badge = badge,
     text = text,
+    -- Subject / portrait: who killed you.
+    victimName = killer and killer.name,
+    victimRace = killer and killer.race,
+    victimClass = killer and killer.class,
+    zone = place and place.zone,
+    context = place and place.context,
+    rivalKills = rivalRow and rivalRow.kills or nil,
+    rivalDeaths = rivalRow and rivalRow.deaths or nil,
   }
   Debug("death", killer and killer.name or "?", rarity)
   Present(payload, "player")
@@ -2235,12 +2254,21 @@ function ns.Preview(kind)
       class = classToken,
       kind = "revenge",
       rarity = "revenge",
+      announcer = "Ownage",
+      revenge = true,
+      victimName = "AlvoTeste",
+      victimRace = "Orc",
+      victimClass = "WARRIOR",
+      zone = GetRealZoneText and GetRealZoneText() or "Vale Gris",
+      context = "world",
+      rivalKills = 3,
+      rivalDeaths = 2,
     }, "player")
   elseif kind == "milestone" then
     Present({
       speaker = speaker,
       text = Stats.GetMilestoneSpeech("race", 50, "Orc") or "Marco de teste",
-      badge = L.MILESTONE:format(50, Data.RaceLabel("Orc")),
+      badge = L.FEAT_DONE or "FEITO",
       class = classToken,
       kind = "milestone",
       rarity = "milestone",
@@ -2255,6 +2283,13 @@ function ns.Preview(kind)
       kind = "rival",
       rarity = "rare",
       title = SpeechPack().titles and SpeechPack().titles[3],
+      victimName = ctx.name,
+      victimRace = ctx.race,
+      victimClass = ctx.class,
+      zone = GetRealZoneText and GetRealZoneText() or "Vale Gris",
+      context = "world",
+      rivalKills = 4,
+      rivalDeaths = 2,
     }, "player")
   elseif kind == "streak" then
     Present({
@@ -2265,6 +2300,12 @@ function ns.Preview(kind)
       kind = "streak",
       rarity = "epic",
       title = SpeechPack().titles and SpeechPack().titles[5],
+      victimName = "AlvoTeste",
+      victimRace = "Orc",
+      victimClass = "WARRIOR",
+      zone = GetRealZoneText and GetRealZoneText() or "Vale Gris",
+      context = "world",
+      streak = 5,
     }, "player")
   elseif kind == "zone" then
     local zone = (ns.CurrentZone and ns.CurrentZone()) or "warsong"
@@ -2282,18 +2323,30 @@ function ns.Preview(kind)
       class = classToken,
       kind = "kill",
       rarity = "common",
+      victimName = "AlvoTeste",
+      victimRace = "Orc",
+      victimClass = "MAGE",
+      zone = GetRealZoneText and GetRealZoneText() or "Vale Gris",
+      context = "bg",
     }, "player")
   elseif kind == "death" then
     resetTestAnnouncer()
     local killer = { name = "AlvoTeste", race = "Orc", class = "MAGE", sex = sex }
     local text, rarity, badge = SelectDeathSpeech(killer)
     Present({
-      speaker = killer.name,
+      speaker = speaker,
       text = text,
       badge = badge,
-      class = killer.class,
+      class = classToken,
       kind = "death",
       rarity = rarity,
+      victimName = killer.name,
+      victimRace = killer.race,
+      victimClass = killer.class,
+      zone = GetRealZoneText and GetRealZoneText() or "Vale Gris",
+      context = "world",
+      rivalKills = 1,
+      rivalDeaths = 2,
     }, "player")
   elseif kind == "common" or kind == "rare" or kind == "epic" or kind == "legendary" then
     local victim = { name = "AlvoTeste", race = "Orc", class = "MAGE", sex = sex }
@@ -2305,9 +2358,14 @@ function ns.Preview(kind)
       class = classToken,
       kind = "kill",
       rarity = rarity,
+      victimName = victim.name,
+      victimRace = victim.race,
+      victimClass = victim.class,
+      zone = GetRealZoneText and GetRealZoneText() or "Vale Gris",
+      context = "world",
     }, "player")
   else
-    local victim = { name = "AlvoTeste", race = "Orc", class = "MAGE", sex = sex }
+    local victim = { name = "AlvoTeste", race = "Orc", class = "WARRIOR", sex = sex }
     local text, rarity, badge = SelectKillSpeech(victim, false, nil, nil, nil)
     Present({
       speaker = speaker,
@@ -2317,6 +2375,13 @@ function ns.Preview(kind)
       kind = "kill",
       rarity = rarity,
       announcer = nextTestAnnouncer(),
+      victimName = victim.name,
+      victimRace = victim.race,
+      victimClass = victim.class,
+      zone = GetRealZoneText and GetRealZoneText() or "Vale Gris",
+      context = "world",
+      rivalKills = 2,
+      rivalDeaths = 1,
     }, "player")
   end
 end
@@ -2360,6 +2425,13 @@ function ns.PreviewAnnouncer()
     rarity = "epic",
     announcer = row.id,
     streak = math.max(streak, announcePreview),
+    victimName = "AlvoTeste",
+    victimRace = "Orc",
+    victimClass = "WARRIOR",
+    zone = GetRealZoneText and GetRealZoneText() or "Vale Gris",
+    context = (UnitInBattleground and UnitInBattleground("player")) and "bg" or "world",
+    rivalKills = 2,
+    rivalDeaths = 1,
   }, "player")
 end
 

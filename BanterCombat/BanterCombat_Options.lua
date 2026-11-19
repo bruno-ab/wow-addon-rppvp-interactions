@@ -28,6 +28,7 @@ local DEFAULTS = {
   popupScale = 1.0,
   showStreak = true,
   visualFx = true,
+  compactBanner = false,
   lineRevenge = "",
   lineStreak = "",
   lineDeath = "",
@@ -300,12 +301,13 @@ function Options.TogglePanel()
     makeCheck(panel, L.OPT_DEBUG, "debug", -376)
     makeCheck(panel, L.OPT_SHOW_STREAK or "Mostrar número da streak", "showStreak", -400)
     makeCheck(panel, L.OPT_VISUAL_FX or "Efeitos visuais (flash/punch)", "visualFx", -424)
+    makeCheck(panel, L.OPT_COMPACT_BANNER or "Banner compacto (só cue + portrait)", "compactBanner", -448)
 
     local durLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    durLabel:SetPoint("TOPLEFT", 24, -448)
+    durLabel:SetPoint("TOPLEFT", 24, -472)
     durLabel:SetText(L.OPT_DURATION)
     local slider = CreateFrame("Slider", "BanterCombatDurSlider", panel, "OptionsSliderTemplate")
-    slider:SetPoint("TOPLEFT", 170, -450)
+    slider:SetPoint("TOPLEFT", 170, -474)
     slider:SetMinMaxValues(2, 8)
     slider:SetValueStep(0.5)
     if slider.SetObeyStepOnDrag then
@@ -323,10 +325,10 @@ function Options.TogglePanel()
     end)
 
     local volLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    volLabel:SetPoint("TOPLEFT", 24, -488)
+    volLabel:SetPoint("TOPLEFT", 24, -512)
     volLabel:SetText(L.OPT_ANNOUNCER_VOLUME)
     local volSlider = CreateFrame("Slider", "BanterCombatVolSlider", panel, "OptionsSliderTemplate")
-    volSlider:SetPoint("TOPLEFT", 170, -490)
+    volSlider:SetPoint("TOPLEFT", 170, -514)
     volSlider:SetMinMaxValues(0, 100)
     volSlider:SetValueStep(5)
     if volSlider.SetObeyStepOnDrag then
@@ -344,10 +346,10 @@ function Options.TogglePanel()
     end)
 
     local scaleLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    scaleLabel:SetPoint("TOPLEFT", 24, -528)
+    scaleLabel:SetPoint("TOPLEFT", 24, -552)
     scaleLabel:SetText(L.OPT_POPUP_SCALE or "Tamanho do pop-up")
     local scaleSlider = CreateFrame("Slider", "BanterCombatScaleSlider", panel, "OptionsSliderTemplate")
-    scaleSlider:SetPoint("TOPLEFT", 170, -530)
+    scaleSlider:SetPoint("TOPLEFT", 170, -554)
     scaleSlider:SetMinMaxValues(0.7, 1.4)
     scaleSlider:SetValueStep(0.05)
     if scaleSlider.SetObeyStepOnDrag then
@@ -369,7 +371,7 @@ function Options.TogglePanel()
 
     local channelBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     channelBtn:SetSize(340, 22)
-    channelBtn:SetPoint("TOPLEFT", 20, -568)
+    channelBtn:SetPoint("TOPLEFT", 20, -600)
     channelBtn:SetScript("OnClick", function(self)
       local channel = Options.CycleSoundChannel()
       self:SetText(L.OPT_SOUND_CHANNEL:format(channel))
@@ -378,7 +380,7 @@ function Options.TogglePanel()
 
     local themeBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     themeBtn:SetSize(340, 22)
-    themeBtn:SetPoint("TOPLEFT", 20, -596)
+    themeBtn:SetPoint("TOPLEFT", 20, -628)
     themeBtn:SetScript("OnClick", function(self)
       local theme = Options.CycleUiTheme()
       self:SetText((L.OPT_THEME or "Tema: %s"):format(Options.ThemeLabel(theme)))
@@ -387,7 +389,7 @@ function Options.TogglePanel()
 
     local testBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     testBtn:SetSize(340, 22)
-    testBtn:SetPoint("TOPLEFT", 20, -624)
+    testBtn:SetPoint("TOPLEFT", 20, -656)
     testBtn:SetText(L.OPT_TEST or "Testar anunciador")
     testBtn:SetScript("OnClick", function()
       if ns.PreviewAnnouncer then

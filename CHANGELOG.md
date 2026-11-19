@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.28
+
+- Killcam: subject under portrait (race · class · name), meta corner (world/BG · zone · revenge · score).
+- Clearer cue / banter / signature hierarchy; death layout (portrait right, thicker red band, no wash).
+- Revenge/rival medal; FEITO badge clean of First Blood; hero-cue punch + flash synced to .ogg peak.
+- Priority queue (kill preempts feat toast); duration by type; world high / BG low anchor; race-head portrait fallback; compact banner option.
+
 ## 1.0.27
 
 - Rival sheet with timeline (meetings), score by world/BG/duel, click from Rivals or Diary.

@@ -167,90 +167,108 @@ local function setCueWash(frame, announcer, kind)
   if not frame.CueWash then
     return
   end
-  if not visualFxOn() then
+  -- Deaths and plain kills stay dry — no celebration wash.
+  if not visualFxOn() or kind == "death" or kind == "milestone" or (not announcer) or announcer == "Kill" then
     frame.CueWash:Hide()
     return
   end
   local rgb = ANNOUNCER_FLASH[announcer]
-  if not rgb and kind == "death" then
-    rgb = { 0.55, 0.08, 0.10 }
-  end
   if not rgb then
     frame.CueWash:Hide()
     return
   end
-  local a = (announcer == "FirstBlood" or announcer == "Ownage" or announcer == "HolyShit" or announcer == "Godlike") and 0.35 or 0.20
+  local a = isHeroCue(announcer) and 0.36 or 0.18
   frame.CueWash:ClearAllPoints()
   frame.CueWash:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
   frame.CueWash:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
-  frame.CueWash:SetWidth(148)
-  -- ADD blend: white base + vertex tint reads cleaner than solid ColorTexture.
+  frame.CueWash:SetWidth(isHeroCue(announcer) and 168 or 140)
   frame.CueWash:SetTexture("Interface\\Buttons\\WHITE8X8")
   frame.CueWash:SetVertexColor(rgb[1], rgb[2], rgb[3], a)
   frame.CueWash:Show()
 end
 
-local function ensureEnterAnim(frame)
+local HERO_CUES = {
+  FirstBlood = true, Ownage = true, Godlike = true, HolyShit = true,
+  MonsterKill = true, Rampage = true, UltraKill = true,
+}
+
+local FLASH_DELAY = {
+  FirstBlood = 0.32, DoubleKill = 0.18, TripleKill = 0.20, UltraKill = 0.22,
+  Rampage = 0.24, KillingSpree = 0.22, Dominating = 0.24, MegaKill = 0.22,
+  Unstoppable = 0.24, WickedSick = 0.22, MonsterKill = 0.28, Godlike = 0.36,
+  HolyShit = 0.30, Ownage = 0.26, Kill = 0.04,
+}
+
+local RACE_PORTRAIT = {
+  Human = "Interface\\Icons\\INV_Misc_Head_Human_01",
+  Dwarf = "Interface\\Icons\\INV_Misc_Head_Dwarf_01",
+  NightElf = "Interface\\Icons\\INV_Misc_Head_NightElf_01",
+  Gnome = "Interface\\Icons\\INV_Misc_Head_Gnome_01",
+  Orc = "Interface\\Icons\\INV_Misc_Head_Orc_01",
+  Scourge = "Interface\\Icons\\INV_Misc_Head_Undead_01",
+  Undead = "Interface\\Icons\\INV_Misc_Head_Undead_01",
+  Tauren = "Interface\\Icons\\INV_Misc_Head_Tauren_01",
+  Troll = "Interface\\Icons\\INV_Misc_Head_Troll_01",
+}
+
+local function isHeroCue(announcer)
+  return announcer and HERO_CUES[announcer] and true or false
+end
+
+local function setAnimScale(anim, fromX, fromY, toX, toY)
+  if not anim then
+    return
+  end
+  if anim.SetScaleFrom then
+    anim:SetScaleFrom(fromX, fromY)
+    anim:SetScaleTo(toX, toY)
+  elseif anim.SetFromScale then
+    anim:SetFromScale(fromX, fromY)
+    anim:SetToScale(toX, toY)
+  elseif anim.SetScale then
+    anim:SetOrigin("CENTER", 0, 0)
+    anim:SetScale(toX / math.max(fromX, 0.01), toY / math.max(fromY, 0.01))
+  end
+end
+
+local function ensureEnterAnim(frame, punch)
+  punch = punch or 1.06
   if enterGroup then
-    return enterGroup
+    enterGroup:Stop()
+    enterGroup = nil
   end
   enterGroup = frame:CreateAnimationGroup()
   local scale = enterGroup:CreateAnimation("Scale")
-  if scale.SetScaleFrom then
-    scale:SetScaleFrom(0.88, 0.88)
-    scale:SetScaleTo(1.0, 1.0)
-  elseif scale.SetFromScale then
-    scale:SetFromScale(0.88, 0.88)
-    scale:SetToScale(1.0, 1.0)
-  else
-    scale:SetOrigin("CENTER", 0, 0)
-    if scale.SetScale then
-      scale:SetScale(1.12, 1.12)
-    end
-  end
-  scale:SetDuration(0.18)
+  setAnimScale(scale, 0.90, 0.90, 1.0, 1.0)
+  scale:SetDuration(punch >= 1.08 and 0.14 or 0.16)
   scale:SetSmoothing("OUT")
   scale:SetOrder(1)
 
-  local punch = enterGroup:CreateAnimation("Scale")
-  if punch.SetScaleFrom then
-    punch:SetScaleFrom(1.0, 1.0)
-    punch:SetScaleTo(1.06, 1.06)
-  elseif punch.SetFromScale then
-    punch:SetFromScale(1.0, 1.0)
-    punch:SetToScale(1.06, 1.06)
-  elseif punch.SetScale then
-    punch:SetOrigin("CENTER", 0, 0)
-    punch:SetScale(1.06, 1.06)
-  end
-  punch:SetDuration(0.08)
-  punch:SetOrder(2)
-  punch:SetSmoothing("OUT")
+  local hit = enterGroup:CreateAnimation("Scale")
+  setAnimScale(hit, 1.0, 1.0, punch, punch)
+  hit:SetDuration(0.07)
+  hit:SetOrder(2)
+  hit:SetSmoothing("OUT")
 
   local settle = enterGroup:CreateAnimation("Scale")
-  if settle.SetScaleFrom then
-    settle:SetScaleFrom(1.06, 1.06)
-    settle:SetScaleTo(1.0, 1.0)
-  elseif settle.SetFromScale then
-    settle:SetFromScale(1.06, 1.06)
-    settle:SetToScale(1.0, 1.0)
-  elseif settle.SetScale then
-    settle:SetOrigin("CENTER", 0, 0)
-    settle:SetScale(0.943, 0.943)
-  end
-  settle:SetDuration(0.12)
+  setAnimScale(settle, punch, punch, 1.0, 1.0)
+  settle:SetDuration(0.11)
   settle:SetOrder(3)
   settle:SetSmoothing("IN")
   return enterGroup
 end
 
 local flashGroup
+local flashToken = 0
 local function playFlash(frame, announcer, kind)
   if not visualFxOn() or not frame or not frame.Flash then
     return
   end
   local rgb = ANNOUNCER_FLASH[announcer] or KIND_BAND[kind] or { 1, 1, 1 }
-  local peak = (announcer == "FirstBlood" or announcer == "HolyShit" or announcer == "Ownage" or announcer == "Godlike") and 0.42 or 0.28
+  local peak = isHeroCue(announcer) and 0.48 or 0.26
+  if kind == "death" then
+    peak = 0.22
+  end
   frame.Flash:SetTexture("Interface\\Buttons\\WHITE8X8")
   frame.Flash:SetVertexColor(rgb[1], rgb[2], rgb[3], 1)
   frame.Flash:SetAlpha(peak)
@@ -266,7 +284,7 @@ local function playFlash(frame, announcer, kind)
   else
     a:SetChange(-peak)
   end
-  a:SetDuration(0.42)
+  a:SetDuration(isHeroCue(announcer) and 0.50 or 0.36)
   a:SetSmoothing("OUT")
   flashGroup:SetScript("OnFinished", function()
     if frame.Flash then
@@ -275,6 +293,104 @@ local function playFlash(frame, announcer, kind)
     end
   end)
   flashGroup:Play()
+end
+
+local function playFlashSynced(frame, announcer, kind, myGen)
+  local delay = FLASH_DELAY[announcer or "Kill"] or 0.08
+  if kind == "death" then
+    delay = 0.05
+  end
+  flashToken = flashToken + 1
+  local token = flashToken
+  if delay <= 0.02 then
+    playFlash(frame, announcer, kind)
+    return
+  end
+  if C_Timer and C_Timer.After then
+    C_Timer.After(delay, function()
+      if token ~= flashToken or myGen ~= generation then
+        return
+      end
+      playFlash(frame, announcer, kind)
+    end)
+  else
+    playFlash(frame, announcer, kind)
+  end
+end
+
+local function resolveDuration(payload)
+  local base = tonumber(settings().duration) or 4
+  local scale = base / 4
+  local kind = payload and payload.kind or "kill"
+  local announcer = payload and payload.announcer
+  if kind == "death" then
+    return math.max(1.6, 2.5 * scale)
+  end
+  if kind == "milestone" then
+    return math.max(2.4, 3.5 * scale)
+  end
+  if isHeroCue(announcer) then
+    return math.max(3.5, 5.0 * scale)
+  end
+  if announcer and announcer ~= "Kill" then
+    return math.max(2.6, 3.6 * scale)
+  end
+  return math.max(2.0, 3.0 * scale)
+end
+
+local function queuePriority(payload)
+  local kind = payload and payload.kind or "kill"
+  local announcer = payload and payload.announcer
+  if kind == "revenge" or announcer == "Ownage" then
+    return 90
+  end
+  if isHeroCue(announcer) then
+    return 85
+  end
+  if kind == "kill" or kind == "rival" or kind == "streak" then
+    return 70
+  end
+  if kind == "milestone" then
+    return 40
+  end
+  if kind == "death" then
+    return 30
+  end
+  return 50
+end
+
+local function shortDisplayName(name)
+  if ns.Stats and ns.Stats.DisplayName then
+    return ns.Stats.DisplayName(name) or name
+  end
+  if type(name) ~= "string" then
+    return nil
+  end
+  return name:match("^([^%-]+)") or name
+end
+
+local function ctxLabel(ctx)
+  local L = ns.L or {}
+  if ctx == "bg" then
+    return L.COMP_LOG_CTX_bg or "CB"
+  end
+  if ctx == "duel" then
+    return L.COMP_LOG_CTX_duel or "duelo"
+  end
+  return L.COMP_LOG_CTX_world or "mundo"
+end
+
+local function ensureOverlayFonts(frame)
+  if not frame.Subject then
+    frame.Subject = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    frame.Subject:SetWidth(78)
+    frame.Subject:SetJustifyH("CENTER")
+  end
+  if not frame.Meta then
+    frame.Meta = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    frame.Meta:SetWidth(200)
+    frame.Meta:SetJustifyH("RIGHT")
+  end
 end
 
 local function applyPopupScale(frame)
@@ -328,16 +444,29 @@ local function applyThemeChrome(frame, announcer)
   frame._dialogueSkin = false
 end
 
-local function setKindBand(frame, kind, announcer)
+local function setKindBand(frame, kind, announcer, deathRight)
   if not frame.KindBand then
     return
   end
   local rgb = ANNOUNCER_FLASH[announcer] or KIND_BAND[kind] or KIND_BAND.kill
+  if kind == "death" then
+    rgb = { 0.72, 0.12, 0.14 }
+  elseif kind == "revenge" then
+    rgb = { 1.00, 0.78, 0.18 }
+  elseif kind == "milestone" then
+    rgb = { 0.95, 0.82, 0.28 }
+  end
   paintSolid(frame.KindBand, rgb[1], rgb[2], rgb[3], 1)
   frame.KindBand:ClearAllPoints()
-  frame.KindBand:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
-  frame.KindBand:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
-  frame.KindBand:SetWidth(3)
+  local width = (kind == "death") and 6 or ((kind == "revenge" or kind == "milestone") and 4 or 3)
+  if deathRight then
+    frame.KindBand:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+    frame.KindBand:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+  else
+    frame.KindBand:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+    frame.KindBand:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 0)
+  end
+  frame.KindBand:SetWidth(width)
   frame.KindBand:Show()
 end
 
@@ -397,15 +526,18 @@ local function setStreakBig(frame, streak, announcer)
   frame.StreakBig:Show()
 end
 
-local function setHeroCue(frame, announcer, badge)
+local function setHeroCue(frame, announcer, badge, kind, textLeft)
   if not frame.Combo then
     return
   end
-  -- Ordinary "Kill" cue stays quiet — hero title only for multi/streak/special.
+  textLeft = textLeft or 96
   local label
-  if announcer and announcer ~= "Kill" and CUE_LABELS[announcer] then
+  local feat = kind == "milestone"
+  if feat and type(badge) == "string" and badge ~= "" then
+    label = badge
+  elseif announcer and announcer ~= "Kill" and CUE_LABELS[announcer] then
     label = CUE_LABELS[announcer]
-  elseif type(badge) == "string" and badge ~= "" and string.upper(badge) ~= "KILL" then
+  elseif type(badge) == "string" and badge ~= "" and string.upper(badge) ~= "KILL" and not feat then
     label = badge
   end
   if type(label) ~= "string" or label == "" then
@@ -416,40 +548,66 @@ local function setHeroCue(frame, announcer, badge)
     if frame.Divider then
       frame.Divider:Hide()
     end
-    if frame.Medal then
-      frame.Medal:Hide()
-    end
-    -- Banter text moves up when there is no hero cue.
     if frame.Text then
       frame.Text:ClearAllPoints()
-      frame.Text:SetPoint("TOPLEFT", frame, "TOPLEFT", 96, -22)
-      frame.Text:SetSize(300, 42)
+      frame.Text:SetPoint("TOPLEFT", frame, "TOPLEFT", textLeft, -18)
+      frame.Text:SetSize(310, 44)
     end
-    return
+    return false
   end
   local rgb = ANNOUNCER_FLASH[announcer] or { 1, 0.78, 0.28 }
-  frame.Combo:SetText(string.upper(label))
+  if feat then
+    rgb = { 1.00, 0.84, 0.28 }
+  elseif kind == "revenge" then
+    rgb = { 1.00, 0.82, 0.20 }
+  end
+  local shown = feat and label or string.upper(label)
+  frame.Combo:SetText(shown)
   frame.Combo:SetTextColor(rgb[1], rgb[2], rgb[3], 1)
-  setFontSafe(frame.Combo, "Fonts\\FRIZQT__.TTF", 17, "OUTLINE")
+  setFontSafe(frame.Combo, "Fonts\\FRIZQT__.TTF", isHeroCue(announcer) and 19 or (feat and 16 or 17), "OUTLINE")
+  frame.Combo:ClearAllPoints()
+  frame.Combo:SetPoint("TOPLEFT", frame, "TOPLEFT", textLeft, -6)
+  frame.Combo:SetWidth(300)
   frame.Combo:Show()
   if frame.Badge then
     frame.Badge:Hide()
   end
-  if frame.Medal then
-    frame.Medal:Hide()
-  end
   if frame.Text then
     frame.Text:ClearAllPoints()
-    frame.Text:SetPoint("TOPLEFT", frame, "TOPLEFT", 96, -40)
-    frame.Text:SetSize(300, 34)
+    frame.Text:SetPoint("TOPLEFT", frame, "TOPLEFT", textLeft, -36)
+    frame.Text:SetSize(310, 36)
   end
   if frame.Divider then
-    paintSolid(frame.Divider, rgb[1], rgb[2], rgb[3], 0.28)
+    paintSolid(frame.Divider, rgb[1], rgb[2], rgb[3], 0.30)
     frame.Divider:ClearAllPoints()
-    frame.Divider:SetPoint("TOPLEFT", frame, "TOPLEFT", 96, -34)
-    frame.Divider:SetSize(220, 1)
+    frame.Divider:SetPoint("TOPLEFT", frame, "TOPLEFT", textLeft, -30)
+    frame.Divider:SetSize(230, 1)
     frame.Divider:Show()
   end
+  return true
+end
+
+local function setMedal(frame, kind, textLeft)
+  if not frame.Medal then
+    return
+  end
+  if kind ~= "revenge" and kind ~= "rival" and kind ~= "milestone" then
+    frame.Medal:Hide()
+    return
+  end
+  textLeft = textLeft or 96
+  if kind == "revenge" then
+    frame.Medal:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_8")
+  elseif kind == "rival" then
+    frame.Medal:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_2")
+  else
+    frame.Medal:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcon_1")
+  end
+  frame.Medal:ClearAllPoints()
+  frame.Medal:SetPoint("TOPLEFT", frame, "TOPLEFT", textLeft - 18, -10)
+  frame.Medal:SetSize(14, 14)
+  frame.Medal:SetVertexColor(1, 1, 1, 1)
+  frame.Medal:Show()
 end
 
 local function setFactionRing(frame, unit, classToken, announcer)
@@ -485,46 +643,78 @@ local function setFactionRing(frame, unit, classToken, announcer)
   end
 end
 
-local function layoutKillcam(frame)
+local function layoutKillcam(frame, deathLayout, compact)
+  ensureOverlayFonts(frame)
   if frame.SocketFrame then
     frame.SocketFrame:Hide()
   end
+  local portraitSide = deathLayout and "RIGHT" or "LEFT"
+  local textLeft = deathLayout and 18 or 96
+  local portraitX = deathLayout and -18 or 18
   if frame.Portrait then
     frame.Portrait:ClearAllPoints()
-    frame.Portrait:SetSize(60, 60)
-    frame.Portrait:SetPoint("LEFT", frame, "LEFT", 18, 0)
+    frame.Portrait:SetSize(56, 56)
+    frame.Portrait:SetPoint(portraitSide, frame, portraitSide, portraitX, 8)
     frame.Portrait:Show()
   end
   if frame.Model then
     frame.Model:ClearAllPoints()
-    frame.Model:SetSize(60, 60)
-    frame.Model:SetPoint("LEFT", frame, "LEFT", 18, 0)
+    frame.Model:SetSize(56, 56)
+    frame.Model:SetPoint(portraitSide, frame, portraitSide, portraitX, 8)
     frame.Model:SetFrameLevel((frame:GetFrameLevel() or 1) + 3)
   end
   if frame.FactionRing then
     frame.FactionRing:SetFrameLevel((frame:GetFrameLevel() or 1) + 5)
   end
+  if frame.PortraitShadow and frame.Portrait then
+    frame.PortraitShadow:ClearAllPoints()
+    frame.PortraitShadow:SetPoint("CENTER", frame.Portrait, "CENTER", deathLayout and -2 or 2, -2)
+  end
   if frame.Combo then
-    frame.Combo:ClearAllPoints()
-    frame.Combo:SetPoint("TOPLEFT", frame, "TOPLEFT", 96, -11)
-    frame.Combo:SetWidth(290)
     frame.Combo:SetJustifyH("LEFT")
   end
   if frame.Text then
-    frame.Text:ClearAllPoints()
-    frame.Text:SetPoint("TOPLEFT", frame, "TOPLEFT", 96, -40)
-    frame.Text:SetSize(300, 34)
     frame.Text:SetJustifyH("LEFT")
     frame.Text:SetJustifyV("TOP")
-    setFontSafe(frame.Text, "Fonts\\FRIZQT__.TTF", 13, "")
+    if frame.Text.SetWordWrap then
+      frame.Text:SetWordWrap(true)
+    end
+    setFontSafe(frame.Text, "Fonts\\FRIZQT__.TTF", compact and 12 or 13, "")
   end
   if frame.Speaker then
     frame.Speaker:ClearAllPoints()
-    frame.Speaker:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 96, 15)
-    frame.Speaker:SetWidth(300)
+    frame.Speaker:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", textLeft, 12)
+    frame.Speaker:SetWidth(310)
     frame.Speaker:SetJustifyH("LEFT")
     setFontSafe(frame.Speaker, "Fonts\\FRIZQT__.TTF", 11, "")
   end
+  if frame.Subject then
+    frame.Subject:ClearAllPoints()
+    if frame.Portrait then
+      frame.Subject:SetPoint("TOP", frame.Portrait, "BOTTOM", 0, -1)
+    else
+      frame.Subject:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 12, 4)
+    end
+    frame.Subject:SetWidth(86)
+    frame.Subject:SetHeight(30)
+    frame.Subject:SetJustifyH("CENTER")
+    if frame.Subject.SetWordWrap then
+      frame.Subject:SetWordWrap(true)
+    end
+    setFontSafe(frame.Subject, "Fonts\\FRIZQT__.TTF", 9, "")
+  end
+  if frame.Meta then
+    frame.Meta:ClearAllPoints()
+    frame.Meta:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -14, -8)
+    frame.Meta:SetWidth(210)
+    frame.Meta:SetJustifyH("RIGHT")
+    setFontSafe(frame.Meta, "Fonts\\FRIZQT__.TTF", 10, "")
+  end
+  if frame.RarityBarBg then
+    frame.RarityBarBg:ClearAllPoints()
+    frame.RarityBarBg:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", textLeft, 9)
+  end
+  return textLeft
 end
 
 function UI.RefreshMinimapStreak(streak)
@@ -586,8 +776,14 @@ local function applyPortrait(frame, unitOrNil, classToken, useModel)
   texture:Show()
   if unitOrNil and UnitExists(unitOrNil) then
     SetPortraitTexture(texture, unitOrNil)
-    -- Slight crop so the face fills the ring better.
     texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    return
+  end
+  -- Prefer race head when we know the race; class icon as last resort.
+  local raceIcon = frame._portraitRace and RACE_PORTRAIT[frame._portraitRace]
+  if raceIcon then
+    texture:SetTexture(raceIcon)
+    texture:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     return
   end
   local coords = CLASS_ICON_TCOORDS and classToken and CLASS_ICON_TCOORDS[classToken]
@@ -599,7 +795,7 @@ local function applyPortrait(frame, unitOrNil, classToken, useModel)
   end
 end
 
-function UI.ApplySavedPosition()
+function UI.ApplySavedPosition(modeOffset)
   local frame = BanterCombatPopup
   local s = ns.Options and ns.Options.Get and ns.Options.Get()
   if not frame or not s then
@@ -615,10 +811,19 @@ function UI.ApplySavedPosition()
   x = x or 0
   y = y or 20
   s.point, s.relPoint, s.x, s.y = point, rel, x, y
+  -- Ephemeral mode bias: world slightly higher, BG lower — does not rewrite saved drag.
+  local ox, oy = 0, 0
+  if modeOffset ~= false then
+    if UnitInBattleground and UnitInBattleground("player") then
+      oy = -72
+    else
+      oy = 28
+    end
+  end
   if PixelUtil and PixelUtil.SetPoint then
-    PixelUtil.SetPoint(frame, point, UIParent, rel, x, y)
+    PixelUtil.SetPoint(frame, point, UIParent, rel, x + ox, y + oy)
   else
-    frame:SetPoint(point, UIParent, rel, x, y)
+    frame:SetPoint(point, UIParent, rel, x + ox, y + oy)
   end
 end
 
@@ -629,6 +834,13 @@ function BanterCombat_SavePopupPosition(frame)
   end
   local point, _, relPoint, x, y = frame:GetPoint(1)
   if point then
+    -- Reverse ephemeral world/BG bias so the saved anchor stays stable.
+    y = y or 0
+    if UnitInBattleground and UnitInBattleground("player") then
+      y = y + 72
+    else
+      y = y - 28
+    end
     s.point, s.relPoint, s.x, s.y = point, relPoint, x, y
   end
 end
@@ -988,36 +1200,100 @@ function UI.DressDialogue(frame)
   frame._dialogueDark = dark and true or false
 end
 
+local function buildSubjectLine(payload, kind)
+  local L = ns.L or {}
+  -- Kill: fallen player. Death: killer. Milestone: keep empty-ish or feat target.
+  local raceTok = payload.victimRace
+  local classTok = payload.victimClass
+  local name = shortDisplayName(payload.victimName)
+  local bits = {}
+  if raceTok and Data.RaceLabel then
+    bits[#bits + 1] = Data.RaceLabel(raceTok)
+  end
+  if classTok and Data.ClassLabel then
+    bits[#bits + 1] = Data.ClassLabel(classTok)
+  end
+  if name and name ~= "" and name ~= "?" then
+    bits[#bits + 1] = name
+  elseif kind == "milestone" then
+    return ""
+  end
+  if #bits == 0 then
+    return L.ENEMY_FALLBACK or "Inimigo"
+  end
+  return table.concat(bits, " · ")
+end
+
+local function buildMetaLine(payload, kind)
+  local L = ns.L or {}
+  local bits = {}
+  local ctx = payload.context
+  if ctx then
+    bits[#bits + 1] = ctxLabel(ctx)
+  end
+  if type(payload.zone) == "string" and payload.zone ~= "" then
+    bits[#bits + 1] = payload.zone
+  end
+  if payload.revenge then
+    bits[#bits + 1] = L.COMP_LOG_REVENGE or "vingança"
+  end
+  local rk = tonumber(payload.rivalKills)
+  local rd = tonumber(payload.rivalDeaths)
+  if rk and rd and (rk > 0 or rd > 0) then
+    bits[#bits + 1] = (L.RIVAL_SCORE or "%d–%d"):format(rk, rd)
+  elseif kind == "rival" and rk then
+    bits[#bits + 1] = (L.RIVAL_SCORE or "%d–%d"):format(rk, rd or 0)
+  end
+  return table.concat(bits, " · ")
+end
+
+local showingPayload
+
 local function showNow(payload)
   local frame = BanterCombatPopup
   if not frame then
     showing = false
+    showingPayload = nil
     return
   end
   local s = settings()
-  local duration = tonumber(s.duration) or 4
+  local duration = resolveDuration(payload)
   generation = generation + 1
   local myGen = generation
+  showingPayload = payload
 
   stopHide()
   if UIFrameFadeRemoveFrame then
     UIFrameFadeRemoveFrame(frame)
   end
-  UI.ApplySavedPosition()
+  UI.ApplySavedPosition(true)
 
   local kind = payload.kind or "kill"
   local rarity = payload.rarity or "common"
   local announcer = payload.announcer
   local streak = tonumber(payload.streak) or 0
+  local deathLayout = kind == "death"
+  local compact = s.compactBanner == true
+  if kind == "milestone" then
+    compact = false
+  end
 
-  -- Cinematic killcam chrome for every theme (no DialogueUI parchment stack).
   applyPopupScale(frame)
   applyThemeChrome(frame, announcer)
-  layoutKillcam(frame)
+  local textLeft = layoutKillcam(frame, deathLayout, compact)
   tintEdge(frame, kind, rarity, announcer)
-  setKindBand(frame, kind, announcer)
+  setKindBand(frame, kind, announcer, deathLayout)
   setRarityBar(frame, kind, rarity)
-  setHeroCue(frame, announcer, payload.badge)
+  if frame.RarityBarBg then
+    frame.RarityBarBg:ClearAllPoints()
+    frame.RarityBarBg:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", textLeft, 9)
+  end
+  setHeroCue(frame, announcer, payload.badge, kind, textLeft)
+  local medalKind = kind
+  if payload.revenge then
+    medalKind = "revenge"
+  end
+  setMedal(frame, medalKind, textLeft)
   setStreakBig(frame, streak, announcer)
   setCueWash(frame, announcer, kind)
   if UI.RefreshMinimapStreak then
@@ -1029,37 +1305,77 @@ local function showNow(payload)
     bodyR, bodyG, bodyB = 0.93, 0.88, 0.78
   elseif kind == "death" then
     bodyR, bodyG, bodyB = 0.88, 0.58, 0.58
+  elseif kind == "milestone" then
+    bodyR, bodyG, bodyB = 0.95, 0.90, 0.70
   end
 
-  -- Signature: killer name + title (small, muted gold).
+  -- Signature stays the player (who spoke); subject line carries the fallen.
   local speaker = payload.speaker or UnitName("player") or "?"
   local icon = classIconMarkup(payload.class)
   local title = payload.title
   if frame.Speaker then
-    local nameText = icon .. "|cffE8C56A" .. speaker .. "|r"
-    if title and title ~= "" then
-      nameText = nameText .. "  |cff8A7A5A· " .. title .. "|r"
-      frame.Speaker:SetHeight(16)
+    if compact and kind ~= "milestone" then
+      frame.Speaker:Hide()
     else
-      frame.Speaker:SetHeight(14)
+      local nameText = icon .. "|cffE8C56A" .. speaker .. "|r"
+      if title and title ~= "" then
+        nameText = nameText .. "  |cff8A7A5A· " .. title .. "|r"
+        frame.Speaker:SetHeight(16)
+      else
+        frame.Speaker:SetHeight(14)
+      end
+      frame.Speaker:SetText(nameText)
+      frame.Speaker:SetTextColor(0.91, 0.77, 0.42)
+      frame.Speaker:Show()
     end
-    frame.Speaker:SetText(nameText)
-    frame.Speaker:SetTextColor(0.91, 0.77, 0.42)
-    frame.Speaker:Show()
   end
 
   if frame.Text then
-    frame.Text:SetText(payload.text or "")
-    frame.Text:SetTextColor(bodyR, bodyG, bodyB)
-    frame.Text:Show()
+    if compact and kind ~= "milestone" then
+      frame.Text:Hide()
+    else
+      frame.Text:SetText(payload.text or "")
+      frame.Text:SetTextColor(bodyR, bodyG, bodyB)
+      frame.Text:Show()
+    end
   end
 
-  -- Portrait: victim on KB, killer on death.
+  if frame.Subject then
+    local subject = buildSubjectLine(payload, kind)
+    if subject ~= "" then
+      frame.Subject:SetText(subject)
+      frame.Subject:SetTextColor(0.72, 0.70, 0.64)
+      frame.Subject:Show()
+    else
+      frame.Subject:Hide()
+    end
+  end
+  if frame.Meta then
+    local meta = buildMetaLine(payload, kind)
+    if meta ~= "" then
+      frame.Meta:SetText(meta)
+      frame.Meta:SetTextColor(0.55, 0.55, 0.50)
+      frame.Meta:Show()
+    else
+      frame.Meta:Hide()
+    end
+  end
+
   local portraitClass = payload.victimClass or payload.class
+  local portraitRace = payload.victimRace
   local portraitUnit = payload.portraitUnit
   if kind == "death" then
-    portraitUnit = payload.unit or portraitUnit
-    portraitClass = payload.class
+    -- Prefer target if it still matches the killer; else race/class fallback.
+    if UnitExists("target") and UnitIsPlayer("target") and not UnitIsUnit("target", "player") then
+      local tname = UnitName("target")
+      if not payload.victimName or (tname and shortDisplayName(tname) == shortDisplayName(payload.victimName)) then
+        portraitUnit = "target"
+      else
+        portraitUnit = nil
+      end
+    else
+      portraitUnit = nil
+    end
   else
     if not (portraitUnit and UnitExists(portraitUnit)) then
       if UnitExists("target") and UnitIsPlayer("target") and not UnitIsUnit("target", "player") then
@@ -1069,14 +1385,22 @@ local function showNow(payload)
       end
     end
   end
+  frame._portraitRace = portraitRace
   applyPortrait(frame, portraitUnit, portraitClass, s.useModel ~= false)
-  setFactionRing(frame, portraitUnit, portraitClass, announcer)
+  setFactionRing(frame, portraitUnit, portraitClass, deathLayout and nil or announcer)
 
-  -- Forever: Scale anim / UIFrameFadeIn can fail and leave alpha at 0 (invisible toast).
   frame:Show()
   frame:SetAlpha(1)
+  local punch = 1.04
+  if isHeroCue(announcer) then
+    punch = 1.10
+  elseif kind == "revenge" then
+    punch = 1.08
+  elseif kind == "death" or announcer == "Kill" or not announcer then
+    punch = 1.03
+  end
   if visualFxOn() then
-    local okAnim, ag = pcall(ensureEnterAnim, frame)
+    local okAnim, ag = pcall(ensureEnterAnim, frame, punch)
     if okAnim and ag then
       pcall(function()
         ag:Stop()
@@ -1084,10 +1408,9 @@ local function showNow(payload)
       end)
     end
     if UIFrameFadeIn then
-      pcall(UIFrameFadeIn, frame, 0.15, 0.35, 1)
+      pcall(UIFrameFadeIn, frame, isHeroCue(announcer) and 0.12 or 0.10, 0.40, 1)
     end
   end
-  -- Safety net if fade/anim left the frame too dim.
   if C_Timer and C_Timer.After then
     C_Timer.After(0.3, function()
       if myGen ~= generation or not frame:IsShown() then
@@ -1098,7 +1421,7 @@ local function showNow(payload)
       end
     end)
   end
-  playFlash(frame, announcer or (kind == "death" and nil) or "Kill", kind)
+  playFlashSynced(frame, announcer or (kind == "death" and "Kill") or "Kill", kind, myGen)
   if not payload.silent and not payload.soundPlayed then
     playShowSound(kind, rarity, announcer)
   end
@@ -1113,28 +1436,30 @@ local function showNow(payload)
         pcall(function()
           local slide = frame:CreateAnimationGroup()
           local tr = slide:CreateAnimation("Translation")
-          tr:SetOffset(0, 16)
-          tr:SetDuration(0.35)
+          tr:SetOffset(0, deathLayout and -12 or 16)
+          tr:SetDuration(0.32)
           tr:SetSmoothing("IN")
           slide:Play()
         end)
       end
       if UIFrameFadeOut then
-        pcall(UIFrameFadeOut, frame, 0.35, frame:GetAlpha(), 0)
+        pcall(UIFrameFadeOut, frame, 0.32, frame:GetAlpha(), 0)
       else
         frame:SetAlpha(0)
       end
-      C_Timer.After(0.4, function()
+      C_Timer.After(0.38, function()
         if myGen ~= generation then
           return
         end
         frame:Hide()
         frame:SetAlpha(1)
         showing = false
+        showingPayload = nil
         UI.Pump()
       end)
     else
       showing = false
+      showingPayload = nil
       UI.Pump()
     end
   end)
@@ -1160,9 +1485,42 @@ function UI.Enqueue(payload)
   if s and s.showDeaths == false and payload and payload.kind == "death" then
     return
   end
-  queue[#queue + 1] = payload
-  while #queue > 8 do
-    table.remove(queue, 1)
+  payload = payload or {}
+  payload._prio = queuePriority(payload)
+
+  -- Kill / revenge preempt a milestone toast so the feat never erases the killcam.
+  if showing and showingPayload and showingPayload.kind == "milestone" then
+    local incoming = payload._prio or 0
+    if incoming >= 70 then
+      local held = showingPayload
+      generation = generation + 1
+      stopHide()
+      showing = false
+      showingPayload = nil
+      table.insert(queue, 1, held)
+      table.insert(queue, 1, payload)
+      while #queue > 10 do
+        table.remove(queue)
+      end
+      UI.Pump()
+      return
+    end
+  end
+
+  -- Insert by priority so feats wait behind kills already queued.
+  local inserted = false
+  for i = 1, #queue do
+    if (payload._prio or 0) > (queue[i]._prio or 0) then
+      table.insert(queue, i, payload)
+      inserted = true
+      break
+    end
+  end
+  if not inserted then
+    queue[#queue + 1] = payload
+  end
+  while #queue > 10 do
+    table.remove(queue)
   end
   UI.Pump()
 end
