@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.33
+
+- Fix popup missing on Forever: secret `UnitName`/`UnitFactionGroup` compares no longer abort `showNow` before `Show()`.
+- Portrait/faction ring guarded with `pcall`; queue recovers if a toast still errors.
+
 ## 1.0.32
 
 - Banner themes: Alliance/Horde, all classes, all races, plus Auto · Faction/Class/Race.

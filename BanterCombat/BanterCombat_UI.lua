@@ -281,22 +281,26 @@ end
 
 local function resolveThemeKey(raw)
   local t = raw
-  if t == nil or t == "" then
+  if t == nil or t == "" or isSecret(t) then
     t = "dark"
   end
   if t == "auto" or t == "autoFaction" then
-    local faction = UnitFactionGroup and UnitFactionGroup("player")
-    if faction == "Alliance" then
+    local ok, faction = pcall(function()
+      return UnitFactionGroup and UnitFactionGroup("player")
+    end)
+    if ok and safeEqual(faction, "Alliance") then
       return "alliance"
     end
-    if faction == "Horde" then
+    if ok and safeEqual(faction, "Horde") then
       return "horde"
     end
     return "dark"
   end
   if t == "autoClass" then
-    local _, class = UnitClass("player")
-    if type(class) == "string" then
+    local ok, class = pcall(function()
+      return select(2, UnitClass("player"))
+    end)
+    if ok and valueUsable(class) and type(class) == "string" then
       local key = string.lower(class)
       if THEME_PALETTES[key] then
         return key
@@ -305,14 +309,16 @@ local function resolveThemeKey(raw)
     return "dark"
   end
   if t == "autoRace" then
-    local _, raceFile = UnitRace("player")
-    local key = raceFile and RACE_THEME[raceFile]
+    local ok, raceFile = pcall(function()
+      return select(2, UnitRace("player"))
+    end)
+    local key = ok and valueUsable(raceFile) and RACE_THEME[raceFile]
     if key and THEME_PALETTES[key] then
       return key
     end
     return "dark"
   end
-  if THEME_PALETTES[t] then
+  if type(t) == "string" and THEME_PALETTES[t] then
     return t
   end
   return "dark"
@@ -569,14 +575,52 @@ local function queuePriority(payload)
   return 50
 end
 
-local function shortDisplayName(name)
-  if ns.Stats and ns.Stats.DisplayName then
-    return ns.Stats.DisplayName(name) or name
+local function isSecret(v)
+  return (issecretvalue and issecretvalue(v)) and true or false
+end
+
+local function valueUsable(v)
+  return v ~= nil and not isSecret(v)
+end
+
+local function safeEqual(a, b)
+  if a == nil and b == nil then
+    return true
   end
-  if type(name) ~= "string" then
+  if a == nil or b == nil or isSecret(a) or isSecret(b) then
+    return false
+  end
+  local ok, eq = pcall(function()
+    return a == b
+  end)
+  return ok and eq and true or false
+end
+
+local function safePlain(v)
+  if not valueUsable(v) or type(v) ~= "string" then
     return nil
   end
-  return name:match("^([^%-]+)") or name
+  return v
+end
+
+local function shortDisplayName(name)
+  name = safePlain(name)
+  if not name then
+    return nil
+  end
+  if ns.Stats and ns.Stats.DisplayName then
+    local ok, shown = pcall(ns.Stats.DisplayName, name)
+    if ok and type(shown) == "string" and shown ~= "" then
+      return shown
+    end
+  end
+  local ok, short = pcall(function()
+    return name:match("^([^%-]+)") or name
+  end)
+  if ok then
+    return short
+  end
+  return name
 end
 
 local function ctxLabel(ctx)
@@ -830,12 +874,19 @@ local function setFactionRing(frame, unit, classToken, announcer)
   frame.FactionRing:SetTexture("Interface\\Buttons\\UI-Quickslot2")
   frame.FactionRing:SetTexCoord(0.15, 0.85, 0.15, 0.85)
   local rgb = ANNOUNCER_FLASH[announcer]
-  local faction = unit and UnitExists(unit) and UnitFactionGroup and UnitFactionGroup(unit)
+  -- Forever: UnitFactionGroup(target) can be a secret string — never compare raw.
+  local faction
+  if unit and UnitExists(unit) and UnitFactionGroup then
+    local ok, value = pcall(UnitFactionGroup, unit)
+    if ok and valueUsable(value) then
+      faction = value
+    end
+  end
   if rgb then
     frame.FactionRing:SetVertexColor(rgb[1], rgb[2], rgb[3], 1)
-  elseif faction == "Alliance" then
+  elseif safeEqual(faction, "Alliance") then
     frame.FactionRing:SetVertexColor(0.35, 0.55, 1.0, 1)
-  elseif faction == "Horde" then
+  elseif safeEqual(faction, "Horde") then
     frame.FactionRing:SetVertexColor(0.95, 0.25, 0.18, 1)
   elseif classToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
     local c = RAID_CLASS_COLORS[classToken]
@@ -1601,33 +1652,34 @@ local function showNow(payload)
   local portraitClass = payload.victimClass or payload.class
   local portraitRace = payload.victimRace
   local portraitUnit = payload.portraitUnit
-  if kind == "death" then
-    -- Prefer target if it still matches the killer; else race/class fallback.
-    if UnitExists("target") and UnitIsPlayer("target") and not UnitIsUnit("target", "player") then
-      local tname = UnitName("target")
-      if not payload.victimName or (tname and shortDisplayName(tname) == shortDisplayName(payload.victimName)) then
-        portraitUnit = "target"
-      else
-        portraitUnit = nil
-      end
-    else
-      portraitUnit = nil
-    end
-  else
-    if not (portraitUnit and UnitExists(portraitUnit)) then
-      if UnitExists("target") and UnitIsPlayer("target") and not UnitIsUnit("target", "player") then
-        portraitUnit = "target"
-      else
-        portraitUnit = nil
-      end
-    end
-  end
-  frame._portraitRace = portraitRace
-  applyPortrait(frame, portraitUnit, portraitClass, s.useModel ~= false)
-  setFactionRing(frame, portraitUnit, portraitClass, deathLayout and nil or announcer)
-
+  -- Show first so a Forever secret-string error in portrait/ring never hides the banner.
   frame:Show()
   frame:SetAlpha(1)
+
+  local function resolvePortraitUnit()
+    if kind == "death" then
+      if UnitExists("target") and UnitIsPlayer("target") and not UnitIsUnit("target", "player") then
+        local tname = safePlain(UnitName and UnitName("target"))
+        local want = shortDisplayName(payload.victimName)
+        if not want or (tname and safeEqual(shortDisplayName(tname), want)) then
+          return "target"
+        end
+      end
+      return nil
+    end
+    if portraitUnit and UnitExists(portraitUnit) then
+      return portraitUnit
+    end
+    if UnitExists("target") and UnitIsPlayer("target") and not UnitIsUnit("target", "player") then
+      return "target"
+    end
+    return nil
+  end
+  local okUnit, unitOrNil = pcall(resolvePortraitUnit)
+  portraitUnit = okUnit and unitOrNil or nil
+  frame._portraitRace = portraitRace
+  pcall(applyPortrait, frame, portraitUnit, portraitClass, s.useModel ~= false)
+  pcall(setFactionRing, frame, portraitUnit, portraitClass, deathLayout and nil or announcer)
   local punch = 1.04
   if isHeroCue(announcer) then
     punch = 1.10
@@ -1711,7 +1763,40 @@ function UI.Pump()
     return
   end
   showing = true
-  showNow(nextPayload)
+  local ok, err = pcall(showNow, nextPayload)
+  if not ok then
+    showing = false
+    showingPayload = nil
+    local frame = BanterCombatPopup
+    if frame then
+      -- Last-resort visible toast so a secret-string crash never eats the KB feedback.
+      pcall(function()
+        frame:Show()
+        frame:SetAlpha(1)
+        if frame.Text then
+          frame.Text:SetText((nextPayload and nextPayload.text) or "")
+          frame.Text:Show()
+        end
+        if frame.Speaker then
+          frame.Speaker:SetText((nextPayload and nextPayload.speaker) or "")
+          frame.Speaker:Show()
+        end
+      end)
+      if C_Timer and C_Timer.After then
+        C_Timer.After(3, function()
+          if frame:IsShown() then
+            frame:Hide()
+          end
+          UI.Pump()
+        end)
+      end
+    else
+      UI.Pump()
+    end
+    if ns.Options and ns.Options.Get and ns.Options.Get().debug then
+      print("|cFFFFD100BanterCombat|r popup error:", tostring(err))
+    end
+  end
 end
 
 function UI.Enqueue(payload)
@@ -1786,7 +1871,7 @@ function UI.QueueSize()
 end
 
 if BanterCombatPopup then
-  UI.DressDialogue(BanterCombatPopup)
+  pcall(UI.DressDialogue, BanterCombatPopup)
 end
 
 _G[addonName] = ns
