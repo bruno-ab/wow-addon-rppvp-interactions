@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.35
+
+- Fix deaths not registering on Forever: detect self via CLEU `AFFILIATION_MINE` + `PLAYER_DEAD` (secret GUID compare no longer required).
+- Remember the last hostile attacker from incoming damage flags and resolve killer from target / recent hostile if needed.
+
 ## 1.0.34
 
 - Options panel rebuilt with a scroll area so checks/sliders/buttons no longer overlap.

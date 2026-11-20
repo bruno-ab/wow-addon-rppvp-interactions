@@ -488,6 +488,74 @@ local function IsMineSource(guid, flags)
   return false
 end
 
+-- "This CLEU row is about me" — never rely only on GUID == (secret on Forever).
+local function IsSelfCleU(guid, flags)
+  if flags and band(flags, COMBATLOG_OBJECT_AFFILIATION_MINE) > 0 then
+    return true
+  end
+  if not playerGUID then
+    playerGUID = UnitGUID("player")
+  end
+  return SafeEqual(guid, playerGUID)
+end
+
+local function EnrichKillerFromUnit(unit, base)
+  base = base or {}
+  if not unit or not UnitExists(unit) then
+    return base
+  end
+  base.name = NameUsable(base.name) or NameUsable(UnitName(unit))
+  local _, class = UnitClass(unit)
+  base.class = base.class or class
+  base.race = NormalizeRaceValue(base.race or RaceFromUnit(unit))
+  if UnitSex then
+    base.sex = base.sex or UnitSex(unit)
+  end
+  if UnitLevel then
+    local level = UnitLevel(unit)
+    if level and level > 0 then
+      base.level = base.level or level
+    end
+  end
+  base.guid = SafeString(base.guid) or SafeString(UnitGUID and UnitGUID(unit))
+  return base
+end
+
+local function ResolveDeathKiller()
+  local now = GetTime and GetTime() or 0
+  local killer = ns._lastHostileAttacker
+  if killer and (now - (killer.at or 0)) <= 15 then
+    if killer.guid and SafeEqual(killer.guid, playerGUID) then
+      killer = nil
+    else
+      if TargetingHostilePlayer() then
+        local tguid = UnitGUID and UnitGUID("target")
+        if (killer.guid and SafeEqual(killer.guid, tguid))
+          or (killer.name and SafeEqual(NameUsable(UnitName("target")), killer.name))
+          or (not ValueUsable(killer.guid) and not ValueUsable(tguid)) then
+          killer = EnrichKillerFromUnit("target", killer)
+        end
+      end
+      if NameUsable(killer.name) or killer.class or killer.race then
+        return killer
+      end
+    end
+  end
+  if TargetingHostilePlayer() then
+    return EnrichKillerFromUnit("target", {})
+  end
+  if lastHostilePlayer and (now - (lastHostilePlayer.at or 0)) <= 20 then
+    return {
+      name = lastHostilePlayer.name,
+      guid = lastHostilePlayer.guid,
+      class = lastHostilePlayer.class,
+      race = NormalizeRaceValue(lastHostilePlayer.race),
+      level = lastHostilePlayer.level,
+    }
+  end
+  return nil
+end
+
 local function RememberHostile(info)
   if type(info) ~= "table" then
     return
@@ -1674,12 +1742,8 @@ local function HandleCombatLog(...)
   end
 
   if subevent == "UNIT_DIED" then
-    if SafeEqual(destGUID, playerGUID) then
-      local killer = ns._lastHostileAttacker
-      if killer and SafeEqual(killer.guid, playerGUID) then
-        killer = nil
-      end
-      OnPlayerDeath(killer)
+    if IsSelfCleU(destGUID, destFlags) then
+      OnPlayerDeath(ResolveDeathKiller())
       ns._lastHostileAttacker = nil
       return
     end
@@ -1711,7 +1775,8 @@ local function HandleCombatLog(...)
     return
   end
 
-  if sourceGUID and not IsMineSource(sourceGUID, sourceFlags) and SafeEqual(destGUID, playerGUID) and IsPlayerFlags(sourceFlags, sourceGUID) then
+  -- Incoming PvP damage on me → remember killer (flags first; GUID may be secret).
+  if sourceGUID and not IsMineSource(sourceGUID, sourceFlags) and IsSelfCleU(destGUID, destFlags) then
     if subevent == "SWING_DAMAGE" or subevent == "RANGE_DAMAGE"
       or subevent == "SPELL_DAMAGE" or subevent == "SPELL_PERIODIC_DAMAGE"
       or (type(subevent) == "string" and find(subevent, "_DAMAGE", 1, true)) then
@@ -1719,10 +1784,32 @@ local function HandleCombatLog(...)
         return
       end
       local sn = NameUsable(sourceName)
-      ns._lastHostileAttacker = InfoFromGUID(sourceGUID) or {
+      local looksPlayer = IsPlayerFlags(sourceFlags, sourceGUID)
+        or (IsHostileFlags(sourceFlags) and sn ~= nil)
+        or (TargetingHostilePlayer() and (
+          SafeEqual(UnitGUID("target"), sourceGUID)
+          or (sn and SafeEqual(NameUsable(UnitName("target")), sn))
+          or not ValueUsable(sourceGUID)
+        ))
+      if not looksPlayer then
+        return
+      end
+      local killer = InfoFromGUID(sourceGUID) or {
         name = sn,
         guid = SafeString(sourceGUID),
       }
+      killer.name = NameUsable(killer.name) or sn
+      killer.at = GetTime and GetTime() or 0
+      if TargetingHostilePlayer() and (
+        SafeEqual(UnitGUID("target"), sourceGUID)
+        or (sn and SafeEqual(NameUsable(UnitName("target")), sn))
+        or not ValueUsable(sourceGUID)
+      ) then
+        killer = EnrichKillerFromUnit("target", killer)
+        killer.at = GetTime and GetTime() or 0
+      end
+      ns._lastHostileAttacker = killer
+      RememberHostile(killer)
       if s.rivalAlert and sn and Stats.RivalByName then
         local rival = Stats.RivalByName(sn)
         local meetings = rival and ((rival.kills or 0) + (rival.deaths or 0)) or 0
@@ -1946,6 +2033,15 @@ local function OnEvent(_, event, ...)
     local ok, err = pcall(HandleCombatLog, ...)
     if not ok then
       Debug("cleu err", err)
+    end
+  elseif event == "PLAYER_DEAD" then
+    -- Forever often secrets destGUID on UNIT_DIED; PLAYER_DEAD is the reliable self-death signal.
+    local ok, err = pcall(function()
+      OnPlayerDeath(ResolveDeathKiller())
+      ns._lastHostileAttacker = nil
+    end)
+    if not ok then
+      Debug("player-dead err", err)
     end
   elseif event == "CHAT_MSG_COMBAT_HOSTILE_DEATH" or event == "CHAT_MSG_COMBAT_XP_GAIN"
     or event == "CHAT_MSG_SYSTEM" then
@@ -2226,6 +2322,7 @@ eventFrame:RegisterEvent("PLAYER_LOGIN")
 eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 eventFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 pcall(eventFrame.RegisterEvent, eventFrame, "COMBAT_LOG_EVENT")
+eventFrame:RegisterEvent("PLAYER_DEAD")
 eventFrame:RegisterEvent("CHAT_MSG_ADDON")
 pcall(eventFrame.RegisterEvent, eventFrame, "CHAT_MSG_COMBAT_HOSTILE_DEATH")
 -- HONOR_GAIN is polled via GetPVPSessionStats; do not parse its (often secret) chat text.
