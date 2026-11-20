@@ -214,8 +214,19 @@ function Options.CycleUiTheme()
   end
   local nextTheme = UI_THEME_ORDER[(index % #UI_THEME_ORDER) + 1]
   Options.Set("uiTheme", nextTheme)
-  if BanterCombatPopup and ns.UI and ns.UI.DressDialogue then
-    ns.UI.DressDialogue(BanterCombatPopup)
+  if BanterCombatPopup then
+    BanterCombatPopup._chromeKey = nil
+    BanterCombatPopup._uiTheme = nil
+    BanterCombatPopup._themePal = nil
+    if ns.UI and ns.UI.DressDialogue then
+      pcall(ns.UI.DressDialogue, BanterCombatPopup)
+    end
+  end
+  -- Preview so the player sees the new shade/signature immediately.
+  if ns.PreviewAnnouncer then
+    pcall(ns.PreviewAnnouncer)
+  elseif ns.Preview then
+    pcall(ns.Preview, "kill")
   end
   return nextTheme
 end
@@ -307,18 +318,69 @@ Options.CreateDialogFrame = CreateDialogFrame
 
 local function makeCheck(parent, label, key, y)
   local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
-  cb:SetPoint("TOPLEFT", 16, y)
+  cb:SetPoint("TOPLEFT", 12, y)
   cb._banterKey = key
   local text = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
   text:SetPoint("LEFT", cb, "RIGHT", 4, 0)
   text:SetText(label)
-  text:SetWidth(280)
+  text:SetWidth(300)
   text:SetJustifyH("LEFT")
   cb:SetScript("OnClick", function(self)
     Options.Set(key, self:GetChecked() and true or false)
   end)
   checks[#checks + 1] = cb
   return cb
+end
+
+local function styleSlider(slider)
+  local name = slider:GetName()
+  local title = name and _G[name .. "Text"]
+  if title then
+    title:ClearAllPoints()
+    title:SetPoint("LEFT", slider, "RIGHT", 10, 0)
+    title:SetJustifyH("LEFT")
+    title:SetWidth(56)
+  end
+  local low = name and _G[name .. "Low"]
+  if low then
+    low:ClearAllPoints()
+    low:SetPoint("TOPLEFT", slider, "BOTTOMLEFT", 0, 0)
+  end
+  local high = name and _G[name .. "High"]
+  if high then
+    high:ClearAllPoints()
+    high:SetPoint("TOPRIGHT", slider, "BOTTOMRIGHT", 0, 0)
+  end
+end
+
+local function makeSliderRow(parent, y, labelText, globalName, minV, maxV, step, value, onChanged, lowText, highText, valueText)
+  local label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+  label:SetPoint("TOPLEFT", 16, y)
+  label:SetWidth(150)
+  label:SetJustifyH("LEFT")
+  label:SetText(labelText)
+  local slider = CreateFrame("Slider", globalName, parent, "OptionsSliderTemplate")
+  slider:SetPoint("TOPLEFT", 160, y - 4)
+  slider:SetMinMaxValues(minV, maxV)
+  slider:SetValueStep(step)
+  if slider.SetObeyStepOnDrag then
+    slider:SetObeyStepOnDrag(true)
+  end
+  slider:SetWidth(150)
+  slider:SetValue(value)
+  styleSlider(slider)
+  local name = slider:GetName()
+  if _G[name .. "Low"] then
+    _G[name .. "Low"]:SetText(lowText)
+  end
+  if _G[name .. "High"] then
+    _G[name .. "High"]:SetText(highText)
+  end
+  if _G[name .. "Text"] then
+    _G[name .. "Text"]:SetText(valueText)
+  end
+  slider:SetScript("OnValueChanged", onChanged)
+  return slider
 end
 
 local function refreshChecks()
@@ -335,12 +397,26 @@ function Options.TogglePanel()
     panel:Hide()
     return
   end
+  -- Force rebuild if this is a pre-scroll layout (overlapping sliders/buttons).
+  if panel and not panel._scroll then
+    panel:Hide()
+    if _G.BanterCombatOptions == panel then
+      _G.BanterCombatOptions = nil
+    end
+    panel = nil
+    wipe(checks)
+  end
   if panel then
     ApplyWowDialogBackdrop(panel)
   end
   if not panel then
+    if _G.BanterCombatOptions then
+      _G.BanterCombatOptions:Hide()
+      _G.BanterCombatOptions = nil
+    end
+    wipe(checks)
     panel = CreateDialogFrame("BanterCombatOptions", UIParent)
-    panel:SetSize(380, 780)
+    panel:SetSize(400, 560)
     panel:SetPoint("CENTER")
     panel:SetFrameStrata("DIALOG")
     panel:EnableMouse(true)
@@ -349,116 +425,122 @@ function Options.TogglePanel()
     panel:SetScript("OnDragStart", panel.StartMoving)
     panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
     ApplyWowDialogBackdrop(panel)
+
     local title = panel:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOP", 0, -14)
     title:SetText(L.OPT_TITLE)
 
-    makeCheck(panel, L.OPT_ENABLE, "enabled", -40)
-    makeCheck(panel, L.OPT_SYNC, "syncWhisper", -64)
-    makeCheck(panel, L.OPT_GROUP, "syncGroup", -88)
-    makeCheck(panel, L.OPT_SHOW_GROUP, "showGroupBanter", -112)
-    makeCheck(panel, L.OPT_SHOW_DEATHS, "showDeaths", -136)
-    makeCheck(panel, L.OPT_SOUND, "sound", -160)
-    makeCheck(panel, L.OPT_MODEL, "useModel", -184)
-    makeCheck(panel, L.OPT_PVP_ONLY, "pvpOnly", -208)
-    makeCheck(panel, L.OPT_HOSTILE, "hostileOnly", -232)
-    makeCheck(panel, L.OPT_CHAT, "chatAnnounce", -256)
-    makeCheck(panel, L.OPT_CHAT_KILL, "chatKillBlow", -280)
-    makeCheck(panel, L.OPT_CHAT_ONLY, "chatOnly", -304)
-    makeCheck(panel, L.OPT_QUIET_BG, "quietBg", -328)
-    makeCheck(panel, L.OPT_RIVAL_ALERT, "rivalAlert", -352)
-    makeCheck(panel, L.OPT_DEBUG, "debug", -376)
-    makeCheck(panel, L.OPT_SHOW_STREAK or "Mostrar número da streak", "showStreak", -400)
-    makeCheck(panel, L.OPT_VISUAL_FX or "Efeitos visuais (flash/punch)", "visualFx", -424)
-    makeCheck(panel, L.OPT_COMPACT_BANNER or "Banner compacto (só cue + portrait)", "compactBanner", -448)
-
-    local durLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    durLabel:SetPoint("TOPLEFT", 24, -472)
-    durLabel:SetText(L.OPT_DURATION)
-    local slider = CreateFrame("Slider", "BanterCombatDurSlider", panel, "OptionsSliderTemplate")
-    slider:SetPoint("TOPLEFT", 170, -474)
-    slider:SetMinMaxValues(2, 8)
-    slider:SetValueStep(0.5)
-    if slider.SetObeyStepOnDrag then
-      slider:SetObeyStepOnDrag(true)
-    end
-    slider:SetWidth(160)
-    slider:SetValue(Options.Get().duration or 4)
-    _G[slider:GetName() .. "Low"]:SetText("2")
-    _G[slider:GetName() .. "High"]:SetText("8")
-    _G[slider:GetName() .. "Text"]:SetText(string.format("%.1f", Options.Get().duration or 4))
-    slider:SetScript("OnValueChanged", function(self, value)
-      value = math.floor(value * 2 + 0.5) / 2
-      Options.Set("duration", value)
-      _G[self:GetName() .. "Text"]:SetText(string.format("%.1f", value))
-    end)
-
-    local volLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    volLabel:SetPoint("TOPLEFT", 24, -512)
-    volLabel:SetText(L.OPT_ANNOUNCER_VOLUME)
-    local volSlider = CreateFrame("Slider", "BanterCombatVolSlider", panel, "OptionsSliderTemplate")
-    volSlider:SetPoint("TOPLEFT", 170, -514)
-    volSlider:SetMinMaxValues(0, 100)
-    volSlider:SetValueStep(5)
-    if volSlider.SetObeyStepOnDrag then
-      volSlider:SetObeyStepOnDrag(true)
-    end
-    volSlider:SetWidth(160)
-    volSlider:SetValue(Options.Get().announcerVolume or 100)
-    _G[volSlider:GetName() .. "Low"]:SetText("0")
-    _G[volSlider:GetName() .. "High"]:SetText("100")
-    _G[volSlider:GetName() .. "Text"]:SetText(tostring(Options.Get().announcerVolume or 100))
-    volSlider:SetScript("OnValueChanged", function(self, value)
-      value = math.floor((tonumber(value) or 100) / 5 + 0.5) * 5
-      Options.Set("announcerVolume", value)
-      _G[self:GetName() .. "Text"]:SetText(tostring(value))
-    end)
-
-    local scaleLabel = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-    scaleLabel:SetPoint("TOPLEFT", 24, -552)
-    scaleLabel:SetText(L.OPT_POPUP_SCALE or "Tamanho do pop-up")
-    local scaleSlider = CreateFrame("Slider", "BanterCombatScaleSlider", panel, "OptionsSliderTemplate")
-    scaleSlider:SetPoint("TOPLEFT", 170, -554)
-    scaleSlider:SetMinMaxValues(0.7, 1.4)
-    scaleSlider:SetValueStep(0.05)
-    if scaleSlider.SetObeyStepOnDrag then
-      scaleSlider:SetObeyStepOnDrag(true)
-    end
-    scaleSlider:SetWidth(160)
-    scaleSlider:SetValue(Options.Get().popupScale or 1)
-    _G[scaleSlider:GetName() .. "Low"]:SetText("70%")
-    _G[scaleSlider:GetName() .. "High"]:SetText("140%")
-    _G[scaleSlider:GetName() .. "Text"]:SetText(string.format("%.0f%%", (Options.Get().popupScale or 1) * 100))
-    scaleSlider:SetScript("OnValueChanged", function(self, value)
-      value = math.floor(value * 20 + 0.5) / 20
-      Options.Set("popupScale", value)
-      _G[self:GetName() .. "Text"]:SetText(string.format("%.0f%%", value * 100))
-      if BanterCombatPopup and ns.UI and ns.UI.DressDialogue then
-        ns.UI.DressDialogue(BanterCombatPopup)
+    local scroll = CreateFrame("ScrollFrame", "BanterCombatOptionsScroll", panel)
+    scroll:SetPoint("TOPLEFT", 12, -40)
+    scroll:SetPoint("BOTTOMRIGHT", -28, 108)
+    scroll:EnableMouseWheel(true)
+    scroll:SetScript("OnMouseWheel", function(self, delta)
+      local cur = self:GetVerticalScroll() or 0
+      local range = self:GetVerticalScrollRange() or 0
+      local nextY = cur - (delta * 36)
+      if nextY < 0 then
+        nextY = 0
+      elseif nextY > range then
+        nextY = range
       end
+      self:SetVerticalScroll(nextY)
     end)
 
-    local channelBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    channelBtn:SetSize(340, 22)
-    channelBtn:SetPoint("TOPLEFT", 20, -600)
+    local content = CreateFrame("Frame", "BanterCombatOptionsContent", scroll)
+    content:SetSize(350, 980)
+    scroll:SetScrollChild(content)
+    panel._scroll = scroll
+    panel._content = content
+
+    local y = -8
+    local function nextCheck(label, key)
+      makeCheck(content, label, key, y)
+      y = y - 26
+    end
+
+    nextCheck(L.OPT_ENABLE, "enabled")
+    nextCheck(L.OPT_SYNC, "syncWhisper")
+    nextCheck(L.OPT_GROUP, "syncGroup")
+    nextCheck(L.OPT_SHOW_GROUP, "showGroupBanter")
+    nextCheck(L.OPT_SHOW_DEATHS, "showDeaths")
+    nextCheck(L.OPT_SOUND, "sound")
+    nextCheck(L.OPT_MODEL, "useModel")
+    nextCheck(L.OPT_PVP_ONLY, "pvpOnly")
+    nextCheck(L.OPT_HOSTILE, "hostileOnly")
+    nextCheck(L.OPT_CHAT, "chatAnnounce")
+    nextCheck(L.OPT_CHAT_KILL, "chatKillBlow")
+    nextCheck(L.OPT_CHAT_ONLY, "chatOnly")
+    nextCheck(L.OPT_QUIET_BG, "quietBg")
+    nextCheck(L.OPT_RIVAL_ALERT, "rivalAlert")
+    nextCheck(L.OPT_DEBUG, "debug")
+    nextCheck(L.OPT_SHOW_STREAK or "Mostrar número da streak", "showStreak")
+    nextCheck(L.OPT_VISUAL_FX or "Efeitos visuais (flash/punch)", "visualFx")
+    nextCheck(L.OPT_COMPACT_BANNER or "Banner compacto (só cue + portrait)", "compactBanner")
+
+    y = y - 14
+    makeSliderRow(content, y, L.OPT_DURATION, "BanterCombatDurSlider", 2, 8, 0.5,
+      Options.Get().duration or 4,
+      function(self, value)
+        value = math.floor(value * 2 + 0.5) / 2
+        Options.Set("duration", value)
+        local t = _G[self:GetName() .. "Text"]
+        if t then
+          t:SetText(string.format("%.1f", value))
+        end
+      end, "2", "8", string.format("%.1f", Options.Get().duration or 4))
+    y = y - 56
+
+    makeSliderRow(content, y, L.OPT_ANNOUNCER_VOLUME, "BanterCombatVolSlider", 0, 100, 5,
+      Options.Get().announcerVolume or 100,
+      function(self, value)
+        value = math.floor((tonumber(value) or 100) / 5 + 0.5) * 5
+        Options.Set("announcerVolume", value)
+        local t = _G[self:GetName() .. "Text"]
+        if t then
+          t:SetText(tostring(value))
+        end
+      end, "0", "100", tostring(Options.Get().announcerVolume or 100))
+    y = y - 56
+
+    makeSliderRow(content, y, L.OPT_POPUP_SCALE or "Tamanho do pop-up", "BanterCombatScaleSlider", 0.7, 1.4, 0.05,
+      Options.Get().popupScale or 1,
+      function(self, value)
+        value = math.floor(value * 20 + 0.5) / 20
+        Options.Set("popupScale", value)
+        local t = _G[self:GetName() .. "Text"]
+        if t then
+          t:SetText(string.format("%.0f%%", value * 100))
+        end
+        if BanterCombatPopup and ns.UI and ns.UI.DressDialogue then
+          BanterCombatPopup._chromeKey = nil
+          pcall(ns.UI.DressDialogue, BanterCombatPopup)
+        end
+      end, "70%", "140%", string.format("%.0f%%", (Options.Get().popupScale or 1) * 100))
+    y = y - 60
+
+    local channelBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    channelBtn:SetSize(320, 24)
+    channelBtn:SetPoint("TOPLEFT", 16, y)
     channelBtn:SetScript("OnClick", function(self)
       local channel = Options.CycleSoundChannel()
       self:SetText(L.OPT_SOUND_CHANNEL:format(channel))
     end)
     panel._channelBtn = channelBtn
+    y = y - 32
 
-    local themeBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    themeBtn:SetSize(340, 22)
-    themeBtn:SetPoint("TOPLEFT", 20, -628)
+    local themeBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    themeBtn:SetSize(320, 24)
+    themeBtn:SetPoint("TOPLEFT", 16, y)
     themeBtn:SetScript("OnClick", function(self)
       local theme = Options.CycleUiTheme()
       self:SetText((L.OPT_THEME or "Tema: %s"):format(Options.ThemeLabel(theme)))
     end)
     panel._themeBtn = themeBtn
+    y = y - 32
 
-    local testBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    testBtn:SetSize(340, 22)
-    testBtn:SetPoint("TOPLEFT", 20, -656)
+    local testBtn = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+    testBtn:SetSize(320, 24)
+    testBtn:SetPoint("TOPLEFT", 16, y)
     testBtn:SetText(L.OPT_TEST or "Testar anunciador")
     testBtn:SetScript("OnClick", function()
       if ns.PreviewAnnouncer then
@@ -466,6 +548,8 @@ function Options.TogglePanel()
       end
     end)
     panel._testBtn = testBtn
+    y = y - 40
+    content:SetHeight(math.max(980, math.abs(y) + 40))
 
     local linesBtn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
     linesBtn:SetSize(200, 22)

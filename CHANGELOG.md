@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.34
+
+- Options panel rebuilt with a scroll area so checks/sliders/buttons no longer overlap.
+- Theme cycle clears chrome cache and previews the banner so faction/class/race skins are visible.
+
 ## 1.0.33
 
 - Fix popup missing on Forever: secret `UnitName`/`UnitFactionGroup` compares no longer abort `showNow` before `Show()`.
